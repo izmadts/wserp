@@ -3,19 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Step 2 - Database</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Step 2 - Admin Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
     <div class="min-h-screen flex items-center justify-center py-12 px-4">
         <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
             <div class="mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Database Setup</h2>
-                <p class="text-sm text-gray-600">Enter your database credentials</p>
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-900">Admin & Company Setup</h2>
+                    <span class="text-sm text-gray-500">Step 2 of 2</span>
+                </div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" style="width: 100%"></div>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">Create admin account and company details</p>
             </div>
 
-            <form method="POST" action="{{ route('install.step2') }}">
+            <form method="POST" action="{{ route('install.step2') }}" enctype="multipart/form-data">
                 @csrf
 
                 @if(session('error'))
@@ -26,48 +31,80 @@
                 @endif
 
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Database Host <span class="text-red-500">*</span></label>
-                            <input type="text" name="db_host" value="{{ old('db_host', '127.0.0.1') }}" required
-                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Port <span class="text-red-500">*</span></label>
-                            <input type="text" name="db_port" value="{{ old('db_port', '3306') }}" required
-                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
+                    <h3 class="font-semibold text-gray-700 border-b pb-2">Admin Account</h3>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="admin_name" value="{{ old('admin_name') }}" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        @error('admin_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Database Name <span class="text-red-500">*</span></label>
-                        <input type="text" name="db_database" value="{{ old('db_database') }}" required
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Address <span class="text-red-500">*</span></label>
+                        <input type="email" name="admin_email" value="{{ old('admin_email') }}" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        @error('admin_email')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Database Username <span class="text-red-500">*</span></label>
-                        <input type="text" name="db_username" value="{{ old('db_username') }}" required
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
+                        <input type="password" name="admin_password" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+                        @error('admin_password')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Database Password</label>
-                        <input type="password" name="db_password" value="{{ old('db_password') }}"
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <p class="text-xs text-gray-500 mt-1">Leave empty if no password</p>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password <span class="text-red-500">*</span></label>
+                        <input type="password" name="admin_password_confirmation" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <h3 class="font-semibold text-gray-700 border-b pb-2 mt-4">Company Details</h3>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="company_name" value="{{ old('company_name') }}" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        @error('company_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Logo</label>
+                        <input type="file" name="company_logo" accept="image/*"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Recommended: 200x200px PNG or JPG</p>
+                        @error('company_logo')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Phone</label>
+                        <input type="text" name="company_phone" value="{{ old('company_phone') }}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Address</label>
+                        <textarea name="company_address" rows="2" 
+                                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">{{ old('company_address') }}</textarea>
                     </div>
                 </div>
 
-                <div class="flex justify-between items-center border-t border-gray-200 mt-6 pt-6">
-                    <a href="{{ route('install.step1') }}" class="text-gray-600 hover:text-gray-800">
-                        <i class="fas fa-arrow-left mr-2"></i> Back
-                    </a>
-                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200">
-                        Next <i class="fas fa-arrow-right ml-2"></i>
+                <div class="mt-6 flex justify-between items-center border-t border-gray-200 pt-6">
+                    <a href="{{ route('install.step1') }}" class="text-gray-600 hover:text-gray-800">← Back</a>
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
+                        <i class="fas fa-check mr-2"></i> Install
                     </button>
                 </div>
             </form>
+
+            <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-sm text-yellow-800">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Installation will create database tables and admin account.
+                </p>
+            </div>
         </div>
     </div>
 </body>

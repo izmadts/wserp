@@ -7,50 +7,41 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 
 class InstallController extends Controller
 {
+    /**
+     * Check if already installed
+     */
     public function index()
     {
-        // Check if already installed
         if (file_exists(storage_path('installed'))) {
             return redirect('/')->with('error', 'System already installed!');
+        }
+
+        // Check if .env exists, if not, create from example
+        if (!file_exists(base_path('.env'))) {
+            if (file_exists(base_path('.env.example'))) {
+                copy(base_path('.env.example'), base_path('.env'));
+            }
         }
 
         return view('install.index');
     }
 
+    /**
+     * Step 1: Database Configuration
+     */
     public function step1(Request $request)
     {
-        if ($request->isMethod('post')) {
-            $validated = $request->validate([
-                'company_name' => 'required|string|max:255',
-                'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
-                'company_address' => 'nullable|string|max:500',
-                'company_phone' => 'nullable|string|max:50',
-                'company_email' => 'nullable|email|max:100',
-            ]);
-
-            session(['company_data' => $validated]);
-
-            // Handle logo upload
-            if ($request->hasFile('company_logo')) {
-                $logo = $request->file('company_logo');
-                $logoName = 'logo.' . $logo->getClientOriginalExtension();
-                $logo->move(public_path('uploads'), $logoName);
-                session(['company_logo' => 'uploads/' . $logoName]);
-            }
-
-            return redirect()->route('install.step2');
+        if (file_exists(storage_path('installed'))) {
+            return redirect('/')->with('error', 'System already installed!');
         }
 
-        return view('install.step1');
-    }
-
-    public function step2(Request $request)
-    {
         if ($request->isMethod('post')) {
-            $validated = $request->validate([
+            $validator = Validator::make($request->all(), [
                 'db_host' => 'required|string',
                 'db_port' => 'required|string',
                 'db_database' => 'required|string',
@@ -58,98 +49,142 @@ class InstallController extends Controller
                 'db_password' => 'nullable|string',
             ]);
 
-            session(['db_config' => $validated]);
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
 
             // Test database connection
             try {
                 $connection = new \mysqli(
-                    $validated['db_host'],
-                    $validated['db_username'],
-                    $validated['db_password'],
-                    $validated['db_database'],
-                    $validated['db_port']
+                    $request->db_host,
+                    $request->db_username,
+                    $request->db_password,
+                    $request->db_database,
+                    $request->db_port
                 );
 
                 if ($connection->connect_error) {
                     return back()->with('error', 'Database connection failed: ' . $connection->connect_error);
                 }
                 $connection->close();
+
+                // Save to session
+                session(['db_config' => [
+                    'db_host' => $request->db_host,
+                    'db_port' => $request->db_port,
+                    'db_database' => $request->db_database,
+                    'db_username' => $request->db_username,
+                    'db_password' => $request->db_password,
+                ]]);
+
+                // Create .env file with database config
+                $this->generateEnvFile($request->all());
+
+                return redirect()->route('install.step2');
+
             } catch (\Exception $e) {
                 return back()->with('error', 'Database connection failed: ' . $e->getMessage());
             }
-
-            return redirect()->route('install.step3');
         }
 
-        return view('install.step2');
+        return view('install.step1');
     }
 
-    public function step3(Request $request)
+    /**
+     * Step 2: Run Migrations & Create Admin
+     */
+    public function step2(Request $request)
     {
+        if (file_exists(storage_path('installed'))) {
+            return redirect('/')->with('error', 'System already installed!');
+        }
+
         if ($request->isMethod('post')) {
-            $validated = $request->validate([
+            $validator = Validator::make($request->all(), [
                 'admin_name' => 'required|string|max:255',
                 'admin_email' => 'required|email|max:100',
                 'admin_password' => 'required|string|min:8|confirmed',
+                'company_name' => 'required|string|max:255',
+                'company_phone' => 'nullable|string|max:50',
+                'company_address' => 'nullable|string|max:500',
+                'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
             ]);
 
-            session(['admin_data' => $validated]);
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
 
-            // Run installation
             try {
-                $this->runInstallation();
+                // Handle logo upload
+                $logoPath = null;
+                if ($request->hasFile('company_logo')) {
+                    $logo = $request->file('company_logo');
+                    $logoName = 'logo.' . $logo->getClientOriginalExtension();
+                    $logo->move(public_path('uploads'), $logoName);
+                    $logoPath = 'uploads/' . $logoName;
+                }
+
+                // Run migrations
+                Artisan::call('migrate:fresh', ['--force' => true]);
+                
+                // Run seeders
+                Artisan::call('db:seed', ['--force' => true]);
+
+                // Create admin user
+                $this->createAdminUser($request->all());
+
+                // Update company settings
+                $this->updateCompanySettings($request->all(), $logoPath);
+
+                // Generate app key if not exists
+                if (!env('APP_KEY')) {
+                    Artisan::call('key:generate', ['--force' => true]);
+                }
+
+                // Clear cache
+                Artisan::call('optimize:clear');
+                Artisan::call('config:cache');
+                Artisan::call('route:cache');
+                Artisan::call('view:cache');
+
+                // Create storage link
+                try {
+                    Artisan::call('storage:link');
+                } catch (\Exception $e) {
+                    // Storage link may already exist
+                }
+
+                // Create installed flag
+                file_put_contents(storage_path('installed'), date('Y-m-d H:i:s'));
+
                 return redirect()->route('install.complete')->with('success', 'Installation completed successfully!');
+
             } catch (\Exception $e) {
                 return back()->with('error', 'Installation failed: ' . $e->getMessage());
             }
         }
 
-        return view('install.step3');
+        return view('install.step2');
     }
 
+    /**
+     * Step 3: Installation Complete
+     */
     public function complete()
     {
+        if (!file_exists(storage_path('installed'))) {
+            return redirect()->route('install.index');
+        }
         return view('install.complete');
     }
 
-    private function runInstallation()
+    /**
+     * Generate .env file
+     */
+    private function generateEnvFile($dbConfig)
     {
-        // 1. Generate .env file
-        $this->generateEnvFile();
-
-        // 2. Run migrations
-        Artisan::call('migrate:fresh', ['--force' => true]);
-
-        // 3. Run seeders
-        Artisan::call('db:seed', ['--force' => true]);
-
-        // 4. Create admin user
-        $this->createAdminUser();
-
-        // 5. Update company settings
-        $this->updateCompanySettings();
-
-        // 6. Clear cache
-        Artisan::call('optimize:clear');
-        Artisan::call('config:cache');
-        Artisan::call('route:cache');
-        Artisan::call('view:cache');
-
-        // 7. Create installed flag
-        file_put_contents(storage_path('installed'), date('Y-m-d H:i:s'));
-
-        // 8. Create storage link
-        Artisan::call('storage:link');
-    }
-
-    private function generateEnvFile()
-    {
-        $dbConfig = session('db_config');
-        $companyData = session('company_data');
-
-        $envContent = "APP_NAME=\"" . $companyData['company_name'] . "\"\n";
+        $envContent = "APP_NAME=\"WSERP\"\n";
         $envContent .= "APP_ENV=production\n";
-        $envContent .= "APP_KEY=" . base64_encode(random_bytes(32)) . "\n";
         $envContent .= "APP_DEBUG=false\n";
         $envContent .= "APP_URL=" . url('/') . "\n\n";
         $envContent .= "DB_CONNECTION=mysql\n";
@@ -174,21 +209,23 @@ class InstallController extends Controller
         File::put(base_path('.env'), $envContent);
     }
 
-    private function createAdminUser()
+    /**
+     * Create admin user
+     */
+    private function createAdminUser($data)
     {
-        $adminData = session('admin_data');
-
+        // Create admin user
         DB::table('users')->insert([
-            'name' => $adminData['admin_name'],
-            'email' => $adminData['admin_email'],
-            'password' => Hash::make($adminData['admin_password']),
+            'name' => $data['admin_name'],
+            'email' => $data['admin_email'],
+            'password' => Hash::make($data['admin_password']),
             'role' => 'admin',
             'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        // Also create a default admin account
+        // Also create default admin (for backup)
         DB::table('users')->insert([
             'name' => 'Admin User',
             'email' => 'admin@wserp.com',
@@ -200,31 +237,32 @@ class InstallController extends Controller
         ]);
     }
 
-    private function updateCompanySettings()
+    /**
+     * Update company settings
+     */
+    private function updateCompanySettings($data, $logoPath)
     {
-        $companyData = session('company_data');
+        // Create settings table if not exists
+        if (!Schema::hasTable('settings')) {
+            Schema::create('settings', function ($table) {
+                $table->id();
+                $table->string('key')->unique();
+                $table->text('value')->nullable();
+                $table->timestamps();
+            });
+        }
 
-        // Update settings table if exists
-        if (Schema::hasTable('settings')) {
+        $settings = [
+            'company_name' => $data['company_name'],
+            'company_phone' => $data['company_phone'] ?? '',
+            'company_address' => $data['company_address'] ?? '',
+            'company_logo' => $logoPath ?? '',
+        ];
+
+        foreach ($settings as $key => $value) {
             DB::table('settings')->updateOrInsert(
-                ['key' => 'company_name'],
-                ['value' => $companyData['company_name'], 'updated_at' => now()]
-            );
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'company_address'],
-                ['value' => $companyData['company_address'] ?? '', 'updated_at' => now()]
-            );
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'company_phone'],
-                ['value' => $companyData['company_phone'] ?? '', 'updated_at' => now()]
-            );
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'company_email'],
-                ['value' => $companyData['company_email'] ?? '', 'updated_at' => now()]
-            );
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'company_logo'],
-                ['value' => session('company_logo') ?? '', 'updated_at' => now()]
+                ['key' => $key],
+                ['value' => $value, 'updated_at' => now()]
             );
         }
     }
