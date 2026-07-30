@@ -14,7 +14,7 @@ class UserSeeder extends Seeder
         User::create([
             'name' => 'Admin User',
             'email' => 'admin@wserp.com',
-            'password' => Hash::make('@izmafood123'),
+            'password' => Hash::make('password'),
             'role' => 'admin',
             'is_active' => true,
         ]);
@@ -23,7 +23,7 @@ class UserSeeder extends Seeder
         User::create([
             'name' => 'Manager User',
             'email' => 'manager@wserp.com',
-            'password' => Hash::make('@izmafood123'),
+            'password' => Hash::make('password'),
             'role' => 'manager',
             'is_active' => true,
         ]);
@@ -32,7 +32,7 @@ class UserSeeder extends Seeder
         User::create([
             'name' => 'Accountant User',
             'email' => 'accountant@wserp.com',
-            'password' => Hash::make('@izmafood123'),
+            'password' => Hash::make('password'),
             'role' => 'accountant',
             'is_active' => true,
         ]);
