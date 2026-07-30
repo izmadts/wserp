@@ -32,7 +32,7 @@ use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\ActivityLogController;
-use App\Http\Controllers\InstallController;
+
 
 // Agent Controllers
 use App\Http\Controllers\Agent\DashboardController as AgentDashboardController;
@@ -56,14 +56,6 @@ use App\Http\Controllers\Admin\AgentManagementController;
 // ============================================
 Route::get('/', function () {
     return redirect()->route('login');
-});
-// Installation Routes
-Route::prefix('install')->name('install.')->group(function () {
-    Route::get('/', [InstallController::class, 'index'])->name('index');
-    Route::match(['get', 'post'], '/step1', [InstallController::class, 'step1'])->name('step1');
-    Route::match(['get', 'post'], '/step2', [InstallController::class, 'step2'])->name('step2');
-    Route::match(['get', 'post'], '/step3', [InstallController::class, 'step3'])->name('step3');
-    Route::get('/complete', [InstallController::class, 'complete'])->name('complete');
 });
 // Agent Registration
 Route::get('/agent/register', [AgentRegistrationController::class, 'showRegistrationForm'])->name('agent.register');
