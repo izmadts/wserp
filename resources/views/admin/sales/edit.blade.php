@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends('layouts.admin') 
 
 @section('title', 'Edit Sale')
 @section('page-title', 'Edit Sale: ' . $sale->invoice_no)
