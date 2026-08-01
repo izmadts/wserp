@@ -15,7 +15,6 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'is_active',
         'employee_id',
         'phone',
         'cnic',
@@ -30,11 +29,13 @@ class User extends Authenticatable
         'fuel_allowance',
         'commission_rate_cash',
         'commission_rate_credit',
+        'commission_slabs',
         'sales_target',
         'payout_account_type',
         'payout_account_title',
         'payout_account_number',
         'payout_account_provider',
+        'is_active',
         'approved_at',
         'approved_by',
         'admin_note',
@@ -51,6 +52,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'is_active' => 'boolean',
         'sales_target' => 'array',
+        'commission_slabs' => 'array',
         'approved_at' => 'datetime',
         'last_login_at' => 'datetime',
     ];
@@ -101,6 +103,12 @@ class User extends Authenticatable
     public function sales()
     {
         return $this->hasMany(Sale::class, 'agent_id');
+    }
+
+    // ✅ FIX: Add commissionLogs relationship
+    public function commissionLogs()
+    {
+        return $this->hasMany(AgentCommissionLog::class, 'agent_id');
     }
 
     public function approvedBy()
@@ -183,29 +191,5 @@ class User extends Authenticatable
             return 'bg-orange-100 text-orange-800';
         }
         return 'bg-green-100 text-green-800';
-    }
-
-    public function calculateCashCommission($amount)
-    {
-        if (empty($this->commission_slabs)) {
-            // Fallback to single rate if no slabs defined
-            return $amount * ($this->commission_rate_cash / 100);
-        }
-
-        $slabs = json_decode($this->commission_slabs, true);
-        $commission = 0;
-
-        foreach ($slabs as $slab) {
-            $from = (float) $slab['from'];
-            $to = $slab['to'] ? (float) $slab['to'] : INF;
-            $rate = (float) $slab['rate'];
-
-            if ($amount >= $from && ($amount <= $to || $to === INF)) {
-                $commission = $amount * ($rate / 100);
-                break;
-            }
-        }
-
-        return $commission;
     }
 }

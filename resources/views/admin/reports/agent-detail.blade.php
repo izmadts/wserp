@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
 @section('title', 'Agent Details')
-@section('page-title', 'Agent: ' . $agent->name)
+@section('page-title', 'Agent: ' . $user->name)
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    @include('admin.partials.export-buttons', ['type' => 'agents'])
+
     <!-- Agent Info -->
     <div class="lg:col-span-1">
         <div class="bg-white rounded-xl shadow-card overflow-hidden">
@@ -13,30 +13,27 @@
                 <div class="w-20 h-20 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-user-tie text-white text-3xl"></i>
                 </div>
-                <h3 class="text-xl font-bold text-gray-900">{{ $agent->name }}</h3>
-                <p class="text-sm text-gray-500">{{ $agent->code ?? 'AGT-' . $agent->id }}</p>
+                <h3 class="text-xl font-bold text-gray-900">{{ $user->name }}</h3>
+                <p class="text-sm text-gray-500">{{ $user->code ?? 'AGT-' . $user->id }}</p>
                 <div class="mt-4">
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $agent->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">
-                        {{ $agent->is_active ? 'Active' : 'Inactive' }}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $user->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">
+                        {{ $user->is_active ? 'Active' : 'Inactive' }}
                     </span>
                 </div>
             </div>
-
             <div class="px-6 py-4 border-t">
                 <div class="space-y-2 text-sm">
-                    <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-medium">{{ $agent->email }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Phone</span><span class="font-medium">{{ $agent->phone ?? '-' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">City</span><span class="font-medium">{{ $agent->city ?? '-' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Commission Rate</span><span class="font-medium">{{ $agent->commission_rate_cash ?? 0 }}%</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-medium">{{ $user->email }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Phone</span><span class="font-medium">{{ $user->phone ?? '-' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">City</span><span class="font-medium">{{ $user->city ?? '-' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Commission Rate</span><span class="font-medium">{{ $user->commission_rate_cash ?? 0 }}%</span></div>
                 </div>
             </div>
         </div>
-
+        
         <!-- Summary -->
         <div class="bg-white rounded-xl shadow-card overflow-hidden mt-6">
-            <div class="px-6 py-4 border-b">
-                <h4 class="font-semibold">Performance Summary</h4>
-            </div>
+            <div class="px-6 py-4 border-b"><h4 class="font-semibold">Performance Summary</h4></div>
             <div class="p-6 space-y-3">
                 <div class="flex justify-between"><span class="text-sm text-gray-500">Total Customers</span><span class="font-bold">{{ $totalCustomers }}</span></div>
                 <div class="flex justify-between"><span class="text-sm text-gray-500">Total Sales</span><span class="font-bold text-blue-600">Rs. {{ number_format($totalSales, 2) }}</span></div>
@@ -44,8 +41,8 @@
                 <div class="flex justify-between border-t pt-3"><span class="text-sm font-semibold">Avg Commission</span><span class="font-bold">{{ $totalSales > 0 ? number_format(($totalCommission / $totalSales) * 100, 2) : 0 }}%</span></div>
             </div>
         </div>
-
-        <a href="{{ route('admin.reports.agents') }}" class="mt-4 inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+        
+        <a href="{{ route('admin.reports.agents') }}" class="mt-4 inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200">
             <i class="fas fa-arrow-left mr-1"></i> Back to Agents
         </a>
     </div>
@@ -57,11 +54,11 @@
             <div class="px-6 py-4 border-b">
                 <h4 class="text-lg font-semibold text-gray-900">
                     <i class="fas fa-shopping-cart text-gray-400 mr-2"></i> Recent Sales
-                    <span class="text-sm text-gray-500 ml-2">({{ $agent->sales->count() }} transactions)</span>
+                    <span class="text-sm text-gray-500 ml-2">({{ $user->sales->count() }} transactions)</span>
                 </h4>
             </div>
             <div class="p-6">
-                @if($agent->sales->count() > 0)
+                @if($user->sales->count() > 0)
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
@@ -75,7 +72,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @foreach($agent->sales as $sale)
+                            @foreach($user->sales as $sale)
                             <tr>
                                 <td class="py-2 px-2"><a href="{{ route('admin.sales.show', $sale) }}" class="text-blue-600 hover:underline">{{ $sale->invoice_no }}</a></td>
                                 <td class="py-2 px-2">{{ $sale->customer->name ?? 'N/A' }}</td>
@@ -93,7 +90,7 @@
                 @endif
             </div>
         </div>
-
+        
         <!-- Commission Logs -->
         <div class="bg-white rounded-xl shadow-card overflow-hidden mt-6">
             <div class="px-6 py-4 border-b">
@@ -102,7 +99,7 @@
                 </h4>
             </div>
             <div class="p-6">
-                @if($agent->commissionLogs->count() > 0)
+                @if($user->commissionLogs->count() > 0)
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
@@ -114,7 +111,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @foreach($agent->commissionLogs as $log)
+                            @foreach($user->commissionLogs as $log)
                             <tr>
                                 <td class="py-2 px-2">{{ $log->created_at->format('d-m-Y H:i') }}</td>
                                 <td class="py-2 px-2">{{ $log->type_label }}</td>

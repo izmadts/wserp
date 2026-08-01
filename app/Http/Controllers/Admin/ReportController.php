@@ -414,22 +414,31 @@ class ReportController extends Controller
         return view('admin.reports.agents', compact('agents'));
     }
 
-    public function agentDetail(User $agent)
+    public function agentDetail($id)
     {
-        if ($agent->role != 'sales_agent') {
-            abort(404);
+        $user = User::findOrFail($id);
+
+        if ($user->role != 'sales_agent') {
+            abort(404, 'Agent not found!');
         }
 
-        $agent->load(['sales' => function ($q) {
+      // Check if user is actually an agent
+        if ($user->role != 'sales_agent') {
+            abort(404, 'Agent not found!');
+        }
+
+        // Load relationships
+        $user->load(['sales' => function ($q) {
             $q->orderBy('created_at', 'desc')->limit(20);
         }, 'customers', 'commissionLogs']);
 
-        $totalSales = $agent->sales()->sum('total_amount');
-        $totalCommission = $agent->sales()->sum('commission_amount');
-        $totalCustomers = $agent->customers()->count();
+        // Calculate totals
+        $totalSales = $user->sales()->sum('total_amount');
+        $totalCommission = $user->sales()->sum('commission_amount');
+        $totalCustomers = $user->customers()->count();
 
         return view('admin.reports.agent-detail', compact(
-            'agent',
+            'user',
             'totalSales',
             'totalCommission',
             'totalCustomers'

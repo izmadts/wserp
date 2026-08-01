@@ -56,8 +56,10 @@
                                 </span>
                             </td>
                             <td class="py-2 px-2 text-center">
-                                <a href="{{ route('admin.reports.agent-detail', $agent) }}" class="text-blue-600 hover:underline text-sm">View</a>
-                            </td>
+                                <a href="{{ route('admin.reports.agent-detail', $agent) }}" class="text-blue-600 hover:underline text-sm">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </td>                        
                         </tr>
                         @endforeach
                     </tbody>

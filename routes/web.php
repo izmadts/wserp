@@ -208,6 +208,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'log.act
         Route::delete('/{user}', [AgentManagementController::class, 'destroy'])->name('destroy');
         Route::post('/{user}/toggle-status', [AgentManagementController::class, 'toggleStatus'])->name('toggle-status');
         Route::post('/{user}/pay-commission', [AgentManagementController::class, 'payCommission'])->name('pay-commission');
+        
     });
 
     // ==========================================
@@ -299,18 +300,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'log.act
         Route::post('/{transfer}/complete', [MoneyTransferController::class, 'complete'])->name('complete');
         Route::post('/{transfer}/cancel', [MoneyTransferController::class, 'cancel'])->name('cancel');
     });
-
-    // ==========================================
-    // REPORTS
-    // ==========================================
-    Route::prefix('reports')->name('reports.')->group(function () {
-        Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
-        Route::get('/trial-balance', [ReportController::class, 'trialBalance'])->name('trial-balance');
-    });
+  
     // ==========================================
     // BUSINESS REPORTS
     // ==========================================
     Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
+        Route::get('/trial-balance', [ReportController::class, 'trialBalance'])->name('trial-balance');
         // Existing
         Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/trial-balance', [ReportController::class, 'trialBalance'])->name('trial-balance');
@@ -333,7 +329,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'log.act
         // Agent Reports
         Route::get('/agents', [ReportController::class, 'agents'])->name('agents');
         Route::get('/agent/{user}', [ReportController::class, 'agentDetail'])->name('agent-detail');
-
+        
         // Daily Summary
         Route::get('/daily-summary', [ReportController::class, 'dailySummary'])->name('daily-summary');
 
