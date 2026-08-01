@@ -74,7 +74,7 @@
                                 <template x-for="(item, index) in items" :key="index">
                                     <tr class="border-b border-gray-100 hover:bg-blue-50/30 transition-colors duration-150">
                                         <td class="py-1.5 px-1.5">
-                                            <select :name="'items['+index+'][product_id]'" x-model="item.product_id" @change="calculateRow(index)" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                            <select :name="'items['+index+'][product_id]'" x-model="item.product_id" @change="selectProduct(index)" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
                                                 @foreach($products as $product)
                                                 <option value="{{ $product->id }}" data-price="{{ $product->sale_price }}">{{ $product->name }} ({{ $product->code }})</option>
@@ -97,7 +97,7 @@
                     <div class="sm:hidden space-y-2">
                         <template x-for="(item, index) in items" :key="index">
                             <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-                                <select :name="'items['+index+'][product_id]'" x-model="item.product_id" @change="calculateRow(index)" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"><option value="">Select Product</option>@foreach($products as $product)<option value="{{ $product->id }}" data-price="{{ $product->sale_price }}">{{ $product->name }}</option>@endforeach</select>
+                                <select :name="'items['+index+'][product_id]'" x-model="item.product_id" @change="selectProduct(index)" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"><option value="">Select Product</option>@foreach($products as $product)<option value="{{ $product->id }}" data-price="{{ $product->sale_price }}">{{ $product->name }}</option>@endforeach</select>
                                 <div class="grid grid-cols-3 gap-2"><div><label class="text-xs text-gray-500">Qty</label><input type="number" step="0.01" :name="'items['+index+'][quantity]'" x-model="item.quantity" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded-lg" min="0.01" step="0.01"></div><div><label class="text-xs text-gray-500">Price</label><input type="number" step="0.01" :name="'items['+index+'][unit_price]'" x-model="item.unit_price" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01"></div><div><label class="text-xs text-gray-500">Total</label><p class="text-sm font-semibold text-blue-600 text-right pt-1" x-text="'Rs. ' + item.total.toFixed(2)"></p></div></div>
                                 <button type="button" @click="removeRow(index)" class="w-full text-center text-red-500 hover:text-red-700 text-sm py-1 border border-red-200 rounded-lg hover:bg-red-50">Remove</button>
                             </div>
@@ -122,7 +122,7 @@
                             <div class="flex items-center gap-2 justify-end">
                                 <span class="text-sm text-gray-600">Discount:</span>
                                 <input type="number" step="0.01" name="discount" x-model="discount" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
-                                <select name="discount_type" class="w-16 px-1 py-1 text-xs border border-gray-300 rounded-lg"><option value="fixed">Rs</option><option value="percentage">%</option></select>
+                                <select name="discount_type" x-model="discountType" @change="calculateTotals()" class="w-16 px-1 py-1 text-xs border border-gray-300 rounded-lg"><option value="fixed">Rs</option><option value="percentage">%</option></select>
                                 <span class="text-sm text-red-600" x-text="'- Rs. ' + discountAmount.toFixed(2)"></span>
                             </div>
                             <div class="flex items-center gap-2 justify-end">
@@ -162,11 +162,14 @@
 <script>
 function saleForm() {
     const agents = @json($agents);
+    const products = @json($products);
+
     return {
         items: [],
         customer_id: '',
         agent_id: '',
         discount: 0,
+        discountType: 'fixed',
         tax: 0,
         shipping: 0,
         subTotal: 0,
@@ -185,6 +188,15 @@ function saleForm() {
 
         removeRow(index) {
             if (this.items.length > 1) { this.items.splice(index, 1); this.calculateTotals(); }
+        },
+
+        // Fires when the product dropdown changes: pulls the sale price
+        // for the chosen product and fills it into the row, then recalculates.
+        selectProduct(index) {
+            const item = this.items[index];
+            const product = products.find(p => p.id == item.product_id);
+            item.unit_price = product ? parseFloat(product.sale_price) || 0 : 0;
+            this.calculateRow(index);
         },
 
         calculateRow(index) {
@@ -211,16 +223,15 @@ function saleForm() {
 
         calculateTotals() {
             this.subTotal = this.items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-            
+
             const discount = parseFloat(this.discount) || 0;
-            const discountType = document.querySelector('[name="discount_type"]')?.value || 'fixed';
-            this.discountAmount = discountType === 'percentage' ? (this.subTotal * discount / 100) : discount;
-            
+            this.discountAmount = this.discountType === 'percentage' ? (this.subTotal * discount / 100) : discount;
+
             const tax = parseFloat(this.tax) || 0;
             const shipping = parseFloat(this.shipping) || 0;
-            
+
             let netTotal = this.subTotal - this.discountAmount + tax + shipping;
-            
+
             // Commission
             if (this.agent_id && this.commissionRate > 0) {
                 this.commissionAmount = this.commissionType === 'percentage' 
@@ -229,7 +240,7 @@ function saleForm() {
             } else {
                 this.commissionAmount = 0;
             }
-            
+
             this.grandTotal = netTotal + this.commissionAmount;
         }
     }

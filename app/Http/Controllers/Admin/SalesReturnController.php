@@ -40,6 +40,10 @@ class SalesReturnController extends Controller
 
     public function store(Request $request)
     {
+
+        /*Array ( [_token] => x0aoHD557bSfEjxY2qnHj1JJ8u4Ycu0PO8q6WfJJ [sale_id] => 2 [return_date] => 2026-08-01 [refund_method] => cash [items] => Array ( [0] => Array ( [product_id] => 3 [quantity] => 2 [unit_price] => 270 [discount] => 0 [tax] => 0 ) ) [reason] => [notes] => [sub_total] => 540 )*/
+
+       
         $validated = $request->validate([
             'sale_id' => 'required|exists:sales,id',
             'return_date' => 'required|date',
@@ -53,7 +57,7 @@ class SalesReturnController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax' => 'nullable|numeric|min:0',
-            'items.*.total_price' => 'required|numeric|min:0',
+            'items.*.sub_total' => '|numeric|min:0',
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -64,6 +68,8 @@ class SalesReturnController extends Controller
             $totalDiscount = 0;
             $totalTax = 0;
             $itemsData = [];
+
+
 
             foreach ($validated['items'] as $item) {
                 $itemTotal = $item['quantity'] * $item['unit_price'];
@@ -95,6 +101,8 @@ class SalesReturnController extends Controller
             ]);
 
             // Create return items
+
+
             foreach ($itemsData as $itemData) {
                 $salesReturn->items()->create([
                     'sale_item_id' => $itemData['sale_item_id'],
@@ -103,7 +111,7 @@ class SalesReturnController extends Controller
                     'unit_price' => $itemData['unit_price'],
                     'discount' => $itemData['discount'] ?? 0,
                     'tax' => $itemData['tax'] ?? 0,
-                    'total_price' => $itemData['total_price'],
+                    'total_price' => $totalAmount,
                 ]);
             }
 

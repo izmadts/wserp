@@ -4,13 +4,27 @@
 @section('page-title', 'Create Sales Return')
 
 @section('content')
+
+
 <div x-data="salesReturnForm()" class="space-y-4 sm:space-y-6">
+
+    @if ($errors->any())
+    <div class="alert alert-danger">
+        <ul>
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
     <div class="bg-white rounded-xl shadow-card overflow-hidden">
         <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
             <h3 class="text-base sm:text-lg font-semibold text-gray-900">
                 <i class="fas fa-undo-alt text-blue-600 mr-2"></i> New Sales Return
             </h3>
         </div>
+
+        
 
         <div class="p-4 sm:p-6">
             <form action="{{ route('admin.sales-returns.store') }}" method="POST">
@@ -92,25 +106,24 @@
                                         <td class="py-1.5 px-1.5">
                                             <select :name="'items['+index+'][product_id]'" 
                                                     x-model="item.product_id" 
-                                                    @change="calculateRow(index)"
+                                                    @change="selectProduct(index)"
                                                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
                                                 <template x-for="product in saleDetails.items" :key="product.id">
-                                                    <option :value="product.id" 
-                                                            :data-sale-item-id="product.sale_item_id"
-                                                            :data-price="product.unit_price"
-                                                            :data-discount="product.discount"
-                                                            :data-tax="product.tax"
+                                                    <option :value="product.product_id"
+                                                            :selected="String(product.product_id) === String(item.product_id)"
                                                             x-text="product.product_name + ' (Max: ' + product.quantity + ')'">
                                                     </option>
                                                 </template>
                                             </select>
+                                            <input type="hidden" :name="'items['+index+'][sale_item_id]'" x-model="item.sale_item_id">
                                         </td>
                                         <td class="py-1.5 px-1.5">
                                             <input type="number" step="0.01" 
                                                    :name="'items['+index+'][quantity]'" 
                                                    x-model="item.quantity"
                                                    @input="calculateRow(index)"
+                                                   :max="item.max_quantity || null"
                                                    class="w-full px-1 py-1 text-sm text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                    min="0.01" step="0.01">
                                         </td>
@@ -225,6 +238,8 @@ function salesReturnForm() {
         tax: 0,
         grandTotal: 0,
 
+        uurl:"<?php echo url(''); ?>",
+
         loadSaleDetails() {
             if (!this.saleId) {
                 this.saleDetails = { items: [], customer_name: '', invoice_no: '', sale_date: '', total_amount: 0 };
@@ -232,7 +247,7 @@ function salesReturnForm() {
                 return;
             }
 
-            fetch(`/admin/sales-returns/get-sale-details/${this.saleId}`)
+            fetch(`${this.uurl}/admin/sales-returns/get-sale-details/${this.saleId}`)
                 .then(response => response.json())
                 .then(data => {
                     this.saleDetails = {
@@ -252,9 +267,28 @@ function salesReturnForm() {
                         sale_date: data.sale_date,
                         total_amount: data.total_amount
                     };
-                    this.items = [];
-                    this.addRow();
-                    this.calculateTotals();
+                    // Wait a tick so the <option> list (rendered from
+                    // saleDetails.items via x-for) exists in the DOM before
+                    // we create rows whose <select> needs to match against it.
+                    this.$nextTick(() => {
+                        this.items = this.saleDetails.items.map(product => ({
+                            sale_item_id: product.sale_item_id,
+                            product_id: product.product_id,
+                            quantity: product.quantity,
+                            unit_price: product.unit_price,
+                            discount: product.discount,
+                            tax: product.tax,
+                            max_quantity: product.quantity,
+                            total: 0
+                        }));
+
+                        if (this.items.length === 0) {
+                            this.addRow();
+                        }
+
+                        this.items.forEach((_, index) => this.calculateRow(index));
+                        this.calculateTotals();
+                    });
                 });
         },
 
@@ -266,6 +300,7 @@ function salesReturnForm() {
                 unit_price: 0,
                 discount: 0,
                 tax: 0,
+                max_quantity: null,
                 total: 0
             });
             this.calculateTotals();
@@ -276,6 +311,30 @@ function salesReturnForm() {
                 this.items.splice(index, 1);
                 this.calculateTotals();
             }
+        },
+
+        // Populates price/discount/tax/sale_item_id when a product is chosen,
+        // then recalculates the row and totals.
+        selectProduct(index) {
+            const item = this.items[index];
+            const product = this.saleDetails.items.find(p => p.product_id == item.product_id);
+
+            if (product) {
+                item.sale_item_id = product.sale_item_id;
+                item.unit_price = product.unit_price;
+                item.discount = product.discount;
+                item.tax = product.tax;
+                item.max_quantity = product.quantity;
+                item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
+            } else {
+                item.sale_item_id = '';
+                item.unit_price = 0;
+                item.discount = 0;
+                item.tax = 0;
+                item.max_quantity = null;
+            }
+
+            this.calculateRow(index);
         },
 
         calculateRow(index) {
