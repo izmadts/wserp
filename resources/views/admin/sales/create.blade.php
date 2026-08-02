@@ -51,9 +51,10 @@
                     
                     <div>
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                        <select name="status" required class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select name="status" x-model="status" required class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="draft">Draft</option>
                             <option value="confirmed">Confirmed</option>
+                            <option value="partial">Partial Payment</option>
                             <option value="paid">Paid</option>
                         </select>
                     </div>
@@ -143,12 +144,21 @@
                                 <span class="text-base font-bold text-gray-700">Grand Total:</span>
                                 <span class="text-lg font-bold text-blue-600" x-text="'Rs. ' + grandTotal.toFixed(2)"></span>
                             </div>
+                            <div class="flex items-center gap-2 justify-end pt-2">
+                                <span class="text-sm text-gray-600">Paid Amount:</span>
+                                <input type="number" step="0.01" name="paid_amount" x-model="paidAmount" @input="onPaidAmountChange()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                            </div>
+                            <div class="flex items-center gap-2 justify-end">
+                                <span class="text-sm font-semibold text-gray-700" x-text="dueAmount > 0 ? 'Due Amount:' : 'Credit / Overpaid:'"></span>
+                                <span class="text-sm font-bold" :class="dueAmount > 0 ? 'text-red-600' : 'text-green-600'" x-text="'Rs. ' + Math.abs(dueAmount).toFixed(2)"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <input type="hidden" name="sub_total" x-bind:value="subTotal">
                 <input type="hidden" name="commission_amount" x-bind:value="commissionAmount">
+                <input type="hidden" name="due_amount" x-bind:value="dueAmount">
 
                 <div class="mt-6 flex flex-wrap items-center gap-3">
                     <button type="submit" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"><i class="fas fa-save mr-1"></i> Create Sale</button>
@@ -168,10 +178,13 @@ function saleForm() {
         items: [],
         customer_id: '',
         agent_id: '',
+        status: 'draft',
         discount: 0,
         discountType: 'fixed',
         tax: 0,
         shipping: 0,
+        paidAmount: 0,
+        dueAmount: 0,
         subTotal: 0,
         discountAmount: 0,
         commissionAmount: 0,
@@ -197,6 +210,17 @@ function saleForm() {
             const product = products.find(p => p.id == item.product_id);
             item.unit_price = product ? parseFloat(product.sale_price) || 0 : 0;
             this.calculateRow(index);
+        },
+
+        // Recalculates totals, then nudges the status dropdown to match
+        // how much has been paid (draft/confirmed left alone if nothing paid).
+        onPaidAmountChange() {
+            this.calculateTotals();
+
+            const paid = parseFloat(this.paidAmount) || 0;
+            if (paid <= 0) return;
+
+            this.status = paid >= this.grandTotal ? 'paid' : 'partial';
         },
 
         calculateRow(index) {
@@ -242,6 +266,9 @@ function saleForm() {
             }
 
             this.grandTotal = netTotal + this.commissionAmount;
+
+            const paid = parseFloat(this.paidAmount) || 0;
+            this.dueAmount = this.grandTotal - paid;
         }
     }
 }

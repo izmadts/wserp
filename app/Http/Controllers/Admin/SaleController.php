@@ -48,13 +48,16 @@ class SaleController extends Controller
 
     public function store(Request $request)
     {
+
+       // print_r($request->all());exit;
         $validated = $request->validate([
             'customer_id' => 'required|exists:customers,id',
             'agent_id' => 'nullable|exists:users,id',
             'sale_date' => 'required|date',
             'payment_term' => 'required|in:cash,credit',
-            'status' => 'required|in:draft,confirmed,paid',
+            'status' => 'required|in:draft,confirmed,paid,partial',
             'sub_total' => 'required|numeric|min:0',
+            'paid_amount' => 'required|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
@@ -116,7 +119,7 @@ class SaleController extends Controller
                 'shipping_cost' => $validated['shipping_cost'] ?? 0,
                 'total_amount' => $totalAmount,
                 'commission_amount' => $commissionAmount,
-                'paid_amount' => 0,
+                'paid_amount' => $validated['paid_amount'],
                 'due_amount' => $totalAmount,
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
