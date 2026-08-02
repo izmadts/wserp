@@ -15,10 +15,6 @@ class DashboardController extends Controller
     {
         $agent = Auth::user();
         
-        if (!$agent->isSalesAgent()) {
-            abort(403, 'Unauthorized access.');
-        }
-
         // Get agent's customers
         $customers = Customer::where('created_by_agent_id', $agent->id)->get();
         
@@ -44,6 +40,23 @@ class DashboardController extends Controller
         // Recovery rate
         $recoveryRate = $totalSales > 0 ? ($totalPaid / $totalSales) * 100 : 0;
         
+        // Commission breakdown
+        $saleCommission = AgentCommissionLog::where('agent_id', $agent->id)
+            ->where('reference_type', 'sale')
+            ->sum('amount');
+        
+        $newCustomerBonus = AgentCommissionLog::where('agent_id', $agent->id)
+            ->where('reference_type', 'new_customer_bonus')
+            ->sum('amount');
+        
+        $recoveryBonus = AgentCommissionLog::where('agent_id', $agent->id)
+            ->where('reference_type', 'recovery_bonus')
+            ->sum('amount');
+        
+        $targetBonus = AgentCommissionLog::where('agent_id', $agent->id)
+            ->where('reference_type', 'target_bonus')
+            ->sum('amount');
+        
         // Commission logs
         $commissionLogs = AgentCommissionLog::where('agent_id', $agent->id)
             ->orderBy('created_at', 'desc')
@@ -56,6 +69,27 @@ class DashboardController extends Controller
             ->whereYear('created_at', date('Y'))
             ->count();
         
+        // =============================================
+        // ✅ CHART DATA: Monthly Sales (Last 6 Months)
+        // =============================================
+        $monthlyLabels = [];
+        $monthlySalesData = [];
+
+        for ($i = 5; $i >= 0; $i--) {
+            $month = date('m', strtotime("-$i months"));
+            $year = date('Y', strtotime("-$i months"));
+            $monthName = date('M', strtotime("-$i months"));
+
+            $monthlyLabels[] = $monthName;
+            
+            $salesAmount = Sale::where('agent_id', $agent->id)
+                ->whereMonth('sale_date', $month)
+                ->whereYear('sale_date', $year)
+                ->sum('total_amount');
+            
+            $monthlySalesData[] = round($salesAmount, 2);
+        }
+
         return view('agent.dashboard', compact(
             'agent',
             'customers',
@@ -68,8 +102,14 @@ class DashboardController extends Controller
             'totalPaid',
             'totalDue',
             'recoveryRate',
+            'saleCommission',
+            'newCustomerBonus',
+            'recoveryBonus',
+            'targetBonus',
             'commissionLogs',
-            'newCustomers'
+            'newCustomers',
+            'monthlyLabels',
+            'monthlySalesData'
         ));
     }
 }

@@ -94,7 +94,6 @@ class Sale extends Model
     {
         return $this->due_amount <= 0;
     }
-
     public function markAsPaid()
     {
         $this->status = 'paid';
