@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\AccountingTrait;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Income extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, AccountingTrait;
 
     protected $fillable = [
         'income_no',
@@ -44,68 +47,68 @@ class Income extends Model
             $income->postAccounting();
         });
 
+        static::updated(function ($income) {
+            // Editing amount/payment_method/source/income_date on an
+            // existing income must update the ledger too, not just leave
+            // the original entries (income_date is what the journal entry
+            // itself is dated by).
+            if ($income->isDirty(['amount', 'payment_method', 'source', 'income_date'])) {
+                DB::transaction(function () use ($income) {
+                    $income->reverseAccounting();
+                    $income->postAccounting();
+                });
+            }
+        });
+
         static::deleting(function ($income) {
             $income->reverseAccounting();
         });
     }
 
     /**
-     * Post accounting entry for income
+     * Post accounting entry for income. Idempotent - see
+     * AccountingTrait::postDoubleEntry() and the Expense model for why.
+     *
+     * Only genuine sales income credits the Sales Revenue account - a loan,
+     * investment, or other inflow is real cash but isn't revenue, so it's
+     * booked to a separate Other Income account instead.
      */
     public function postAccounting()
     {
-        $incomeAccount = Account::where('code', '4010')->first(); // Sales Revenue / Income
-        $cashAccount = Account::where('code', '1010')->first(); // Cash Account
-        $bankAccount = Account::where('code', '1020')->first(); // Bank Account
-
-        if (!$incomeAccount || !$cashAccount) {
+        if (JournalEntry::where('reference_type', 'income')->where('reference_id', $this->id)->exists()) {
             return;
         }
 
-        $entries = [];
+        $incomeAccountCode = $this->source === 'sale' ? '4010' : '4020';
+        $incomeAccount = Account::where('code', $incomeAccountCode)->first();
+        $cashAccount = Account::where('code', '1010')->first();
+        $bankAccount = Account::where('code', '1020')->first();
 
-        // Debit: Cash or Bank
-        if ($this->payment_method == 'cash') {
-            if ($cashAccount) {
-                $entries[] = [
-                    'account_id' => $cashAccount->id,
-                    'type' => 'debit',
-                    'amount' => $this->amount,
-                    'description' => "Income #{$this->income_no} - {$this->title}"
-                ];
-            }
-        } else {
-            if ($bankAccount) {
-                $entries[] = [
-                    'account_id' => $bankAccount->id,
-                    'type' => 'debit',
-                    'amount' => $this->amount,
-                    'description' => "Income #{$this->income_no} - {$this->title}"
-                ];
-            }
+        if (!$incomeAccount) {
+            Log::warning('Income account not found, skipping ledger post', ['income_id' => $this->id, 'source' => $this->source]);
+            return;
         }
 
-        // Credit: Income Account
-        $entries[] = [
-            'account_id' => $incomeAccount->id,
-            'type' => 'credit',
-            'amount' => $this->amount,
-            'description' => "Income #{$this->income_no} - {$this->title}"
-        ];
-
-        foreach ($entries as $entry) {
-            if ($entry['account_id']) {
-                JournalEntry::create([
-                    'account_id' => $entry['account_id'],
-                    'type' => $entry['type'],
-                    'amount' => $entry['amount'],
-                    'description' => $entry['description'],
-                    'reference_type' => 'income',
-                    'reference_id' => $this->id,
-                    'entry_date' => now()->toDateString(),
-                ]);
-            }
+        $debitAccount = $this->payment_method == 'cash' ? $cashAccount : $bankAccount;
+        if (!$debitAccount) {
+            Log::warning('Income debit account not found, skipping ledger post', ['income_id' => $this->id, 'payment_method' => $this->payment_method]);
+            return;
         }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $debitAccount->id,
+                'type' => 'debit',
+                'amount' => $this->amount,
+                'description' => "Income #{$this->income_no} - {$this->title}",
+            ],
+            [
+                'account_id' => $incomeAccount->id,
+                'type' => 'credit',
+                'amount' => $this->amount,
+                'description' => "Income #{$this->income_no} - {$this->title}",
+            ],
+        ], 'income', $this->id, $this->income_date);
     }
 
     public function reverseAccounting()

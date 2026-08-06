@@ -12,15 +12,17 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Sales</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($currentMonthSales, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="Rs. {{ number_format($currentMonthSales, 2) }}">
+                        Rs. {{ \App\Helpers\NumberHelper::compact($currentMonthSales) }}
+                    </p>
                     <p class="text-xs {{ $salesGrowth >= 0 ? 'text-green-600' : 'text-red-600' }} mt-1">
                         <i class="fas {{ $salesGrowth >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }}"></i>
                         {{ number_format($salesGrowth, 1) }}% from last month
                     </p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-shopping-bag text-blue-600 text-xl"></i>
                 </div>
             </div>
@@ -28,11 +30,13 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Purchases</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($currentMonthPurchases, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="Rs. {{ number_format($currentMonthPurchases, 2) }}">
+                        Rs. {{ \App\Helpers\NumberHelper::compact($currentMonthPurchases) }}
+                    </p>
                 </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-shopping-cart text-purple-600 text-xl"></i>
                 </div>
             </div>
@@ -40,12 +44,14 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Customers</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $totalCustomers }}</p>
-                    <p class="text-xs text-green-600 mt-1">{{ $activeCustomers }} active</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="{{ number_format($totalCustomers) }}">
+                        {{ \App\Helpers\NumberHelper::compact($totalCustomers) }}
+                    </p>
+                    <p class="text-xs text-green-600 mt-1">{{ \App\Helpers\NumberHelper::compact($activeCustomers) }} active</p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-users text-green-600 text-xl"></i>
                 </div>
             </div>
@@ -53,14 +59,16 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Products</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $totalProducts }}</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="{{ number_format($totalProducts) }}">
+                        {{ \App\Helpers\NumberHelper::compact($totalProducts) }}
+                    </p>
                     <p class="text-xs {{ $lowStockProducts > 0 ? 'text-red-600' : 'text-green-600' }} mt-1">
-                        {{ $lowStockProducts }} low stock
+                        {{ \App\Helpers\NumberHelper::compact($lowStockProducts) }} low stock
                     </p>
                 </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-box text-orange-600 text-xl"></i>
                 </div>
             </div>

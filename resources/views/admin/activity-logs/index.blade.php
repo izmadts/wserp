@@ -106,13 +106,13 @@
                 <input type="date" name="to_date" value="{{ request('to_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg">
             </div>
 
-            <div>
+            <div class="pt-6">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
                     <i class="fas fa-filter mr-1"></i> Filter
                 </button>
             </div>
-            <div>
-                <a href="{{ route('admin.activity-logs.index') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <div class="pt-6">
+                <a href="{{ route('admin.activity-logs.index') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
                     <i class="fas fa-undo mr-1"></i> Reset
                 </a>
             </div>
@@ -121,6 +121,11 @@
 
     <!-- Actions -->
     <div class="flex flex-wrap gap-3">
+        <a href="{{ route('admin.activity-logs.export', array_merge(['format' => 'csv'], request()->query())) }}"
+           class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+            <i class="fas fa-file-csv mr-1"></i> Export CSV
+        </a>
+
         <form action="{{ route('admin.activity-logs.clear') }}" method="POST" class="inline">
             @csrf
             <div class="flex items-center gap-2">

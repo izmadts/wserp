@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Agent;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\CustomerGroup;
+use App\Helpers\NotificationHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -13,6 +15,7 @@ class CustomerController extends Controller
     public function index()
     {
         $customers = Customer::where('created_by_agent_id', Auth::id())
+            ->with('customerGroup')
             ->orderBy('name')
             ->get();
         return view('agent.customers.index', compact('customers'));
@@ -20,7 +23,8 @@ class CustomerController extends Controller
 
     public function create()
     {
-        return view('agent.customers.create');
+        $customerGroups = CustomerGroup::active()->orderBy('name')->get();
+        return view('agent.customers.create', compact('customerGroups'));
     }
 
     public function store(Request $request)
@@ -43,6 +47,7 @@ class CustomerController extends Controller
             'credit_days' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
+            'customer_group_id' => 'nullable|exists:customer_groups,id',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? false;
@@ -52,7 +57,14 @@ class CustomerController extends Controller
         $validated['created_by_agent_id'] = Auth::id();
         $validated['is_agent_customer'] = true;
 
-        Customer::create($validated);
+        $customer = Customer::create($validated);
+
+        NotificationHelper::send(
+            $customer->id,
+            'Welcome to the Golden Club!',
+            'Your registration has been received. An admin will verify your account shortly - once verified, every purchase starts earning you points and lucky draw entries.',
+            'registration'
+        );
 
         return redirect()->route('agent.customers.index')
             ->with('success', 'Customer created successfully!');
@@ -78,7 +90,8 @@ class CustomerController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        return view('agent.customers.edit', compact('customer'));
+        $customerGroups = CustomerGroup::active()->orderBy('name')->get();
+        return view('agent.customers.edit', compact('customer', 'customerGroups'));
     }
 
     public function update(Request $request, Customer $customer)
@@ -105,6 +118,7 @@ class CustomerController extends Controller
             'credit_days' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
+            'customer_group_id' => 'nullable|exists:customer_groups,id',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? false;

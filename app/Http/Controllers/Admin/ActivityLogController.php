@@ -6,14 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Response;
 
 class ActivityLogController extends Controller
 {
-    public function index(Request $request)
+    private function filteredQuery(Request $request)
     {
         $query = ActivityLog::with('user');
 
-        // Filters
         if ($request->user_id) {
             $query->where('user_id', $request->user_id);
         }
@@ -34,7 +34,12 @@ class ActivityLogController extends Controller
             $query->whereDate('created_at', '<=', $request->to_date);
         }
 
-        $logs = $query->orderBy('created_at', 'desc')->paginate(50);
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $logs = $this->filteredQuery($request)->orderBy('created_at', 'desc')->paginate(50);
         
         // Get filter options
         $users = User::orderBy('name')->get();
@@ -61,7 +66,10 @@ class ActivityLogController extends Controller
 
     public function clear(Request $request)
     {
-        $days = $request->days ?? 30;
+        $validated = $request->validate([
+            'days' => 'nullable|integer|min:1|max:3650',
+        ]);
+        $days = $validated['days'] ?? 30;
         ActivityLog::where('created_at', '<', now()->subDays($days))->delete();
 
         return back()->with('success', 'Activity logs older than ' . $days . ' days cleared!');
@@ -73,9 +81,39 @@ class ActivityLogController extends Controller
         return back()->with('success', 'All activity logs cleared!');
     }
 
-    public function export(Request $request)
+    public function export(Request $request, $format = 'csv')
     {
-        // Implementation similar to other exports
-        // ... 
+        if ($format !== 'csv') {
+            abort(404);
+        }
+
+        $logs = $this->filteredQuery($request)->orderBy('created_at', 'desc')->limit(5000)->get();
+
+        $filename = 'activity_logs_' . date('Y-m-d') . '.csv';
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($logs) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['Date', 'User', 'Role', 'Module', 'Action', 'Description', 'IP Address']);
+
+            foreach ($logs as $log) {
+                fputcsv($file, [
+                    $log->created_at->format('Y-m-d H:i:s'),
+                    $log->user_name ?? $log->user->name ?? 'System',
+                    $log->user_role,
+                    $log->module,
+                    $log->action,
+                    $log->description,
+                    $log->ip_address,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return Response::stream($callback, 200, $headers);
     }
 }

@@ -20,6 +20,9 @@
                         {{ $supplier->is_active ? 'Active' : 'Inactive' }}
                     </span>
                 </div>
+                <a href="{{ route('admin.reports.supplier-ledger', $supplier) }}" class="mt-3 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                    <i class="fas fa-book mr-1"></i> View Ledger (Print/PDF)
+                </a>
             </div>
             <div class="px-6 py-4 border-t">
                 <div class="space-y-2 text-sm">

@@ -24,7 +24,6 @@ class ProfileController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($agent->id)],
             'phone' => 'nullable|string|max:50',
-            'mobile' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'city' => 'nullable|string|max:100',
             'whatsapp_number' => 'nullable|string|max:20',

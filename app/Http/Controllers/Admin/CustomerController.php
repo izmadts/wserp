@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -12,14 +13,15 @@ class CustomerController extends Controller
 {
     public function index()
     {
-        $customers = Customer::with('createdByAgent')->withCount('sales')->orderBy('name')->get();
+        $customers = Customer::with('createdByAgent', 'customerGroup')->withCount('sales')->orderBy('name')->get();
         return view('admin.customers.index', compact('customers'));
     }
 
     public function create()
     {
         $agents = User::where('role', 'sales_agent')->where('is_active', true)->whereNotNull('approved_at')->orderBy('name')->get();
-        return view('admin.customers.create', compact('agents'));
+        $customerGroups = CustomerGroup::active()->orderBy('name')->get();
+        return view('admin.customers.create', compact('agents', 'customerGroups'));
     }
 
     public function store(Request $request)
@@ -43,6 +45,7 @@ class CustomerController extends Controller
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
             'created_by_agent_id' => 'nullable|exists:users,id',
+            'customer_group_id' => 'nullable|exists:customer_groups,id',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? false;
@@ -71,7 +74,8 @@ class CustomerController extends Controller
     public function edit(Customer $customer)
     {
         $agents = User::where('role', 'sales_agent')->where('is_active', true)->whereNotNull('approved_at')->orderBy('name')->get();
-        return view('admin.customers.edit', compact('customer', 'agents'));
+        $customerGroups = CustomerGroup::active()->orderBy('name')->get();
+        return view('admin.customers.edit', compact('customer', 'agents', 'customerGroups'));
     }
 
     public function update(Request $request, Customer $customer)
@@ -95,6 +99,7 @@ class CustomerController extends Controller
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
             'created_by_agent_id' => 'nullable|exists:users,id',
+            'customer_group_id' => 'nullable|exists:customer_groups,id',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? false;

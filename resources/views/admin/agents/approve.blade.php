@@ -36,7 +36,16 @@
                         <span class="ml-2 text-gray-600">%</span>
                     </div>
                 </div>
-                <div></div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Customer Channel <span class="text-red-500">*</span></label>
+                    <select name="channel" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="both" {{ old('channel', 'both') == 'both' ? 'selected' : '' }}>Both (Wholesale + Retail)</option>
+                        <option value="wholesale" {{ old('channel') == 'wholesale' ? 'selected' : '' }}>Wholesale only</option>
+                        <option value="retail" {{ old('channel') == 'retail' ? 'selected' : '' }}>Retail only</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Restricts which customers/products this agent's app can see and sell to.</p>
+                </div>
             </div>
 
             <!-- Commission Slabs for Cash Sales -->

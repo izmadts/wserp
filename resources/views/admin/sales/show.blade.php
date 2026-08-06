@@ -23,6 +23,13 @@
                 <div><p class="text-sm text-gray-500">Sale Date</p><p class="font-medium text-gray-900">{{ $sale->sale_date->format('d-m-Y') }}</p></div>
                 <div><p class="text-sm text-gray-500">Payment Term</p><p class="font-medium text-gray-900">{{ ucfirst($sale->payment_term) }}</p></div>
                 <div><p class="text-sm text-gray-500">Status</p><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $sale->status_color }}">{{ $sale->status_label }}</span></div>
+                <div><p class="text-sm text-gray-500">Source</p><p class="font-medium text-gray-900">
+                    @if($sale->source === 'customer_app')
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-mobile-alt mr-1"></i> Customer App{{ $sale->agent_id ? '' : ' - Direct/Wholesale' }}</span>
+                    @else
+                        {{ ucfirst($sale->source ?? 'web') }}
+                    @endif
+                </p></div>
                 <div class="md:col-span-2"><p class="text-sm text-gray-500">Notes</p><p class="text-sm text-gray-900">{{ $sale->notes ?? '-' }}</p></div>
             </div>
         </div>
@@ -59,7 +66,26 @@
             </div>
         </div>
         
-        @if($sale->due_amount > 0 && $sale->status != 'cancelled')
+        @if($sale->status === 'draft')
+        <div class="bg-white rounded-xl shadow-card overflow-hidden border-2 border-purple-200">
+            <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-hourglass-half text-purple-600 mr-2"></i> Pending Confirmation</h4></div>
+            <div class="p-6 space-y-3">
+                <p class="text-sm text-gray-500">This order hasn't been confirmed yet - stock and accounting are only committed once confirmed.</p>
+                <div class="flex gap-2">
+                    <form action="{{ route('admin.sales.confirm', $sale) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"><i class="fas fa-check mr-1"></i> Confirm</button>
+                    </form>
+                    <form action="{{ route('admin.sales.reject', $sale) }}" method="POST" class="flex-1" onsubmit="return confirm('Reject this order?');">
+                        @csrf
+                        <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"><i class="fas fa-times mr-1"></i> Reject</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        @if($sale->due_amount > 0 && $sale->status != 'cancelled' && $sale->status != 'draft')
         <div class="bg-white rounded-xl shadow-card overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-plus-circle text-green-600 mr-2"></i> Add Payment</h4></div>
             <div class="p-6">

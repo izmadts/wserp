@@ -70,10 +70,12 @@
                                     class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200">
                                     <i class="fas fa-edit text-sm"></i>
                                 </a>
-                                <a href="{{ route('admin.suppliers.toggle-status', $supplier) }}"
-                                    class="p-1.5 {{ $supplier->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
-                                    <i class="fas {{ $supplier->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
-                                </a>
+                                <form action="{{ route('admin.suppliers.toggle-status', $supplier) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="submit" class="p-1.5 {{ $supplier->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
+                                        <i class="fas {{ $supplier->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
+                                    </button>
+                                </form>
                                 <form action="{{ route('admin.suppliers.destroy', $supplier) }}" method="POST" class="inline">
                                     @csrf
                                     @method('DELETE')

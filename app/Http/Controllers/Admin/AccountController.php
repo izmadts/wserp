@@ -13,12 +13,7 @@ class AccountController extends Controller
     public function index()
     {
         $accounts = Account::with('parent')->orderBy('code')->get();
-        
-        // ✅ Calculate balance for each account
-        foreach ($accounts as $account) {
-            $account->balance = $account->balance;
-        }
-        
+
         return view('admin.accounts.index', compact('accounts'));
     }
 
@@ -50,8 +45,7 @@ class AccountController extends Controller
     public function show(Account $account)
     {
         $account->load('children');
-        $account->balance = $account->balance;
-        
+
         $transactions = JournalEntry::where('account_id', $account->id)
             ->orderBy('entry_date', 'desc')
             ->limit(20)
@@ -77,7 +71,26 @@ class AccountController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $validated['is_active'] = $validated['is_active'] ?? true;
+        // Unchecked checkboxes send no key at all, so falling back to true
+        // here meant unchecking "Active" to deactivate an account was
+        // silently reverted on every save.
+        $validated['is_active'] = $request->boolean('is_active');
+
+        // Account::balance is computed live from journal entries using
+        // type/normal_balance - changing either on an account that already
+        // has posted transactions would instantly and retroactively flip
+        // the sign (or meaning) of every past balance for that account,
+        // everywhere it's shown. destroy() already refuses to delete an
+        // account with history; edits need the same guard.
+        $hasHistory = JournalEntry::where('account_id', $account->id)->exists();
+        $changingClassification = $validated['type'] !== $account->type
+            || $validated['normal_balance'] !== $account->normal_balance;
+
+        if ($hasHistory && $changingClassification) {
+            return back()
+                ->withInput()
+                ->with('error', 'Cannot change Type or Normal Balance on an account that already has transactions - it would retroactively change how every past balance is read. Create a new account instead.');
+        }
 
         $account->update($validated);
 

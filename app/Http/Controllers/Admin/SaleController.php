@@ -9,21 +9,20 @@ use App\Models\Customer;
 use App\Models\User;
 use App\Models\Product;
 use App\Services\SaleService;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use App\Models\StockMovement;
-use App\Models\JournalEntry;
-use App\Models\Account;
-
 
 class SaleController extends Controller
 {
     protected $saleService;
+    protected $commissionService;
 
-    public function __construct(SaleService $saleService)
+    public function __construct(SaleService $saleService, CommissionService $commissionService)
     {
         $this->saleService = $saleService;
+        $this->commissionService = $commissionService;
     }
 
     public function index()
@@ -36,14 +35,16 @@ class SaleController extends Controller
 
     public function create()
     {
-        $customers = Customer::active()->orderBy('name')->get();
+        $customers = Customer::active()->with('customerGroup')->orderBy('name')->get();
         $agents = User::where('role', 'sales_agent')
             ->where('is_active', true)
             ->whereNotNull('approved_at')
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name']);
         $products = Product::active()->where('current_stock', '>', 0)->orderBy('name')->get();
-        return view('admin.sales.create', compact('customers', 'agents', 'products'));
+        $commissionPreview = $this->commissionPreviewData($agents);
+        $productsForJs = $this->productsForJs($products);
+        return view('admin.sales.create', compact('customers', 'agents', 'products', 'commissionPreview', 'productsForJs'));
     }
 
     public function store(Request $request)
@@ -53,7 +54,8 @@ class SaleController extends Controller
             'agent_id' => 'nullable|exists:users,id',
             'sale_date' => 'required|date',
             'payment_term' => 'required|in:cash,credit',
-            'status' => 'required|in:draft,confirmed,paid',
+            'status' => 'required|in:draft,confirmed',
+            'amount_received' => 'nullable|numeric|min:0',
             'sub_total' => 'required|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
@@ -68,10 +70,30 @@ class SaleController extends Controller
             'items.*.tax' => 'nullable|numeric|min:0',
         ]);
 
+        try {
+            $this->storeSale($validated);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            // Catches SaleService's defensive throws (insufficient stock, a
+            // missing chart-of-accounts entry) - without this they surfaced
+            // as a raw 500 error page instead of telling the admin what
+            // actually went wrong. DB::transaction() below still rolls back
+            // correctly regardless of what happens to the exception here.
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+
+        return redirect()->route('admin.sales.index')
+            ->with('success', 'Sale created successfully! Stock and accounting updated.');
+    }
+
+    private function storeSale(array $validated)
+    {
         DB::transaction(function () use ($validated) {
+            $customer = Customer::find($validated['customer_id']);
             $subTotal = 0;
             $itemsData = [];
-            
+
             foreach ($validated['items'] as $item) {
                 $itemTotal = $item['quantity'] * $item['unit_price'];
                 $itemDiscount = $item['discount'] ?? 0;
@@ -89,33 +111,69 @@ class SaleController extends Controller
                 ];
             }
 
-            $commissionAmount = 0;
-            if ($validated['agent_id']) {
-                $agent = User::find($validated['agent_id']);
-                if ($agent) {
-                    $commissionAmount = $agent->commission_rate_cash ?? 0;
+            $discountAmount = $validated['discount_type'] == 'percentage'
+                ? ($subTotal * ($validated['discount'] ?? 0) / 100)
+                : ($validated['discount'] ?? 0);
+
+            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
+
+            $amountReceived = (float) ($validated['amount_received'] ?? 0);
+            if ($amountReceived > $totalAmount) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount_received' => 'Amount received cannot exceed the sale total.',
+                ]);
+            }
+
+            // A 'cash' sale posts its FULL total straight to the Cash account
+            // the moment it's confirmed (SaleService::postAccounting) - there
+            // is no receivable behind a cash sale to collect the rest from
+            // later. Confirming one for less than the full total would
+            // overstate Cash by the shortfall with nothing tracking the
+            // difference. If the customer isn't paying it all today, this
+            // has to be a Credit sale instead.
+            if ($validated['status'] !== 'draft' && $validated['payment_term'] === 'cash' && abs($amountReceived - $totalAmount) > 0.01) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount_received' => 'A cash sale must be paid in full. Enter the full amount received, save as Draft instead, or choose Credit payment term if the customer will pay over time.',
+                ]);
+            }
+
+            // A real payment can't be received against a draft/quote - if
+            // money changed hands, the sale is confirmed, regardless of what
+            // the form's status field happened to submit. status only ever
+            // reaches 'paid'/'partial' via recordPayment() below, never by
+            // being written directly here - that's what let a sale be
+            // labeled "Paid" with $0 actually recorded (and, separately,
+            // suppressed the Golden Club event - see SaleService::recordPayment).
+            $status = $amountReceived > 0 ? 'confirmed' : $validated['status'];
+
+            // Credit-hold / credit-limit gate - both off by default, admin
+            // opt-in via Settings > Commission & Bonus. A draft sale hasn't
+            // posted a receivable yet, so it's not gated here.
+            if ($status !== 'draft' && $validated['payment_term'] === 'credit') {
+                $blockMessage = $this->commissionService->creditGateMessage($customer, $totalAmount);
+                if ($blockMessage) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'customer_id' => $blockMessage,
+                    ]);
                 }
             }
 
-            $discountAmount = $validated['discount_type'] == 'percentage' 
-                ? ($subTotal * ($validated['discount'] ?? 0) / 100) 
-                : ($validated['discount'] ?? 0);
-            
-            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
-
+            // Commission is calculated by CommissionService below (settings-
+            // driven progressive tiers for cash, per-payment accrual for
+            // credit) - not a flat agent rate stored as a lump amount here.
             $sale = Sale::create([
                 'customer_id' => $validated['customer_id'],
                 'agent_id' => $validated['agent_id'] ?? null,
                 'sale_date' => $validated['sale_date'],
                 'payment_term' => $validated['payment_term'],
-                'status' => $validated['status'],
+                'status' => $status,
                 'sub_total' => $subTotal,
                 'discount' => $validated['discount'] ?? 0,
                 'discount_type' => $validated['discount_type'] ?? 'fixed',
                 'tax' => $validated['tax'] ?? 0,
                 'shipping_cost' => $validated['shipping_cost'] ?? 0,
                 'total_amount' => $totalAmount,
-                'commission_amount' => $commissionAmount,
+                'commission_amount' => 0,
                 'paid_amount' => 0,
                 'due_amount' => $totalAmount,
                 'notes' => $validated['notes'] ?? null,
@@ -124,21 +182,25 @@ class SaleController extends Controller
 
             foreach ($itemsData as $itemData) {
                 $sale->items()->create($itemData);
-                
-                $customer = Customer::find($validated['customer_id']);
-                $customer->incrementOrderCount();
             }
+
+            // Once per sale, not once per line item.
+            $customer->incrementOrderCount();
+            $this->commissionService->awardNewCustomerBonus($customer, $sale);
 
             $this->saleService->applyStockAndAccounting($sale);
 
-            if ($validated['status'] == 'paid') {
-                $sale->markAsPaid();
-                $this->saleService->recordPayment($sale, $totalAmount);
+            if ($amountReceived > 0) {
+                // recordPayment() sets paid_amount/due_amount/status itself
+                // (it flips to 'paid' once due_amount reaches 0, 'partial'
+                // otherwise) and fires SaleCreated (Golden Club processing)
+                // the moment it genuinely reaches paid for the first time -
+                // routing an instant full payment through here (instead of
+                // creating the row already status='paid') is what makes that
+                // event actually fire for a pay-in-full-at-checkout sale.
+                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date']);
             }
         });
-
-        return redirect()->route('admin.sales.index')
-            ->with('success', 'Sale created successfully! Stock and accounting updated.');
     }
 
     /**
@@ -156,15 +218,84 @@ class SaleController extends Controller
             return back()->with('error', 'Cannot edit a paid sale!');
         }
 
-        $customers = Customer::active()->orderBy('name')->get();
+        $customers = Customer::active()->with('customerGroup')->orderBy('name')->get();
         $agents = User::where('role', 'sales_agent')
             ->where('is_active', true)
             ->whereNotNull('approved_at')
             ->orderBy('name')
+            ->get(['id', 'name']);
+        $sale->load('items', 'customer.customerGroup');
+
+        // Union "currently sellable" products with whatever this sale's
+        // existing items already reference, so an item on a product that's
+        // since gone inactive/out-of-stock still shows correctly instead of
+        // the edit form silently blanking its selection.
+        $existingProductIds = $sale->items->pluck('product_id');
+        $products = Product::where(function ($q) {
+                $q->where('is_active', true)->where('current_stock', '>', 0);
+            })
+            ->orWhereIn('id', $existingProductIds)
+            ->orderBy('name')
             ->get();
-        $products = Product::active()->where('current_stock', '>', 0)->orderBy('name')->get();
-        $sale->load('items');
-        return view('admin.sales.edit', compact('sale', 'customers', 'agents', 'products'));
+
+        $commissionPreview = $this->commissionPreviewData($agents, $sale->id);
+        $productsForJs = $this->productsForJs($products);
+        return view('admin.sales.edit', compact('sale', 'customers', 'agents', 'products', 'commissionPreview', 'productsForJs'));
+    }
+
+    /**
+     * Cash-tier table, credit rate, and each agent's month-to-date confirmed
+     * cash sales - everything the create/edit form's JS needs to preview the
+     * real settings-driven commission (CommissionService::calculateCashCommission)
+     * instead of a flat rate that hasn't matched the actual engine since the
+     * Phase 3 rebuild. $excludeSaleId keeps an in-progress edit from double
+     * counting the sale's own prior amount into its own bracket.
+     */
+    private function commissionPreviewData($agents, $excludeSaleId = null)
+    {
+        $now = now();
+        $mtdByAgent = [];
+
+        foreach ($agents as $agent) {
+            $query = Sale::where('agent_id', $agent->id)
+                ->where('payment_term', 'cash')
+                ->whereIn('status', ['confirmed', 'partial', 'paid'])
+                ->whereMonth('sale_date', $now->month)
+                ->whereYear('sale_date', $now->year);
+
+            if ($excludeSaleId) {
+                $query->where('id', '!=', $excludeSaleId);
+            }
+
+            $mtdByAgent[$agent->id] = (float) $query->sum('total_amount');
+        }
+
+        return [
+            'cash_tiers' => CommissionService::getSetting('commission.cash_tiers'),
+            'credit_rate' => (float) CommissionService::getSetting('commission.credit_rate'),
+            'agent_mtd_cash' => $mtdByAgent,
+        ];
+    }
+
+    /**
+     * Flat product data for the sale form's Alpine component - it filters
+     * this client-side by is_retail/is_wholesale to match the selected
+     * customer's group, and reads sale_price/wholesale_price to auto-fill
+     * the right price for that group instead of always defaulting to retail.
+     */
+    private function productsForJs($products)
+    {
+        return $products->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'code' => $p->code,
+            'sale_price' => (float) $p->sale_price,
+            'wholesale_price' => (float) $p->wholesale_price,
+            'purchase_price' => (float) $p->purchase_price,
+            'current_stock' => (float) $p->current_stock,
+            'is_retail' => (bool) $p->is_retail,
+            'is_wholesale' => (bool) $p->is_wholesale,
+        ])->values();
     }
 
     public function update(Request $request, Sale $sale)
@@ -178,7 +309,10 @@ class SaleController extends Controller
             'agent_id' => 'nullable|exists:users,id',
             'sale_date' => 'required|date',
             'payment_term' => 'required|in:cash,credit',
-            'status' => 'required|in:draft,confirmed,paid',
+            // 'partial'/'paid' deliberately excluded - those are derived
+            // from recorded payments (SaleService::recordPayment), never
+            // picked directly, or a sale could land on 'paid' with $0 paid.
+            'status' => 'required|in:draft,confirmed',
             'sub_total' => 'required|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
@@ -193,209 +327,129 @@ class SaleController extends Controller
             'items.*.tax' => 'nullable|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated, $sale) {
-            $subTotal = 0;
-            $itemsData = [];
+        // Same rule as creation: a 'cash' sale posts its FULL total straight
+        // to Cash with nothing tracking any shortfall. This form doesn't
+        // collect a payment, so a sale that still owes money can't be
+        // (re)labeled 'cash' here - Add Payment is the only real way to
+        // settle it, or Credit is the correct term for it either way.
+        if ($validated['status'] !== 'draft' && $validated['payment_term'] === 'cash' && (float) $sale->due_amount > 0.01) {
+            return back()->with('error', 'This sale still has an outstanding balance, so it cannot be set to Cash. Use Credit instead, or record the remaining payment first via Add Payment.');
+        }
 
-            foreach ($validated['items'] as $item) {
-                $itemTotal = $item['quantity'] * $item['unit_price'];
-                $itemDiscount = $item['discount'] ?? 0;
-                $itemTax = $item['tax'] ?? 0;
-                $totalPrice = $itemTotal - $itemDiscount + $itemTax;
+        try {
+            DB::transaction(function () use ($validated, $sale) {
+                $itemsData = [];
 
-                $subTotal += $totalPrice;
-                $itemsData[] = [
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'discount' => $item['discount'] ?? 0,
-                    'tax' => $item['tax'] ?? 0,
-                    'total_price' => $totalPrice,
-                ];
-            }
+                foreach ($validated['items'] as $item) {
+                    $itemTotal = $item['quantity'] * $item['unit_price'];
+                    $itemDiscount = $item['discount'] ?? 0;
+                    $itemTax = $item['tax'] ?? 0;
+                    $totalPrice = $itemTotal - $itemDiscount + $itemTax;
 
-            // =============================================
-            // ✅ FIX: Reverse old stock FIRST
-            // =============================================
-            foreach ($sale->items as $oldItem) {
-                $product = Product::find($oldItem->product_id);
-                if ($product) {
-                    $product->current_stock = floatval($product->current_stock) + floatval($oldItem->quantity);
-                    $product->save();
+                    $itemsData[] = [
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'discount' => $item['discount'] ?? 0,
+                        'tax' => $item['tax'] ?? 0,
+                        'total_price' => $totalPrice,
+                    ];
                 }
-            }
 
-            // Delete old stock movements
-            StockMovement::where('reference_type', 'sale')
-                ->where('reference_id', $sale->id)
-                ->delete();
+                $sale->update([
+                    'customer_id' => $validated['customer_id'],
+                    'agent_id' => $validated['agent_id'] ?? null,
+                    'sale_date' => $validated['sale_date'],
+                    'payment_term' => $validated['payment_term'],
+                    'status' => $validated['status'],
+                    'discount' => $validated['discount'] ?? 0,
+                    'discount_type' => $validated['discount_type'] ?? 'fixed',
+                    'tax' => $validated['tax'] ?? 0,
+                    'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'notes' => $validated['notes'] ?? null,
+                ]);
 
-            // Delete old journal entries
-            JournalEntry::where('reference_type', 'sale')
-                ->where('reference_id', $sale->id)
-                ->delete();
-
-            // Delete old items
-            $sale->items()->delete();
-
-            // =============================================
-            // ✅ Create new items and apply new stock
-            // =============================================
-            foreach ($itemsData as $itemData) {
-                $sale->items()->create($itemData);
-
-                // Update stock for new items
-                $product = Product::find($itemData['product_id']);
-                if ($product) {
-                    $product->current_stock = floatval($product->current_stock) - floatval($itemData['quantity']);
-                    $product->save();
-
-                    // Create stock movement
-                    StockMovement::create([
-                        'product_id' => $product->id,
-                        'type' => 'out',
-                        'reference_type' => 'sale',
-                        'reference_id' => $sale->id,
-                        'quantity' => $itemData['quantity'],
-                        'unit_price' => $itemData['unit_price'],
-                        'total_price' => $itemData['total_price'],
-                        'stock_before' => floatval($product->current_stock) + floatval($itemData['quantity']),
-                        'stock_after' => $product->current_stock,
-                        'notes' => "Sale #{$sale->invoice_no} (Updated)"
-                    ]);
-                }
-            }
-
-            // Update sale header
-            $discountAmount = $validated['discount_type'] == 'percentage'
-                ? ($subTotal * ($validated['discount'] ?? 0) / 100)
-                : ($validated['discount'] ?? 0);
-
-            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
-
-            $sale->update([
-                'customer_id' => $validated['customer_id'],
-                'agent_id' => $validated['agent_id'] ?? null,
-                'sale_date' => $validated['sale_date'],
-                'payment_term' => $validated['payment_term'],
-                'status' => $validated['status'],
-                'sub_total' => $subTotal,
-                'discount' => $validated['discount'] ?? 0,
-                'discount_type' => $validated['discount_type'] ?? 'fixed',
-                'tax' => $validated['tax'] ?? 0,
-                'shipping_cost' => $validated['shipping_cost'] ?? 0,
-                'total_amount' => $totalAmount,
-                'due_amount' => $totalAmount - $sale->paid_amount,
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            // =============================================
-            // ✅ Post accounting entries
-            // =============================================
-            $this->postSaleAccounting($sale);
-        });
+                // Reverses old stock/accounting, syncs items, re-applies fresh
+                // stock/accounting (also recalculates sub_total/total_amount/
+                // due_amount from the new items via Sale::calculateTotals()).
+                $this->saleService->syncItemsAndUpdate($sale, $itemsData);
+            });
+        } catch (\Exception $e) {
+            // Catches SaleService's defensive throws (insufficient stock, a
+            // missing chart-of-accounts entry) - without this they surfaced
+            // as a raw 500 error page instead of telling the admin what
+            // actually went wrong.
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         return redirect()->route('admin.sales.index')
             ->with('success', 'Sale updated successfully! Stock and accounting adjusted.');
     }
 
-    /**
-     * Post accounting entries for sale
-     */
-    private function postSaleAccounting($sale)
-    {
-        $inventoryAccount = Account::where('code', '1030')->first();
-        $revenueAccount = Account::where('code', '4010')->first();
-        $receivableAccount = Account::where('code', '1040')->first();
-        $cashAccount = Account::where('code', '1010')->first();
-
-        if (!$inventoryAccount || !$revenueAccount) {
-            return;
-        }
-
-        $entries = [];
-
-        // DEBIT: Cash OR Customer Receivable
-        if ($sale->payment_term == 'cash') {
-            if ($cashAccount) {
-                $entries[] = [
-                    'account_id' => $cashAccount->id,
-                    'type' => 'debit',
-                    'amount' => $sale->total_amount,
-                    'description' => "Cash Sale #{$sale->invoice_no}"
-                ];
-            }
-        } else {
-            if ($receivableAccount) {
-                $entries[] = [
-                    'account_id' => $receivableAccount->id,
-                    'type' => 'debit',
-                    'amount' => $sale->total_amount,
-                    'description' => "Credit Sale #{$sale->invoice_no} - Customer: {$sale->customer->name}"
-                ];
-            }
-        }
-
-        // CREDIT: Sales Revenue
-        $entries[] = [
-            'account_id' => $revenueAccount->id,
-            'type' => 'credit',
-            'amount' => $sale->total_amount,
-            'description' => "Sale Revenue #{$sale->invoice_no}"
-        ];
-
-        // COGS
-        $cogsAmount = $sale->items->sum(function ($item) {
-            $product = Product::find($item->product_id);
-            return floatval($item->quantity) * floatval($product->purchase_price ?? 0);
-        });
-
-        if ($cogsAmount > 0) {
-            $cogsAccount = Account::where('code', '5010')->first();
-            if ($cogsAccount) {
-                $entries[] = [
-                    'account_id' => $cogsAccount->id,
-                    'type' => 'debit',
-                    'amount' => $cogsAmount,
-                    'description' => "COGS for Sale #{$sale->invoice_no}"
-                ];
-
-                $entries[] = [
-                    'account_id' => $inventoryAccount->id,
-                    'type' => 'credit',
-                    'amount' => $cogsAmount,
-                    'description' => "Inventory reduction for Sale #{$sale->invoice_no}"
-                ];
-            }
-        }
-
-        foreach ($entries as $entry) {
-            if ($entry['account_id']) {
-                JournalEntry::create([
-                    'account_id' => $entry['account_id'],
-                    'type' => $entry['type'],
-                    'amount' => $entry['amount'],
-                    'description' => $entry['description'],
-                    'reference_type' => 'sale',
-                    'reference_id' => $sale->id,
-                    'entry_date' => now()->toDateString(),
-                ]);
-            }
-        }
-    }
     public function destroy(Sale $sale)
     {
         if ($sale->status == 'paid') {
             return back()->with('error', 'Cannot delete a paid sale!');
         }
 
-        DB::transaction(function () use ($sale) {
-            $this->saleService->reverseStockAndAccounting($sale);
-            $sale->delete();
-        });
+        try {
+            DB::transaction(function () use ($sale) {
+                $this->saleService->reverseForDeletion($sale);
+                $sale->delete();
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('admin.sales.index')
             ->with('success', 'Sale deleted successfully! Stock and accounting reversed.');
+    }
+
+    /**
+     * Commits a still-draft sale - flips it to confirmed and runs
+     * SaleService::applyStockAndAccounting (a draft sale has no stock/ledger
+     * effect yet, see the status gate at the top of that method). Primarily
+     * for customer-placed orders with no agent (source=customer_app,
+     * agent_id null - "direct" orders per the customer API), which only an
+     * admin can act on since no agent owns them, but works for any draft.
+     */
+    public function confirm(Sale $sale)
+    {
+        if ($sale->status !== 'draft') {
+            return back()->with('error', 'Only a draft sale can be confirmed.');
+        }
+
+        $sale->status = 'confirmed';
+        $sale->save();
+
+        try {
+            $this->saleService->applyStockAndAccounting($sale);
+        } catch (\Exception $e) {
+            // Most likely: stock this draft reserved got sold elsewhere in
+            // the meantime. Roll the status change back so the sale stays a
+            // confirmable draft instead of getting stuck 'confirmed' with no
+            // stock/ledger effect behind it.
+            $sale->status = 'draft';
+            $sale->saveQuietly();
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Order confirmed - stock and accounting updated.');
+    }
+
+    /**
+     * No reversal needed - a draft sale never had stock or ledger entries
+     * posted in the first place.
+     */
+    public function reject(Sale $sale)
+    {
+        if ($sale->status !== 'draft') {
+            return back()->with('error', 'Only a draft sale can be rejected.');
+        }
+
+        $sale->update(['status' => 'cancelled']);
+
+        return back()->with('success', 'Order rejected.');
     }
 
     public function addPayment(Request $request, Sale $sale)
@@ -408,28 +462,23 @@ class SaleController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated, $sale) {
-            $sale->payments()->create([
-                'customer_id' => $sale->customer_id,
-                'payment_date' => $validated['payment_date'],
-                'amount' => $validated['amount'],
-                'payment_method' => $validated['payment_method'],
-                'reference_no' => $validated['reference_no'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            $sale->paid_amount += $validated['amount'];
-            $sale->due_amount = $sale->total_amount - $sale->paid_amount;
-            
-            if ($sale->due_amount <= 0) {
-                $sale->status = 'paid';
-                $sale->save();
-                $this->saleService->recordPayment($sale, $validated['amount']);
-            } else {
-                $sale->status = 'partial';
-                $sale->save();
-            }
-        });
+        try {
+            // Single call: creates the payment row, updates paid/due/recovery%/
+            // status, and posts the payment journal entry for credit sales - on
+            // every payment, not just the one that finally reaches $0 due. A
+            // credit sale paid off in 3 installments needs all 3 to hit the
+            // ledger, not just the last one.
+            $this->saleService->recordPayment(
+                $sale,
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['payment_date'],
+                $validated['reference_no'] ?? null,
+                $validated['notes'] ?? null
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Payment added successfully!');
     }

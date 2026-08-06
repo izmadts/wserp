@@ -35,13 +35,13 @@
                     <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
                 </select>
             </div>
-            <div>
+            <div class="pt-6">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
                     <i class="fas fa-filter mr-1"></i> Filter
                 </button>
             </div>
-            <div>
-                <a href="{{ route('admin.reports.expenses') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <div class="pt-6">
+                <a href="{{ route('admin.reports.expenses') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
                     <i class="fas fa-undo mr-1"></i> Reset
                 </a>
             </div>

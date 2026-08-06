@@ -8,39 +8,51 @@ use Illuminate\Support\Facades\DB;
 trait AccountingTrait
 {
     /**
-     * Post double entry accounting
+     * Post a balanced set of journal entries in one transaction.
+     *
+     * Each entry must carry its own account_id/type/amount/description, since
+     * the two sides of a real transaction almost always describe themselves
+     * differently (e.g. "Cash Sale #X" debit vs "Sale Revenue #X" credit).
+     * Entries missing a required key, or with $entries that don't balance
+     * (debits != credits), abort the whole batch - this is the one place in
+     * the app that actually asserts the books stay balanced.
      */
-    public function postDoubleEntry($description, $entries, $referenceType, $referenceId)
+    public function postDoubleEntry($entries, $referenceType, $referenceId, $entryDate = null)
     {
-        DB::transaction(function () use ($description, $entries, $referenceType, $referenceId) {
+        if (empty($entries)) {
+            return;
+        }
+
+        DB::transaction(function () use ($entries, $referenceType, $referenceId, $entryDate) {
             $totalDebit = 0;
             $totalCredit = 0;
 
             foreach ($entries as $entry) {
-                if (!isset($entry['account_id']) || !isset($entry['type']) || !isset($entry['amount'])) {
-                    throw new \Exception('Invalid entry format: missing account_id, type, or amount');
+                if (empty($entry['account_id']) || !isset($entry['type'], $entry['amount'], $entry['description'])) {
+                    throw new \Exception('Invalid journal entry: missing account_id, type, amount, or description.');
                 }
 
                 if ($entry['type'] == 'debit') {
                     $totalDebit += $entry['amount'];
-                } else if ($entry['type'] == 'credit') {
+                } elseif ($entry['type'] == 'credit') {
                     $totalCredit += $entry['amount'];
+                } else {
+                    throw new \Exception("Invalid journal entry type: {$entry['type']}");
                 }
 
                 JournalEntry::create([
                     'account_id' => $entry['account_id'],
                     'type' => $entry['type'],
                     'amount' => $entry['amount'],
-                    'description' => $description,
+                    'description' => $entry['description'],
                     'reference_type' => $referenceType,
                     'reference_id' => $referenceId,
-                    'entry_date' => now()->toDateString(),
+                    'entry_date' => ($entryDate ?? now())->toDateString(),
                 ]);
             }
 
-            // Verify accounting equation
             if (round($totalDebit, 2) != round($totalCredit, 2)) {
-                throw new \Exception("Accounting equation violated: Debits ($totalDebit) do not equal Credits ($totalCredit)");
+                throw new \Exception("Accounting equation violated for {$referenceType} #{$referenceId}: Debits ({$totalDebit}) do not equal Credits ({$totalCredit}).");
             }
         });
     }

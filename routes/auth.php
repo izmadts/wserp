@@ -7,16 +7,25 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
+// SECURITY: the Laravel Breeze scaffold's generic self-registration
+// (GET/POST 'register' -> RegisteredUserController, deleted alongside this)
+// deliberately does NOT exist here. It created users without setting
+// `role` at all - and users.role's column default is 'admin' (see
+// 0001_01_01_000000_create_users_table.php:20, `->default('admin')`) -
+// so ANY anonymous visitor submitting that form got a live, active,
+// auto-logged-in admin account with full system access. Confirmed live
+// against a throwaway copy before this fix: role=admin, is_active=true,
+// isAdmin()=true, immediately redirected into /dashboard already
+// authenticated. This app has no legitimate use for open self-registration
+// anyway - admin/staff accounts are created by an existing admin (Settings
+// > Users), and the only self-service signup that should exist is the
+// deliberately-gated one at routes/web.php's 'agent/register'
+// (AgentRegistrationController - hardcodes role=sales_agent and
+// is_active=false pending admin approval, unlike this one).
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
-
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 

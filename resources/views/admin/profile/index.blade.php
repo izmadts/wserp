@@ -54,13 +54,23 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                            <input type="password" name="password"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            <div x-data="{ showPassword: false }" class="relative">
+                                <input :type="showPassword ? 'text' : 'password'" name="password"
+                                       class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <button type="button" @click="showPassword = !showPassword" tabindex="-1" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-green-600">
+                                    <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                            <input type="password" name="password_confirmation"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            <div x-data="{ showPassword: false }" class="relative">
+                                <input :type="showPassword ? 'text' : 'password'" name="password_confirmation"
+                                       class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <button type="button" @click="showPassword = !showPassword" tabindex="-1" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-green-600">
+                                    <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

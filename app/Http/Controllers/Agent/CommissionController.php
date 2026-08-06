@@ -19,9 +19,10 @@ class CommissionController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        // Summary stats
+        // Summary stats. totalPaid sums paid_amount (not amount where
+        // is_paid=true) so a partially-paid log's progress actually counts.
         $totalEarned = AgentCommissionLog::where('agent_id', $agent->id)->sum('amount');
-        $totalPaid = AgentCommissionLog::where('agent_id', $agent->id)->where('is_paid', true)->sum('amount');
+        $totalPaid = AgentCommissionLog::where('agent_id', $agent->id)->sum('paid_amount');
         $totalDue = $totalEarned - $totalPaid;
 
         // Current month summary
@@ -35,10 +36,15 @@ class CommissionController extends Controller
             ->where('reference_type', 'sale')
             ->sum('amount');
 
+        // Grouped so the OR conditions stay scoped to this agent - an
+        // ungrouped orWhere() here would escape the agent_id filter
+        // entirely and sum every agent's bonus commissions.
         $bonusCommissions = AgentCommissionLog::where('agent_id', $agent->id)
-            ->where('reference_type', 'new_customer_bonus')
-            ->orWhere('reference_type', 'target_bonus')
-            ->orWhere('reference_type', 'recovery_bonus')
+            ->where(function ($q) {
+                $q->where('reference_type', 'new_customer_bonus')
+                    ->orWhere('reference_type', 'target_bonus')
+                    ->orWhere('reference_type', 'recovery_bonus');
+            })
             ->sum('amount');
 
         return view('agent.commissions.index', compact(

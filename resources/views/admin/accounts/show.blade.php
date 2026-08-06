@@ -53,7 +53,11 @@
             </div>
             
             <div class="px-6 py-4 border-t border-gray-200 flex space-x-2">
-                <a href="{{ route('admin.accounts.edit', $account) }}" 
+                <a href="{{ route('admin.reports.account-ledger', $account) }}"
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white text-center rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200">
+                    <i class="fas fa-book mr-1"></i> Ledger
+                </a>
+                <a href="{{ route('admin.accounts.edit', $account) }}"
                    class="flex-1 px-4 py-2 bg-yellow-600 text-white text-center rounded-lg font-medium hover:bg-yellow-700 transition-colors duration-200">
                     <i class="fas fa-edit mr-1"></i> Edit
                 </a>

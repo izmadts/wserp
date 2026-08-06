@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\Account;
-use App\Models\JournalEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,8 +17,11 @@ class ExpenseController extends Controller
             ->orderBy('expense_date', 'desc')
             ->get();
 
-        // Summary stats
-        $totalExpenses = Expense::sum('amount');
+        // Summary stats. totalExpenses matches what's actually posted to the
+        // ledger (approved+paid only) - pending/cancelled never hit the
+        // books, so including them here overstated this figure against the
+        // Accounts page and the P&L's operating-expenses line.
+        $totalExpenses = Expense::whereIn('status', ['approved', 'paid'])->sum('amount');
         $pendingExpenses = Expense::where('status', 'pending')->sum('amount');
         $approvedExpenses = Expense::where('status', 'approved')->sum('amount');
         $paidExpenses = Expense::where('status', 'paid')->sum('amount');
@@ -52,7 +53,7 @@ class ExpenseController extends Controller
             'reference_no' => 'nullable|string|max:100',
             'status' => 'required|in:pending,approved,paid,cancelled',
             'notes' => 'nullable|string',
-            'receipt' => 'nullable|image|mimes:jpeg,png,jpg,pdf|max:2048',
+            'receipt' => 'nullable|mimes:jpeg,png,jpg,pdf|max:2048',
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -61,7 +62,9 @@ class ExpenseController extends Controller
                 $receiptPath = request()->file('receipt')->store('expenses', 'public');
             }
 
-            $expense = Expense::create([
+            // Expense::created() posts accounting automatically when status
+            // is approved/paid - no need to call it again here.
+            Expense::create([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'category_id' => $validated['category_id'] ?? null,
@@ -74,11 +77,6 @@ class ExpenseController extends Controller
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
             ]);
-
-            // If status is approved or paid, post accounting
-            if (in_array($validated['status'], ['approved', 'paid'])) {
-                $expense->postAccounting();
-            }
         });
 
         return redirect()->route('admin.expenses.index')
@@ -109,13 +107,10 @@ class ExpenseController extends Controller
             'reference_no' => 'nullable|string|max:100',
             'status' => 'required|in:pending,approved,paid,cancelled',
             'notes' => 'nullable|string',
-            'receipt' => 'nullable|image|mimes:jpeg,png,jpg,pdf|max:2048',
+            'receipt' => 'nullable|mimes:jpeg,png,jpg,pdf|max:2048',
         ]);
 
         DB::transaction(function () use ($validated, $expense) {
-            // Reverse old accounting if exists
-            $expense->reverseAccounting();
-
             $receiptPath = $expense->receipt;
             if (request()->hasFile('receipt')) {
                 if ($expense->receipt && file_exists(storage_path('app/public/' . $expense->receipt))) {
@@ -124,6 +119,8 @@ class ExpenseController extends Controller
                 $receiptPath = request()->file('receipt')->store('expenses', 'public');
             }
 
+            // Expense::updated() reverses+reposts accounting automatically
+            // whenever status/amount/payment_method actually changed.
             $expense->update([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
@@ -136,11 +133,6 @@ class ExpenseController extends Controller
                 'receipt' => $receiptPath,
                 'notes' => $validated['notes'] ?? null,
             ]);
-
-            // Post new accounting if status is approved or paid
-            if (in_array($validated['status'], ['approved', 'paid'])) {
-                $expense->postAccounting();
-            }
         });
 
         return redirect()->route('admin.expenses.index')
@@ -161,7 +153,6 @@ class ExpenseController extends Controller
             'approved_by' => Auth::id(),
             'approved_at' => now(),
         ]);
-        $expense->postAccounting();
 
         return back()->with('success', 'Expense approved successfully!');
     }
@@ -173,14 +164,12 @@ class ExpenseController extends Controller
             'approved_by' => Auth::id(),
             'approved_at' => now(),
         ]);
-        $expense->postAccounting();
 
         return back()->with('success', 'Expense marked as paid!');
     }
 
     public function cancel(Expense $expense)
     {
-        $expense->reverseAccounting();
         $expense->update(['status' => 'cancelled']);
 
         return back()->with('success', 'Expense cancelled!');

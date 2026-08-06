@@ -26,8 +26,10 @@ class PurchaseReturnController extends Controller
 
     public function create()
     {
-        $purchases = Purchase::where('status', 'paid')
-            ->orWhere('status', 'received')
+        // Matches Purchase::scopeReceived() - 'partial' was previously
+        // missing, so a partially-paid purchase (real stock/payable already
+        // posted) couldn't be picked for a return through this screen.
+        $purchases = Purchase::whereIn('status', ['received', 'partial', 'paid'])
             ->with('supplier')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -62,7 +64,12 @@ class PurchaseReturnController extends Controller
         // (minus anything already returned against that same line item).
         foreach ($validated['items'] as $item) {
             $purchaseItem = PurchaseItem::find($item['purchase_item_id']);
+            // whereHas('purchaseReturn') respects PurchaseReturn's soft-delete
+            // scope - without it, a deleted return's items kept permanently
+            // counting as "already returned" even though its stock/ledger
+            // effect had been fully undone.
             $alreadyReturned = PurchaseReturnItem::where('purchase_item_id', $item['purchase_item_id'])
+                ->whereHas('purchaseReturn')
                 ->sum('quantity');
             $availableToReturn = $purchaseItem->quantity - $alreadyReturned;
 
@@ -73,7 +80,8 @@ class PurchaseReturnController extends Controller
             }
         }
 
-        DB::transaction(function () use ($validated) {
+        try {
+            DB::transaction(function () use ($validated) {
             $purchase = Purchase::find($validated['purchase_id']);
 
             // Calculate totals
@@ -127,7 +135,14 @@ class PurchaseReturnController extends Controller
             // Items now exist, so it's safe to apply stock + accounting.
             $purchaseReturn->refresh();
             $purchaseReturn->updateStockAndAccounts();
-        });
+            });
+        } catch (\Exception $e) {
+            // Catches PurchaseReturn's defensive throws (a missing
+            // chart-of-accounts entry, etc.) - without this they surfaced as
+            // a raw 500 error page instead of telling the admin what
+            // actually went wrong.
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         return redirect()->route('admin.purchase-returns.index')
             ->with('success', 'Purchase return created successfully!');
@@ -141,9 +156,15 @@ class PurchaseReturnController extends Controller
 
     public function destroy(PurchaseReturn $purchaseReturn)
     {
-        // Model's deleting event handles reversing stock + accounting
-        // (this event now actually exists - see PurchaseReturn::boot()).
-        $purchaseReturn->delete();
+        try {
+            // Model's deleting event handles reversing stock + accounting
+            // (this event now actually exists - see PurchaseReturn::boot()).
+            $purchaseReturn->delete();
+        } catch (\Exception $e) {
+            // Most likely: the returned-out stock has since been sold or
+            // moved elsewhere, so undoing this return would take it negative.
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('admin.purchase-returns.index')
             ->with('success', 'Purchase return deleted successfully!');

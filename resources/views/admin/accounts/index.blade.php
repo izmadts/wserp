@@ -70,18 +70,24 @@
                         </td>
                         <td class="py-3 px-2 text-center">
                             <div class="flex items-center justify-center space-x-1">
-                                <a href="{{ route('admin.accounts.show', $account) }}" 
+                                <a href="{{ route('admin.accounts.show', $account) }}"
                                    class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200">
                                     <i class="fas fa-eye text-sm"></i>
                                 </a>
-                                <a href="{{ route('admin.accounts.edit', $account) }}" 
+                                <a href="{{ route('admin.reports.account-ledger', $account) }}"
+                                   class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors duration-200" title="Ledger">
+                                    <i class="fas fa-book text-sm"></i>
+                                </a>
+                                <a href="{{ route('admin.accounts.edit', $account) }}"
                                    class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200">
                                     <i class="fas fa-edit text-sm"></i>
                                 </a>
-                                <a href="{{ route('admin.accounts.toggle-status', $account) }}" 
-                                   class="p-1.5 {{ $account->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
-                                    <i class="fas {{ $account->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
-                                </a>
+                                <form action="{{ route('admin.accounts.toggle-status', $account) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="submit" class="p-1.5 {{ $account->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
+                                        <i class="fas {{ $account->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
+                                    </button>
+                                </form>
                                 <form action="{{ route('admin.accounts.destroy', $account) }}" method="POST" class="inline">
                                     @csrf
                                     @method('DELETE')

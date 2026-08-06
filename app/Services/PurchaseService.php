@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Account;
 use App\Models\JournalEntry;
+use App\Traits\AccountingTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -24,6 +25,9 @@ use Illuminate\Support\Facades\Log;
  */
 class PurchaseService
 {
+    use AccountingTrait;
+
+
     /**
      * Apply stock + inventory/payable-or-cash accounting for a purchase.
      * IDEMPOTENT: no-op if stock movements already exist for this purchase.
@@ -135,7 +139,7 @@ class PurchaseService
             $purchase->save();
 
             if ($postAccounting) {
-                $this->postPaymentAccounting($purchase, $amount);
+                $this->postPaymentAccounting($purchase, $amount, $date, $method);
             }
 
             Log::info('Payment recorded for purchase', [
@@ -198,7 +202,10 @@ class PurchaseService
     private function updateStock(Purchase $purchase)
     {
         foreach ($purchase->items as $item) {
-            $product = Product::find($item->product_id);
+            // Locked for the duration of the enclosing transaction so a
+            // concurrent sale/return of the same product can't interleave
+            // with this read-modify-write and lose an update.
+            $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
             if ($product) {
                 $product->current_stock += $item->quantity;
                 $product->save();
@@ -210,8 +217,11 @@ class PurchaseService
     private function reverseStock(Purchase $purchase)
     {
         foreach ($purchase->items as $item) {
-            $product = Product::find($item->product_id);
+            $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
             if ($product) {
+                if ($product->current_stock < $item->quantity) {
+                    throw new \Exception("Cannot reverse purchase: would take {$product->name}'s stock negative (some of it may have already been sold or moved).");
+                }
                 $product->current_stock -= $item->quantity;
                 $product->save();
                 Log::info("Stock reversed for product: {$product->name} (-{$item->quantity})");
@@ -255,9 +265,13 @@ class PurchaseService
         $payableAccount = Account::where('code', '2010')->first();
         $cashAccount = Account::where('code', '1010')->first();
 
+        // Thrown (not logged-and-skipped) because updateStock() has already
+        // run by the time this executes - silently returning would leave
+        // inventory moved with zero ledger trail. The whole call is wrapped
+        // in applyStockAndAccounting()'s DB::transaction, so throwing here
+        // correctly rolls the stock change back too.
         if (!$inventoryAccount || !$payableAccount || !$cashAccount) {
-            Log::warning('Accounts not found for purchase accounting', ['purchase_id' => $purchase->id]);
-            return;
+            throw new \Exception("Cannot post purchase accounting: required chart-of-accounts entries (1030/2010/1010) not found for purchase #{$purchase->id}.");
         }
 
         $entries = [
@@ -285,32 +299,55 @@ class PurchaseService
             ];
         }
 
-        foreach ($entries as $entry) {
-            JournalEntry::create([
-                'account_id' => $entry['account_id'],
-                'type' => $entry['type'],
-                'amount' => $entry['amount'],
-                'description' => $entry['description'],
-                'reference_type' => 'purchase',
-                'reference_id' => $purchase->id,
-                'entry_date' => now()->toDateString(),
-            ]);
-        }
+        // Routed through postDoubleEntry() (AccountingTrait) instead of a
+        // raw create() loop - it's the one place in the app that actually
+        // asserts a batch's debits equal its credits, and dated by the
+        // purchase's own date instead of always "today" so ledger-dated
+        // reports (Trial Balance) agree with purchase-date-filtered ones
+        // for the same transaction.
+        $this->postDoubleEntry($entries, 'purchase', $purchase->id, $purchase->purchase_date);
 
         Log::info("Accounting entries posted for purchase: {$purchase->invoice_no}");
     }
 
-    private function postPaymentAccounting(Purchase $purchase, $amount)
+    private function postPaymentAccounting(Purchase $purchase, $amount, $date = null, $method = 'cash')
     {
-        $payableAccount = Account::where('code', '2010')->first();
-        $cashAccount = Account::where('code', '1010')->first();
-
-        if (!$payableAccount || !$cashAccount) {
-            Log::warning('Accounts not found for payment accounting', ['purchase_id' => $purchase->id]);
+        // Cash-term purchases already credited Cash directly at creation
+        // (see postAccounting() above) - posting again here for a payment
+        // against one would debit Cash a second time for money that only
+        // left the business once. Guarded here, not just at the call site,
+        // so it holds regardless of which caller forgets to pass
+        // $postAccounting = false.
+        if ($purchase->payment_term !== 'credit') {
             return;
         }
 
-        $entries = [
+        // Guards against posting a payment (Dr Payable / Cr Cash) for a
+        // purchase whose own Dr Inventory / Cr Payable entry was never
+        // posted (e.g. still 'draft'/'ordered') - that would debit down a
+        // payable balance that was never actually credited up.
+        $hasBaseEntry = JournalEntry::where('reference_type', 'purchase')
+            ->where('reference_id', $purchase->id)
+            ->exists();
+        if (!$hasBaseEntry) {
+            throw new \Exception("Cannot record payment: Purchase #{$purchase->invoice_no} has not been received/posted yet.");
+        }
+
+        $payableAccount = Account::where('code', '2010')->first();
+        // Routes to Cash(1010) or Bank(1020) based on the payment method the
+        // form actually collected - same 2-way split Expense/Income already
+        // use (Expense.php:103). Previously this always credited 1010
+        // regardless of $method, so a payment explicitly recorded as "Bank
+        // Transfer" or "Cheque" silently posted to Cash instead.
+        $creditAccount = $method === 'cash'
+            ? Account::where('code', '1010')->first()
+            : Account::where('code', '1020')->first();
+
+        if (!$payableAccount || !$creditAccount) {
+            throw new \Exception("Cannot post purchase payment accounting: required chart-of-accounts entries (2010/1010/1020) not found for purchase #{$purchase->id}.");
+        }
+
+        $this->postDoubleEntry([
             [
                 'account_id' => $payableAccount->id,
                 'type' => 'debit',
@@ -318,24 +355,12 @@ class PurchaseService
                 'description' => "Payment for Purchase #{$purchase->invoice_no}",
             ],
             [
-                'account_id' => $cashAccount->id,
+                'account_id' => $creditAccount->id,
                 'type' => 'credit',
                 'amount' => $amount,
                 'description' => "Cash Payment for Purchase #{$purchase->invoice_no}",
             ],
-        ];
-
-        foreach ($entries as $entry) {
-            JournalEntry::create([
-                'account_id' => $entry['account_id'],
-                'type' => $entry['type'],
-                'amount' => $entry['amount'],
-                'description' => $entry['description'],
-                'reference_type' => 'purchase_payment',
-                'reference_id' => $purchase->id,
-                'entry_date' => now()->toDateString(),
-            ]);
-        }
+        ], 'purchase_payment', $purchase->id, $date ? \Carbon\Carbon::parse($date) : null);
     }
 
     private function deleteJournalEntries(Purchase $purchase, $referenceType = 'purchase')

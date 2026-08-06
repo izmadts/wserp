@@ -19,7 +19,10 @@
                 <!-- Sale Selection -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Sale <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Select Sale <span class="text-red-500">*</span>
+                            <x-help-tooltip>Only sales that actually posted stock/revenue (Confirmed, Partial, or Paid) are listed - a Draft has nothing to reverse yet. Submitting this form immediately puts the returned quantities back into stock and posts the ledger entries below; there's no edit afterward, only view or delete (deleting reverses it again).</x-help-tooltip>
+                        </label>
                         <select name="sale_id" x-model="saleId" @change="loadSaleDetails()" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select Sale</option>
@@ -38,7 +41,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Refund Method <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Refund Method <span class="text-red-500">*</span>
+                            <x-help-tooltip>How this specific return is being settled - independent of how the original sale was paid. Cash/Bank Transfer/Cheque move money out of that account. Credit moves no cash at all; it just reduces what the customer owes you (store credit).</x-help-tooltip>
+                        </label>
                         <select name="refund_method" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="cash">Cash</option>

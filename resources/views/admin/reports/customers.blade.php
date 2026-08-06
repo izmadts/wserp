@@ -21,13 +21,13 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
                 <input type="text" name="city" value="{{ request('city') }}" class="px-3 py-2 border border-gray-300 rounded-lg" placeholder="City">
             </div>
-            <div>
+            <div class="pt-6">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
                     <i class="fas fa-filter mr-1"></i> Filter
                 </button>
             </div>
-            <div>
-                <a href="{{ route('admin.reports.customers') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <div class="pt-6">
+                <a href="{{ route('admin.reports.customers') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
                     <i class="fas fa-undo mr-1"></i> Reset
                 </a>
             </div>
@@ -91,6 +91,8 @@
                             </td>
                             <td class="py-2 px-2 text-center">
                                 <a href="{{ route('admin.reports.customer-detail', $customer) }}" class="text-blue-600 hover:underline text-sm">View</a>
+                                &middot;
+                                <a href="{{ route('admin.reports.customer-ledger', $customer) }}" class="text-blue-600 hover:underline text-sm">Ledger</a>
                             </td>
                         </tr>
                         @endforeach

@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Shared secret the seller app's backend sends as X-Integration-Key on
+    // POST /api/v1/customer/connect - the customer API's only "system to
+    // system" trust boundary, since /connect hands out a Sanctum token for
+    // any phone number it's given and has no password to check instead.
+    'customer_api' => [
+        'integration_key' => env('CUSTOMER_API_INTEGRATION_KEY'),
+    ],
+
 ];

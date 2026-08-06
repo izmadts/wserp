@@ -102,8 +102,8 @@
                     <input type="text" name="notes" placeholder="Reconciliation notes" value="{{ old('notes') }}"
                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
                 </div>
-                <div>
-                    <button type="submit" onclick="return confirm('Reconcile this account?')" 
+                <div class="pt-6">
+                    <button type="submit" onclick="return confirm('Reconcile this account?')"
                             class="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
                         <i class="fas fa-check mr-1"></i> Reconcile
                     </button>

@@ -73,6 +73,8 @@
                             </td>
                             <td class="py-2 px-2 text-center">
                                 <a href="{{ route('admin.reports.supplier-detail', $supplier) }}" class="text-blue-600 hover:underline text-sm">View</a>
+                                &middot;
+                                <a href="{{ route('admin.reports.supplier-ledger', $supplier) }}" class="text-blue-600 hover:underline text-sm">Ledger</a>
                             </td>
                         </tr>
                         @endforeach

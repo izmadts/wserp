@@ -5,9 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'WSERP - Agent Panel')</title>
+    {{-- Runs synchronously, before anything paints, so the page never
+         flashes light-then-dark on reload. See layouts/admin.blade.php for
+         the matching comment. --}}
+    <script>
+        (function () {
+            var stored = localStorage.getItem('wserp-theme');
+            if (stored === 'dark') document.documentElement.classList.add('dark');
+            window.wserpToggleTheme = function () {
+                var isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('wserp-theme', isDark ? 'dark' : 'light');
+            };
+        })();
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme-style')
     @livewireStyles
     <style>[x-cloak]{display:none!important}</style>
 </head>
@@ -18,9 +32,13 @@
              :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
             <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
                 <div class="flex items-center">
-                    <div class="w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg flex items-center justify-center">
-                        <span class="text-white font-bold text-lg">W</span>
-                    </div>
+                    @if($siteLogo)
+                        <img src="{{ asset($siteLogo) }}" alt="{{ $siteName }}" class="h-8 w-auto max-w-[7rem] object-contain">
+                    @else
+                        <div class="w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-lg">{{ substr($siteName, 0, 1) }}</span>
+                        </div>
+                    @endif
                     <span class="ml-2 text-xl font-bold text-gray-800">Agent Panel</span>
                 </div>
                 <button @click="sidebarOpen = false" class="lg:hidden text-gray-500 hover:text-gray-700">
@@ -69,6 +87,13 @@
                         <h1 class="ml-2 text-xl font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h1>
                     </div>
                     <div class="flex items-center space-x-3">
+                        @if($darkModeEnabled ?? true)
+                        <button type="button" onclick="wserpToggleTheme()" title="Toggle dark mode"
+                            class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-moon dark:hidden"></i>
+                            <i class="fas fa-sun hidden dark:inline"></i>
+                        </button>
+                        @endif
                         <span class="text-xs text-gray-500 hidden sm:block">{{ auth()->user()->role ?? '' }}</span>
                     </div>
                 </div>
@@ -92,5 +117,9 @@
     @vite(['resources/js/app.js'])
     <script>function confirmDelete(m){return confirm(m||'Are you sure?');}</script>
     @yield('scripts')
+    {{-- @push('scripts') pages (dashboard chart, DataTable init, etc.) need
+    a matching @stack - it was silently discarded with no @stack anywhere
+    in this layout. --}}
+    @stack('scripts')
 </body>
 </html>

@@ -8,17 +8,17 @@ use Illuminate\Support\Str;
 use App\Models\StockMovement;
 use App\Models\JournalEntry;
 use App\Models\Account;
-use App\Models\AgentCommissionLog;
 use App\Models\User;
 use App\Models\Sale;
 use App\Models\Customer;
 use App\Models\SalesReturnItem;
 use App\Models\Product;
+use App\Traits\AccountingTrait;
 use Illuminate\Support\Facades\DB;
 
 class SalesReturn extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, AccountingTrait;
 
     protected $fillable = [
         'return_no',
@@ -53,10 +53,12 @@ class SalesReturn extends Model
             }
         });
 
-        // After return is created, reverse stock and accounting
-        static::created(function ($return) {
-            $return->reverseStockAndAccounting();
-        });
+        // NOTE: stock/accounting reversal is intentionally NOT triggered
+        // here. It used to run in this created() hook, but that fires
+        // immediately after the header row inserts - before the controller
+        // has created any SalesReturnItem rows - so $this->items was always
+        // empty and the whole reversal was a silent no-op. The controller
+        // now calls reverseStockAndAccounting() explicitly once items exist.
 
         // Before deleting, restore stock
         static::deleting(function ($return) {
@@ -70,6 +72,18 @@ class SalesReturn extends Model
     public function reverseStockAndAccounting()
     {
         DB::transaction(function () {
+            // Idempotent, matching Sale/Purchase/PurchaseReturn - without
+            // this, calling it twice for the same return would double-
+            // restock and create duplicate StockMovement rows while the
+            // (already idempotent) journal-entry side only posted once.
+            $alreadyApplied = StockMovement::where('reference_type', 'sales_return')
+                ->where('reference_id', $this->id)
+                ->exists();
+
+            if ($alreadyApplied) {
+                return;
+            }
+
             // 1. Increase product stock (returned items)
             $this->updateProductStock();
 
@@ -82,8 +96,8 @@ class SalesReturn extends Model
             // 4. Reverse agent commission
             $this->reverseCommission();
 
-            // 5. Update customer balance
-            $this->updateCustomerBalance();
+            // 5. Reduce what's owed on the original sale by the returned amount
+            $this->applyToSale();
         });
     }
 
@@ -93,9 +107,23 @@ class SalesReturn extends Model
     public function restoreStockAndAccounting()
     {
         DB::transaction(function () {
+            $hasMovements = StockMovement::where('reference_type', 'sales_return')
+                ->where('reference_id', $this->id)
+                ->exists();
+
+            if (!$hasMovements) {
+                return;
+            }
+
             // 1. Decrease product stock (reverse the return)
             foreach ($this->items as $item) {
-                $product = $item->product;
+                // Locked for the duration of the transaction so a concurrent
+                // sale/purchase of the same product can't interleave with
+                // this read-modify-write.
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+                if ($product->current_stock < $item->quantity) {
+                    throw new \Exception("Cannot delete this sales return: reversing it would take {$product->name}'s stock negative (some of it may have been sold or moved since).");
+                }
                 $product->current_stock -= $item->quantity;
                 $product->save();
             }
@@ -109,7 +137,54 @@ class SalesReturn extends Model
             JournalEntry::where('reference_type', 'sales_return')
                 ->where('reference_id', $this->id)
                 ->delete();
+
+            // 4. Put back what this return had taken off the original sale's
+            // owed amount, and restore the commission it had clawed back.
+            $this->removeFromSale();
+            app(\App\Services\CommissionService::class)->restoreSaleReturnCommission($this);
         });
+    }
+
+    /**
+     * Reduce the linked sale's outstanding balance by this return's amount,
+     * the same way SaleService::recordPayment() reduces it for a payment -
+     * without this, a fully-refunded sale keeps showing its pre-return
+     * total/paid/due/status forever.
+     */
+    private function applyToSale()
+    {
+        $sale = $this->sale;
+        if (!$sale) {
+            return;
+        }
+
+        $sale->refunded_amount = (float) $sale->refunded_amount + (float) $this->total_amount;
+        // A return against a sale that's ALREADY fully paid (refund_method
+        // cash/bank/cheque - real money going back out, not reducing a
+        // receivable) has nothing left "owed" to floor below - without
+        // max(0, ...) this went negative (e.g. -960), which read as if the
+        // customer somehow owed less than nothing instead of the sale
+        // simply staying settled. Confirmed live: a return on an
+        // already-paid cash sale produced due_amount = -960.
+        $sale->due_amount = max(0, $sale->total_amount - $sale->paid_amount - $sale->refunded_amount);
+        $sale->status = $sale->due_amount <= 0 ? 'paid' : ($sale->paid_amount > 0 ? 'partial' : $sale->status);
+        $sale->saveQuietly();
+    }
+
+    /**
+     * Symmetric undo for applyToSale(), run when a return is deleted.
+     */
+    private function removeFromSale()
+    {
+        $sale = $this->sale;
+        if (!$sale) {
+            return;
+        }
+
+        $sale->refunded_amount = max(0, (float) $sale->refunded_amount - (float) $this->total_amount);
+        $sale->due_amount = max(0, $sale->total_amount - $sale->paid_amount - $sale->refunded_amount);
+        $sale->status = $sale->due_amount <= 0 ? 'paid' : ($sale->paid_amount > 0 ? 'partial' : 'confirmed');
+        $sale->saveQuietly();
     }
 
     /**
@@ -118,9 +193,14 @@ class SalesReturn extends Model
     private function updateProductStock()
     {
         foreach ($this->items as $item) {
-            $product = $item->product;
+            // Locked for the duration of the transaction, and re-cached onto
+            // the item so createStockMovements() (which reads $item->product
+            // right after) sees this same updated, locked instance instead
+            // of a stale pre-increment one.
+            $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
             $product->current_stock += $item->quantity;
             $product->save();
+            $item->setRelation('product', $product);
         }
     }
 
@@ -149,40 +229,47 @@ class SalesReturn extends Model
     }
 
     /**
-     * Reverse accounting entries
+     * Post journal entries that reverse the effect of the original sale
+     * (credit cash/receivable back, debit revenue, reverse COGS/inventory).
+     * Idempotent - skips if entries already exist for this return.
      */
     private function reverseAccounting()
     {
+        if (JournalEntry::where('reference_type', 'sales_return')->where('reference_id', $this->id)->exists()) {
+            return;
+        }
+
         $inventoryAccount = Account::where('code', '1030')->first();
         $revenueAccount = Account::where('code', '4010')->first();
         $receivableAccount = Account::where('code', '1040')->first();
         $cashAccount = Account::where('code', '1010')->first();
+        $bankAccount = Account::where('code', '1020')->first();
 
         if (!$inventoryAccount || !$revenueAccount) {
-            return;
+            throw new \Exception("Cannot post sales return accounting: required chart-of-accounts entries (1030/4010) not found for return #{$this->id}.");
         }
 
         $entries = [];
 
-        // Reverse Sale: Credit Cash/Receivable, Debit Revenue
-        if ($this->sale->payment_term == 'cash') {
-            if ($cashAccount) {
-                $entries[] = [
-                    'account_id' => $cashAccount->id,
-                    'type' => 'credit',
-                    'amount' => $this->total_amount,
-                    'description' => "Sales Return #{$this->return_no} - Cash Refund"
-                ];
-            }
-        } else {
-            if ($receivableAccount) {
-                $entries[] = [
-                    'account_id' => $receivableAccount->id,
-                    'type' => 'credit',
-                    'amount' => $this->total_amount,
-                    'description' => "Sales Return #{$this->return_no} - Customer Credit"
-                ];
-            }
+        // Reverse Sale: Credit Cash/Bank/Receivable, Debit Revenue. Driven
+        // by refund_method (how this specific return is being settled), not
+        // the original sale's payment_term - a cash sale can still be
+        // refunded as store credit, and vice versa. 'cash' and
+        // 'bank_transfer'/'cheque' used to both route to Cash - same 2-way
+        // split Expense/Income already use (Expense.php:103), so a
+        // bank-transfer refund actually leaves the Bank account balance.
+        $refundAccount = $this->refund_method === 'cash'
+            ? $cashAccount
+            : ($this->refund_method === 'credit' ? $receivableAccount : $bankAccount);
+        if ($refundAccount) {
+            $entries[] = [
+                'account_id' => $refundAccount->id,
+                'type' => 'credit',
+                'amount' => $this->total_amount,
+                'description' => $this->refund_method === 'credit'
+                    ? "Sales Return #{$this->return_no} - Customer Credit"
+                    : "Sales Return #{$this->return_no} - " . ucfirst(str_replace('_', ' ', $this->refund_method)) . " Refund",
+            ];
         }
 
         // Debit: Sales Revenue (reverse the revenue)
@@ -190,100 +277,53 @@ class SalesReturn extends Model
             'account_id' => $revenueAccount->id,
             'type' => 'debit',
             'amount' => $this->total_amount,
-            'description' => "Sales Return #{$this->return_no} - Revenue Reversal"
+            'description' => "Sales Return #{$this->return_no} - Revenue Reversal",
         ];
 
-        // Reverse COGS: Credit COGS, Debit Inventory
+        // Reverse COGS at the cost actually posted for the original sale
+        // (SaleItem.unit_cost), not the product's current cost - the two
+        // drift apart the moment a purchase price changes in between.
         $cogsAmount = $this->items->sum(function ($item) {
-            $product = $item->product;
-            return $item->quantity * ($product->purchase_price ?? 0);
+            $unitCost = $item->saleItem->unit_cost ?? null;
+            if ($unitCost === null) {
+                $unitCost = $item->product->purchase_price ?? 0;
+            }
+            return $item->quantity * $unitCost;
         });
 
         if ($cogsAmount > 0) {
             $cogsAccount = Account::where('code', '5010')->first();
             if ($cogsAccount) {
-                // Credit: COGS (reverse the expense)
                 $entries[] = [
                     'account_id' => $cogsAccount->id,
                     'type' => 'credit',
                     'amount' => $cogsAmount,
-                    'description' => "Sales Return #{$this->return_no} - COGS Reversal"
+                    'description' => "Sales Return #{$this->return_no} - COGS Reversal",
                 ];
 
-                // Debit: Inventory (stock came back)
                 $entries[] = [
                     'account_id' => $inventoryAccount->id,
                     'type' => 'debit',
                     'amount' => $cogsAmount,
-                    'description' => "Sales Return #{$this->return_no} - Stock Restored"
+                    'description' => "Sales Return #{$this->return_no} - Stock Restored",
                 ];
             }
         }
 
-        foreach ($entries as $entry) {
-            if ($entry['account_id']) {
-                JournalEntry::create([
-                    'account_id' => $entry['account_id'],
-                    'type' => $entry['type'],
-                    'amount' => $entry['amount'],
-                    'description' => $entry['description'],
-                    'reference_type' => 'sales_return',
-                    'reference_id' => $this->id,
-                    'entry_date' => now()->toDateString(),
-                ]);
-            }
-        }
+        $this->postDoubleEntry($entries, 'sales_return', $this->id, $this->return_date);
     }
 
     /**
-     * Reverse agent commission
+     * Reverse agent commission proportional to this return, via
+     * CommissionService (which uses the sale's own recorded
+     * commission_amount as the basis rather than trying to re-derive a
+     * rate from User columns that don't exist - commission_type/
+     * commission_rate were copy-pasted from a since-deleted, unrelated
+     * Agent model that never had a real database table).
      */
     private function reverseCommission()
     {
-        if (!$this->sale->agent_id) {
-            return;
-        }
-
-        $agent = User::find($this->sale->agent_id);
-        if (!$agent) {
-            return;
-        }
-
-        // Calculate commission on returned amount
-        $commissionToReverse = 0;
-        if ($agent->commission_type == 'percentage') {
-            $commissionToReverse = ($this->total_amount * $agent->commission_rate / 100);
-        } else {
-            $commissionToReverse = $agent->commission_rate;
-        }
-
-        if ($commissionToReverse > 0) {
-            // Create negative commission log
-            AgentCommissionLog::create([
-                'agent_id' => $agent->id,
-                'sale_id' => $this->sale_id,
-                'reference_type' => 'sales_return',
-                'reference_id' => $this->id,
-                'amount' => -$commissionToReverse,
-                'commission_rate' => $agent->commission_rate,
-                'commission_type' => $agent->commission_type,
-                'description' => "Sales Return #{$this->return_no} - Commission Reversal",
-                'is_paid' => false,
-            ]);
-
-            // Update sale commission amount
-            $this->sale->commission_amount -= $commissionToReverse;
-            $this->sale->save();
-        }
-    }
-
-    /**
-     * Update customer balance
-     */
-    private function updateCustomerBalance()
-    {
-        $customer = $this->customer;
-        // Balance will be calculated via accessor
+        app(\App\Services\CommissionService::class)->reverseSaleReturnCommission($this);
     }
 
     // =============================================

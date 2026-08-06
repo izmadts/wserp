@@ -27,6 +27,10 @@
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 ml-2">
                         <i class="fas fa-exclamation-triangle mr-1"></i> Low Stock
                     </span>
+                    @elseif($product->isOverStock())
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 ml-2">
+                        <i class="fas fa-box-open mr-1"></i> Overstocked
+                    </span>
                     @endif
                 </div>
             </div>
@@ -65,7 +69,7 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-500">Max Stock Level</span>
-                        <span class="font-medium">{{ number_format($product->max_stock_level, 2) }}</span>
+                        <span class="font-medium {{ $product->isOverStock() ? 'text-amber-600' : '' }}">{{ number_format($product->max_stock_level, 2) }}</span>
                     </div>
                     @if($product->barcode)
                     <div class="flex justify-between">

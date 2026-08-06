@@ -8,6 +8,17 @@
         <form action="{{ route('agent.customers.store') }}" method="POST">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Customer Group</label>
+                    <select name="customer_group_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="">None</option>
+                        @foreach($customerGroups as $group)
+                        <option value="{{ $group->id }}" {{ old('customer_group_id', optional($customerGroups->firstWhere('is_default', true))->id) == $group->id ? 'selected' : '' }}>
+                            {{ $group->name }} @if($group->price_field == 'wholesale_price') (Wholesale pricing) @else (Retail pricing) @endif
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Code</label><input type="text" name="code" value="{{ old('code') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Auto"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Name <span class="text-red-500">*</span></label><input type="text" name="name" value="{{ old('name') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" name="email" value="{{ old('email') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></div>

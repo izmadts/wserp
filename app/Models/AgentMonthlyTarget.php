@@ -75,20 +75,24 @@ class AgentMonthlyTarget extends Model
         return $this->achievement_percentage;
     }
 
+    /**
+     * Reads tiers from the same admin-configurable setting
+     * CommissionService::closeMonthTargetBonuses() actually pays from,
+     * instead of a third hardcoded copy of the same tiers that could
+     * silently drift from what Settings says and what actually gets paid.
+     */
     public function calculateBonus()
     {
-        $agent = $this->agent;
-        
-        if ($this->achievement_percentage >= 150) {
-            $this->bonus_earned = 20000;
-        } elseif ($this->achievement_percentage >= 120) {
-            $this->bonus_earned = 10000;
-        } elseif ($this->achievement_percentage >= 100) {
-            $this->bonus_earned = 5000;
-        } else {
-            $this->bonus_earned = 0;
+        $tiers = \App\Services\CommissionService::getSetting('commission.target_bonus_tiers');
+        $bonus = 0;
+
+        foreach ($tiers as $tier) {
+            if ($this->achievement_percentage >= $tier['achievement_pct']) {
+                $bonus = max($bonus, $tier['bonus']);
+            }
         }
-        
+
+        $this->bonus_earned = $bonus;
         $this->save();
         return $this->bonus_earned;
     }

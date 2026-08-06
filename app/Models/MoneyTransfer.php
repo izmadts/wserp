@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\AccountingTrait;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MoneyTransfer extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, AccountingTrait;
 
     protected $fillable = [
         'transfer_no',
@@ -44,7 +47,18 @@ class MoneyTransfer extends Model
         });
 
         static::updated(function ($transfer) {
-            if ($transfer->isDirty('status') && $transfer->status == 'completed') {
+            // Re-post if anything the entries were derived from changed, not
+            // just status - editing amount/accounts/date on a completed
+            // transfer must update the ledger too.
+            if ($transfer->isDirty(['status', 'amount', 'from_account_id', 'to_account_id', 'transfer_date'])) {
+                DB::transaction(function () use ($transfer) {
+                    $transfer->reverseAccounting();
+
+                    if ($transfer->status == 'completed') {
+                        $transfer->postAccounting();
+                    }
+                });
+            } elseif ($transfer->status == 'completed') {
                 $transfer->postAccounting();
             }
         });
@@ -55,46 +69,37 @@ class MoneyTransfer extends Model
     }
 
     /**
-     * Post accounting entry for money transfer
+     * Post accounting entry for money transfer. Idempotent - see
+     * AccountingTrait::postDoubleEntry() and the Expense model for why.
      */
     public function postAccounting()
     {
+        if (JournalEntry::where('reference_type', 'money_transfer')->where('reference_id', $this->id)->exists()) {
+            return;
+        }
+
         $fromAccount = Account::find($this->from_account_id);
         $toAccount = Account::find($this->to_account_id);
 
         if (!$fromAccount || !$toAccount) {
+            Log::warning('Transfer accounts not found, skipping ledger post', ['transfer_id' => $this->id]);
             return;
         }
 
-        $entries = [];
-
-        // Credit: From Account
-        $entries[] = [
-            'account_id' => $this->from_account_id,
-            'type' => 'credit',
-            'amount' => $this->amount,
-            'description' => "Transfer #{$this->transfer_no} - From {$fromAccount->name}"
-        ];
-
-        // Debit: To Account
-        $entries[] = [
-            'account_id' => $this->to_account_id,
-            'type' => 'debit',
-            'amount' => $this->amount,
-            'description' => "Transfer #{$this->transfer_no} - To {$toAccount->name}"
-        ];
-
-        foreach ($entries as $entry) {
-            JournalEntry::create([
-                'account_id' => $entry['account_id'],
-                'type' => $entry['type'],
-                'amount' => $entry['amount'],
-                'description' => $entry['description'],
-                'reference_type' => 'money_transfer',
-                'reference_id' => $this->id,
-                'entry_date' => now()->toDateString(),
-            ]);
-        }
+        $this->postDoubleEntry([
+            [
+                'account_id' => $this->from_account_id,
+                'type' => 'credit',
+                'amount' => $this->amount,
+                'description' => "Transfer #{$this->transfer_no} - From {$fromAccount->name}",
+            ],
+            [
+                'account_id' => $this->to_account_id,
+                'type' => 'debit',
+                'amount' => $this->amount,
+                'description' => "Transfer #{$this->transfer_no} - To {$toAccount->name}",
+            ],
+        ], 'money_transfer', $this->id, $this->transfer_date);
     }
 
     public function reverseAccounting()

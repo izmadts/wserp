@@ -36,9 +36,14 @@ class StockAdjustmentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated) {
-            $product = Product::findOrFail($validated['product_id']);
-            
+        try {
+            DB::transaction(function () use ($validated) {
+            // Locked for the duration of the transaction so two adjustments
+            // submitted for the same product at nearly the same moment
+            // can't both read the same starting stock and both pass the
+            // sufficiency check below.
+            $product = Product::where('id', $validated['product_id'])->lockForUpdate()->firstOrFail();
+
             // =============================================
             // FIX: Use proper decimal handling with bcmath
             // =============================================
@@ -75,7 +80,7 @@ class StockAdjustmentController extends Controller
             $product->save();
 
             // Create adjustment record
-            StockAdjustment::create([
+            $adjustment = StockAdjustment::create([
                 'product_id' => $product->id,
                 'type' => $validated['type'],
                 'quantity' => $quantity,
@@ -86,20 +91,33 @@ class StockAdjustmentController extends Controller
                 'created_by' => Auth::id(),
             ]);
 
-            // Create stock movement
+            // reference_id ties this movement back to the adjustment that
+            // caused it, so destroy() can find and reverse the right one.
+            // unit_price/total_price use the product's current cost, so
+            // there's a real value on record (needed for the ledger entry
+            // posted below, and for the movement history to mean anything).
+            $unitPrice = (float) $product->purchase_price;
             StockMovement::create([
                 'product_id' => $product->id,
                 'type' => $validated['type'],
                 'reference_type' => 'adjustment',
-                'reference_id' => 0,
+                'reference_id' => $adjustment->id,
                 'quantity' => $quantity,
-                'unit_price' => 0,
-                'total_price' => 0,
+                'unit_price' => $unitPrice,
+                'total_price' => round($quantity * $unitPrice, 2),
                 'stock_before' => $oldStock,
                 'stock_after' => $newStock,
                 'notes' => $validated['reason'] ?? 'Stock adjustment'
             ]);
-        });
+
+            $adjustment->postAccounting();
+            });
+        } catch (\Exception $e) {
+            // Catches the insufficient-stock guard above and any
+            // chart-of-accounts issue from postAccounting() - without this
+            // they surfaced as a raw 500 error page.
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         return redirect()->route('admin.inventory.adjustments.index')
             ->with('success', 'Stock adjusted successfully!');
@@ -107,7 +125,39 @@ class StockAdjustmentController extends Controller
 
     public function destroy(StockAdjustment $adjustment)
     {
-        $adjustment->delete();
-        return back()->with('success', 'Adjustment deleted successfully!');
+        try {
+            DB::transaction(function () use ($adjustment) {
+            $product = Product::where('id', $adjustment->product_id)->lockForUpdate()->firstOrFail();
+            $oldStock = (float) $product->current_stock;
+            $quantity = (float) $adjustment->quantity;
+
+            // Reverse the effect: an "in" adjustment added stock, so
+            // deleting it removes that stock again (and vice versa for
+            // "out"). Deleting the record without this left stock
+            // permanently drifted from what was actually adjusted.
+            if ($adjustment->type == 'in') {
+                if ($oldStock < $quantity) {
+                    throw new \Exception("Cannot delete: reversing this adjustment would take {$product->name}'s stock negative (some of it may have been sold or moved since).");
+                }
+                $newStock = function_exists('bcsub') ? (float) bcsub((string) $oldStock, (string) $quantity, 2) : round($oldStock - $quantity, 2);
+            } else {
+                $newStock = function_exists('bcadd') ? (float) bcadd((string) $oldStock, (string) $quantity, 2) : round($oldStock + $quantity, 2);
+            }
+
+            $product->current_stock = $newStock;
+            $product->save();
+
+            StockMovement::where('reference_type', 'adjustment')
+                ->where('reference_id', $adjustment->id)
+                ->delete();
+
+            $adjustment->reverseAccounting();
+            $adjustment->delete();
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Adjustment deleted and stock reversed successfully!');
     }
 }

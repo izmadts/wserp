@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Step 2 - Admin Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gray-100">
     <div class="min-h-screen flex items-center justify-center py-12 px-4">
@@ -49,16 +50,26 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
-                        <input type="password" name="admin_password" required
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <div class="relative">
+                            <input type="password" id="admin_password" name="admin_password" required
+                                   class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <button type="button" onclick="wserpTogglePassword('admin_password', this)" tabindex="-1" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-blue-600">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
                         @error('admin_password')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password <span class="text-red-500">*</span></label>
-                        <input type="password" name="admin_password_confirmation" required
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <div class="relative">
+                            <input type="password" id="admin_password_confirmation" name="admin_password_confirmation" required
+                                   class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <button type="button" onclick="wserpTogglePassword('admin_password_confirmation', this)" tabindex="-1" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-blue-600">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <h3 class="font-semibold text-gray-700 border-b pb-2 mt-4">Company Details</h3>
@@ -107,5 +118,15 @@
             </div>
         </div>
     </div>
+    <script>
+        function wserpTogglePassword(inputId, btn) {
+            var input = document.getElementById(inputId);
+            var icon = btn.querySelector('i');
+            var isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            icon.classList.toggle('fa-eye', !isPassword);
+            icon.classList.toggle('fa-eye-slash', isPassword);
+        }
+    </script>
 </body>
 </html>

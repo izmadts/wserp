@@ -20,19 +20,18 @@ class LogActivity
         if (Auth::check()) {
             $user = Auth::user();
 
-            // Skip logging for certain routes
-            $skipRoutes = ['admin/dashboard', 'admin/profile', 'admin/backups'];
-            $currentRoute = $request->route() ? $request->route()->getName() : '';
+            // Skip logging for certain routes (matched against the route *name*,
+            // e.g. "admin.dashboard", not the URL path)
+            $skipRoutes = ['admin.dashboard', 'admin.profile', 'admin.backups'];
+            $routeName = $request->route() ? $request->route()->getName() : '';
 
             // Skip if route is in skip list
             foreach ($skipRoutes as $route) {
-                if (str_contains($currentRoute, $route)) {
+                if (str_contains($routeName, $route)) {
                     return;
                 }
             }
 
-            // Determine module and action from route
-            $routeName = $request->route() ? $request->route()->getName() : '';
             $module = $this->getModuleFromRoute($routeName);
             $action = $this->getActionFromRoute($routeName, $request->method());
 
@@ -118,8 +117,10 @@ class LogActivity
         $moduleName = ucfirst($module);
         $actionName = ucfirst($action);
 
-        // Get ID from route if exists
-        $id = $request->route($module) ? $request->route($module)->id : null;
+        // Get ID from route if exists (route param may be a bound model or a
+        // plain scalar like {filename}/{format} - only models have ->id)
+        $routeParam = $request->route($module);
+        $id = is_object($routeParam) ? $routeParam->id : null;
         $idText = $id ? " (ID: $id)" : '';
 
         return "$moduleName $actionName$idText";

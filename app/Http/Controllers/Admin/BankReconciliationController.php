@@ -97,20 +97,22 @@ class BankReconciliationController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $systemBalance = $this->getAccountBalance($validated['account_id']);
+        DB::transaction(function () use ($validated, $bankReconciliation) {
+            $systemBalance = $this->getAccountBalance($validated['account_id']);
 
-        $bankReconciliation->update([
-            'account_id' => $validated['account_id'],
-            'statement_date' => $validated['statement_date'],
-            'statement_balance' => $validated['statement_balance'],
-            'system_balance' => $systemBalance,
-            'difference' => $systemBalance - $validated['statement_balance'],
-            'notes' => $validated['notes'] ?? null,
-        ]);
+            $bankReconciliation->update([
+                'account_id' => $validated['account_id'],
+                'statement_date' => $validated['statement_date'],
+                'statement_balance' => $validated['statement_balance'],
+                'system_balance' => $systemBalance,
+                'difference' => $systemBalance - $validated['statement_balance'],
+                'notes' => $validated['notes'] ?? null,
+            ]);
 
-        // Update reconciliation items
-        $bankReconciliation->items()->delete();
-        $this->addReconciliationItems($bankReconciliation);
+            // Update reconciliation items
+            $bankReconciliation->items()->delete();
+            $this->addReconciliationItems($bankReconciliation);
+        });
 
         return redirect()->route('admin.bank-reconciliations.index')
             ->with('success', 'Bank reconciliation updated successfully!');
@@ -139,9 +141,16 @@ class BankReconciliationController extends Controller
         ]);
 
         DB::transaction(function () use ($bankReconciliation, $validated) {
+            // Recomputed fresh, not read from the snapshot taken back when
+            // this reconciliation was created/last edited - any activity
+            // posted to the account in between would otherwise make the
+            // finalized "difference" wrong by exactly that amount.
+            $currentSystemBalance = $this->getAccountBalance($bankReconciliation->account_id);
+
             $bankReconciliation->update([
                 'statement_balance' => $validated['adjusted_balance'],
-                'difference' => $bankReconciliation->system_balance - $validated['adjusted_balance'],
+                'system_balance' => $currentSystemBalance,
+                'difference' => $currentSystemBalance - $validated['adjusted_balance'],
                 'status' => 'reconciled',
                 'notes' => $validated['notes'] ?? $bankReconciliation->notes,
                 'reconciled_at' => now(),
@@ -157,26 +166,37 @@ class BankReconciliationController extends Controller
 
     private function getAccountBalance($accountId)
     {
-        $debits = JournalEntry::where('account_id', $accountId)
-            ->where('type', 'debit')
-            ->sum('amount');
-
-        $credits = JournalEntry::where('account_id', $accountId)
-            ->where('type', 'credit')
-            ->sum('amount');
-
-        return $debits - $credits;
+        // Delegates to Account::getBalanceAttribute() - it accounts for
+        // normal_balance (debit vs credit accounts), where a hardcoded
+        // debits-minus-credits here would silently disagree with the
+        // balance shown everywhere else the moment it's used on anything
+        // but a debit-normal account.
+        return Account::find($accountId)?->balance ?? 0;
     }
 
     private function addReconciliationItems($reconciliation)
     {
         $accountId = $reconciliation->account_id;
-        
-        // Get all journal entries for this account
-        $entries = JournalEntry::where('account_id', $accountId)
-            ->whereBetween('entry_date', [now()->subMonths(3), $reconciliation->statement_date])
-            ->orderBy('entry_date', 'asc')
-            ->get();
+
+        // Bounded by the prior reconciliation's statement date for this
+        // account (if any), not a fixed 3-month lookback - a fixed window
+        // meant an account's first-ever reconciliation, or one after a
+        // longer gap, listed items that didn't actually sum to the
+        // system_balance being reconciled against.
+        $previousStatementDate = BankReconciliation::where('account_id', $accountId)
+            ->where('id', '!=', $reconciliation->id)
+            ->where('statement_date', '<', $reconciliation->statement_date)
+            ->orderByDesc('statement_date')
+            ->value('statement_date');
+
+        $query = JournalEntry::where('account_id', $accountId)
+            ->where('entry_date', '<=', $reconciliation->statement_date);
+
+        if ($previousStatementDate) {
+            $query->where('entry_date', '>', $previousStatementDate);
+        }
+
+        $entries = $query->orderBy('entry_date', 'asc')->get();
 
         foreach ($entries as $entry) {
             $type = $entry->type == 'debit' ? 'deposit' : 'withdrawal';

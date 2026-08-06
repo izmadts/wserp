@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\Customer;
 use App\Models\AgentCommissionLog;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -89,13 +90,18 @@ class ReportController extends Controller
             $query->where('reference_type', $request->type);
         }
 
-        $commissions = $query->orderBy('created_at', 'desc')->paginate(20);
+        $commissions = (clone $query)->orderBy('created_at', 'desc')->paginate(20);
 
+        // Each aggregate clones $query first - chaining ->where() straight
+        // off the same builder instance mutates it in place, so a second
+        // ->where('is_paid', false) after a first ->where('is_paid', true)
+        // would AND them together into a condition that can never match
+        // anything (this is why total_due used to always read 0).
         $summary = [
-            'total_earned' => $query->sum('amount'),
-            'total_paid' => $query->where('is_paid', true)->sum('amount'),
-            'total_due' => $query->where('is_paid', false)->sum('amount'),
-            'count' => $query->count(),
+            'total_earned' => (clone $query)->sum('amount'),
+            'total_paid' => (clone $query)->sum('paid_amount'),
+            'total_due' => (clone $query)->get()->sum('due_amount'),
+            'count' => (clone $query)->count(),
         ];
 
         return view('agent.reports.commission', compact('commissions', 'summary'));
@@ -105,8 +111,14 @@ class ReportController extends Controller
     {
         $agent = Auth::user();
 
-        // Get current month's sales
+        // Get current month's sales - ledger-recognized statuses only, so
+        // this preview matches what CommissionService::closeMonthTargetBonuses()
+        // will actually pay (a draft sale created just to inflate month-to-date
+        // totals must not count toward a real bonus).
+        $saleLedgerStatuses = ['confirmed', 'partial', 'paid'];
+
         $currentMonthSales = Sale::where('agent_id', $agent->id)
+            ->whereIn('status', $saleLedgerStatuses)
             ->whereMonth('sale_date', date('m'))
             ->whereYear('sale_date', date('Y'))
             ->sum('total_amount');
@@ -114,20 +126,13 @@ class ReportController extends Controller
         $targetAmount = $agent->sales_target[date('Y')][date('m')] ?? 0;
         $achievement = $targetAmount > 0 ? ($currentMonthSales / $targetAmount) * 100 : 0;
 
-        // Calculate bonus
-        $bonus = 0;
-        if ($achievement >= 150) {
-            $bonus = 20000;
-        } elseif ($achievement >= 120) {
-            $bonus = 10000;
-        } elseif ($achievement >= 100) {
-            $bonus = 5000;
-        }
+        $bonus = $this->calculateBonus($achievement);
 
         // Get monthly breakdown
         $monthlyData = [];
         for ($i = 1; $i <= 12; $i++) {
             $monthSales = Sale::where('agent_id', $agent->id)
+                ->whereIn('status', $saleLedgerStatuses)
                 ->whereMonth('sale_date', $i)
                 ->whereYear('sale_date', date('Y'))
                 ->sum('total_amount');
@@ -153,11 +158,24 @@ class ReportController extends Controller
         ));
     }
 
-    private function calculateBonus($achievement)
+    /**
+     * Reads tiers from the same admin-configurable setting
+     * CommissionService::closeMonthTargetBonuses() actually pays from -
+     * these used to be hardcoded here (and duplicated in
+     * AgentMonthlyTarget::calculateBonus()), so changing the tiers in
+     * Settings silently stopped matching what this preview showed agents.
+     */
+    private function calculateBonus($achievementPct)
     {
-        if ($achievement >= 150) return 20000;
-        if ($achievement >= 120) return 10000;
-        if ($achievement >= 100) return 5000;
-        return 0;
+        $tiers = CommissionService::getSetting('commission.target_bonus_tiers');
+        $bonus = 0;
+
+        foreach ($tiers as $tier) {
+            if ($achievementPct >= $tier['achievement_pct']) {
+                $bonus = max($bonus, $tier['bonus']);
+            }
+        }
+
+        return $bonus;
     }
 }

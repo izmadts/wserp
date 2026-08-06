@@ -4,16 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
+use App\Models\SalesReturn;
 use App\Models\Purchase;
+use App\Models\PurchaseReturn;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Account;
 use App\Models\JournalEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use App\Models\Customer;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Helpers\LedgerHelper;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 
 class ReportController extends Controller
@@ -29,10 +34,23 @@ class ReportController extends Controller
         // 1. INCOME (Revenue)
         // =============================================
 
-        // Sales Revenue
+        // Sales Revenue - matches SaleService::applyStockAndAccounting(),
+        // which posts revenue as soon as a sale is confirmed, not just once
+        // it's fully paid.
         $salesRevenue = Sale::whereBetween('sale_date', [$fromDate, $toDate])
-            ->where('status', 'paid')
+            ->whereIn('status', ['confirmed', 'partial', 'paid'])
             ->sum('total_amount');
+
+        // Netted against returns processed in the period, matching what
+        // SalesReturn::reverseAccounting() already does to the real ledger
+        // (debits Revenue back down) - without this, a returned sale kept
+        // counting its original full amount here, so this report and the
+        // Trial Balance (which reads the real ledger, see trialBalance()
+        // below) could disagree by exactly the returned amount. Confirmed
+        // live: a Rs. 900 return left this report showing Rs. 900 more
+        // revenue than the ledger did for the same period.
+        $salesReturns = SalesReturn::whereBetween('return_date', [$fromDate, $toDate])->sum('total_amount');
+        $salesRevenue -= $salesReturns;
 
         // Other Income (from income module)
         $otherIncome = Income::whereBetween('income_date', [$fromDate, $toDate])
@@ -44,12 +62,30 @@ class ReportController extends Controller
         // 2. COST OF GOODS SOLD (COGS)
         // =============================================
 
-        // Calculate COGS from purchase items
-        $cogs = DB::table('purchase_items')
-            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-            ->whereBetween('purchases.purchase_date', [$fromDate, $toDate])
-            ->whereIn('purchases.status', ['received', 'paid'])
-            ->sum(DB::raw('purchase_items.quantity * purchase_items.unit_price'));
+        // Cost of goods actually SOLD in the period (matches what
+        // SaleService::postAccounting() posts to ledger account 5010) - not
+        // the cost of goods purchased, which is an unrelated figure that
+        // happens to share the "COGS" label. Falls back to the product's
+        // current purchase_price for older line items sold before unit_cost
+        // started being captured.
+        $cogs = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('products', 'sale_items.product_id', '=', 'products.id')
+            ->whereBetween('sales.sale_date', [$fromDate, $toDate])
+            ->whereIn('sales.status', ['confirmed', 'partial', 'paid'])
+            ->sum(DB::raw('sale_items.quantity * COALESCE(sale_items.unit_cost, products.purchase_price)'));
+
+        // Netted against the COGS of returned items, matching
+        // SalesReturn::reverseAccounting() reversing COGS in the real
+        // ledger at the same unit_cost snapshot it was originally posted
+        // at (not the product's current cost, which may have drifted).
+        $returnedCogs = DB::table('sales_return_items')
+            ->join('sales_returns', 'sales_return_items.sales_return_id', '=', 'sales_returns.id')
+            ->join('sale_items', 'sales_return_items.sale_item_id', '=', 'sale_items.id')
+            ->join('products', 'sales_return_items.product_id', '=', 'products.id')
+            ->whereBetween('sales_returns.return_date', [$fromDate, $toDate])
+            ->sum(DB::raw('sales_return_items.quantity * COALESCE(sale_items.unit_cost, products.purchase_price)'));
+        $cogs -= $returnedCogs;
 
         // =============================================
         // 3. GROSS PROFIT
@@ -95,29 +131,36 @@ class ReportController extends Controller
         // 7. MONTHLY BREAKDOWN
         // =============================================
 
+        // Iterating with a raw month integer (11, 12, 01, 02...) and a
+        // single fixed $year meant any range crossing a year boundary
+        // (e.g. Nov-Feb) had startMonth > endMonth and the loop never ran
+        // at all, silently rendering an empty monthly breakdown. Carbon's
+        // addMonth() rolls the year over correctly.
         $monthlyData = [];
-        $startMonth = date('m', strtotime($fromDate));
-        $endMonth = date('m', strtotime($toDate));
-        $year = date('Y', strtotime($fromDate));
+        $cursor = Carbon::parse($fromDate)->startOfMonth();
+        $periodEnd = Carbon::parse($toDate)->startOfMonth();
 
-        for ($month = $startMonth; $month <= $endMonth; $month++) {
-            $monthStart = date('Y-m-01', strtotime("$year-$month-01"));
-            $monthEnd = date('Y-m-t', strtotime("$year-$month-01"));
+        while ($cursor->lte($periodEnd)) {
+            $monthStart = $cursor->copy()->startOfMonth()->format('Y-m-d');
+            $monthEnd = $cursor->copy()->endOfMonth()->format('Y-m-d');
 
             $monthlySales = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
-                ->where('status', 'paid')
+                ->whereIn('status', ['confirmed', 'partial', 'paid'])
                 ->sum('total_amount');
+            $monthlySales -= SalesReturn::whereBetween('return_date', [$monthStart, $monthEnd])->sum('total_amount');
 
             $monthlyExpenses = Expense::whereBetween('expense_date', [$monthStart, $monthEnd])
                 ->whereIn('status', ['approved', 'paid'])
                 ->sum('amount');
 
             $monthlyData[] = [
-                'month' => date('M', strtotime("$year-$month-01")),
+                'month' => $cursor->format('M Y'),
                 'income' => $monthlySales,
                 'expenses' => $monthlyExpenses,
                 'profit' => $monthlySales - $monthlyExpenses,
             ];
+
+            $cursor->addMonth();
         }
 
         return view('admin.reports.profit-loss', compact(
@@ -215,14 +258,16 @@ class ReportController extends Controller
 
         $suppliers = $query->orderBy('name')->get();
 
-        // Calculate totals for each supplier
-        foreach ($suppliers as $supplier) {
-            $supplier->total_purchases = $supplier->purchases()->sum('total_amount');
-            $supplier->total_paid = $supplier->purchasePayments()->sum('amount');
-            $supplier->total_due = $supplier->total_purchases - $supplier->total_paid;
-            $supplier->balance = $supplier->opening_balance + $supplier->total_purchases - $supplier->total_paid;
-        }
-
+        // total_purchases/total_paid/total_due/balance all come from
+        // Supplier's own accessors (Supplier.php) - not recomputed here.
+        // They used to be overwritten with unfiltered values on these exact
+        // model instances, which Eloquent silently discarded the moment
+        // they were read back (since accessor methods with those same names
+        // already existed), except for total_due, which has no accessor -
+        // so it kept the raw, unfiltered value while its neighbors quietly
+        // reverted to the filtered one. That mismatch is what let a
+        // supplier's "Total Due" show as larger than their "Total
+        // Purchases" on the same report row.
         $totalSuppliers = $suppliers->count();
         $activeSuppliers = $suppliers->where('is_active', true)->count();
         $totalPurchases = $suppliers->sum('total_purchases');
@@ -251,11 +296,14 @@ class ReportController extends Controller
             $q->orderBy('created_at', 'desc');
         }, 'purchasePayments']);
 
-        // Calculate financials
-        $totalPurchases = $supplier->purchases()->sum('total_amount');
-        $totalPaid = $supplier->purchasePayments()->sum('amount');
-        $totalDue = $totalPurchases - $totalPaid;
-        $balance = $supplier->opening_balance + $totalPurchases - $totalPaid;
+        // Read straight off the model's own accessors - previously
+        // recomputed from scratch with no status/payment_term filter at
+        // all, so this page could show a different balance than the
+        // suppliers list and export for the same supplier.
+        $totalPurchases = $supplier->total_purchases;
+        $totalPaid = $supplier->total_paid;
+        $totalDue = $supplier->total_due;
+        $balance = $supplier->balance;
 
         return view('admin.reports.supplier-detail', compact(
             'supplier',
@@ -274,21 +322,24 @@ class ReportController extends Controller
     {
         $query = Customer::with('sales', 'salePayments');
 
-        if ($request->min_balance) {
-            $query->whereHas('sales', function ($q) {
-                $q->havingRaw('SUM(total_amount) - (SELECT COALESCE(SUM(amount), 0) FROM sale_payments WHERE sale_payments.customer_id = customers.id) >= ?', [request('min_balance')]);
-            });
-        }
-
         if ($request->city) {
             $query->where('city', 'like', '%' . $request->city . '%');
         }
 
         $customers = $query->orderBy('name')->get();
 
-        // ✅ Calculate balance in PHP (not in database)
-        $customersWithBalance = $customers->filter(function ($customer) {
-            return $customer->balance > 0;
+        // Filtered/sorted entirely off Customer::balance (the same accessor
+        // used everywhere else a customer's balance is shown) - it used to
+        // be prefiltered by a separate raw-SQL formula with no status filter
+        // on sales, so the min_balance threshold typed here didn't
+        // necessarily match what actually ended up on screen.
+        $minBalance = $request->filled('min_balance') ? (float) $request->min_balance : null;
+
+        $customersWithBalance = $customers->filter(function ($customer) use ($minBalance) {
+            if ($customer->balance <= 0) {
+                return false;
+            }
+            return $minBalance === null || $customer->balance >= $minBalance;
         })->sortByDesc('balance');
 
         $totalReceivable = $customersWithBalance->sum('balance');
@@ -322,8 +373,17 @@ class ReportController extends Controller
             $query->where('category_id', $request->category_id);
         }
 
-        if ($request->status && $request->status != 'all') {
-            $query->where('status', $request->status);
+        if ($request->filled('status')) {
+            if ($request->status != 'all') {
+                $query->where('status', $request->status);
+            }
+            // status == 'all' is an explicit, deliberate choice to include
+            // pending/cancelled expenses too.
+        } else {
+            // Default view matches what the P&L's operating-expenses figure
+            // counts (approved/paid only) - pending expenses haven't
+            // actually posted to the ledger yet.
+            $query->whereIn('status', ['approved', 'paid']);
         }
 
         $expenses = $query->orderBy('expense_date', 'desc')->get();
@@ -406,8 +466,14 @@ class ReportController extends Controller
         $agents = $query->withCount('sales')->get();
 
         foreach ($agents as $agent) {
-            $agent->total_sales = $agent->sales()->sum('total_amount');
-            $agent->total_commission = $agent->sales()->sum('commission_amount');
+            $agent->total_sales = $agent->sales()->whereIn('status', ['confirmed', 'partial', 'paid'])->sum('total_amount');
+            // Sums AgentCommissionLog, not Sale.commission_amount - the log
+            // is what the agent's own dashboard/report already reads, and
+            // it (unlike the sum of Sale.commission_amount) also captures
+            // new-customer/recovery/target bonuses and return clawbacks.
+            // Summing the sale column instead was showing admins a lower
+            // total-commission figure than the agent saw for themselves.
+            $agent->total_commission = $agent->commissionLogs()->sum('amount');
             $agent->total_customers = $agent->customers()->count();
         }
 
@@ -433,8 +499,8 @@ class ReportController extends Controller
         }, 'customers', 'commissionLogs']);
 
         // Calculate totals
-        $totalSales = $user->sales()->sum('total_amount');
-        $totalCommission = $user->sales()->sum('commission_amount');
+        $totalSales = $user->sales()->whereIn('status', ['confirmed', 'partial', 'paid'])->sum('total_amount');
+        $totalCommission = $user->commissionLogs()->sum('amount');
         $totalCustomers = $user->customers()->count();
 
         return view('admin.reports.agent-detail', compact(
@@ -453,8 +519,11 @@ class ReportController extends Controller
     {
         $date = $request->date ?? date('Y-m-d');
 
-        $sales = Sale::whereDate('sale_date', $date)->get();
-        $purchases = Purchase::whereDate('purchase_date', $date)->get();
+        // Only sales/purchases the ledger actually recognized for the day -
+        // an unconfirmed draft (or a cancelled one) never posted anything
+        // and must not inflate the day's totals.
+        $sales = Sale::whereDate('sale_date', $date)->whereIn('status', ['confirmed', 'partial', 'paid'])->get();
+        $purchases = Purchase::whereDate('purchase_date', $date)->whereIn('status', ['received', 'partial', 'paid'])->get();
         $expenses = Expense::whereDate('expense_date', $date)->whereIn('status', ['approved', 'paid'])->get();
         $incomes = Income::whereDate('income_date', $date)->get();
 
@@ -484,11 +553,11 @@ class ReportController extends Controller
         $toDate = $request->to_date ?? date('Y-m-t');
 
         $sales = Sale::whereBetween('sale_date', [$fromDate, $toDate])
-            ->where('status', 'paid')
+            ->whereIn('status', ['confirmed', 'partial', 'paid'])
             ->get();
 
         $purchases = Purchase::whereBetween('purchase_date', [$fromDate, $toDate])
-            ->whereIn('status', ['received', 'paid'])
+            ->whereIn('status', ['received', 'partial', 'paid'])
             ->get();
 
         $salesTax = $sales->sum('tax');
@@ -504,6 +573,13 @@ class ReportController extends Controller
             'purchaseTax',
             'netTax'
         ));
+    }
+
+    public function taxReportPdf(Request $request)
+    {
+        $view = $this->taxReport($request);
+        $pdf = Pdf::loadView('admin.exports.tax-pdf', $view->getData());
+        return $pdf->download('tax-report-' . date('Y-m-d') . '.pdf');
     }
     /**
      * Trial Balance Report
@@ -525,16 +601,21 @@ class ReportController extends Controller
         $trialBalance = [];
 
         foreach ($accounts as $account) {
-            // Calculate total debits for this account
+            // A trial balance is cumulative as of a date, not a date-range
+            // movement report - it must match Account::getBalanceAttribute()
+            // (used everywhere else an account's balance is shown), which
+            // sums every entry ever posted with no lower bound. Bounding
+            // this by $fromDate as well used to make it silently disagree
+            // with the Chart of Accounts page for the same account/day.
             $totalDebits = JournalEntry::where('account_id', $account->id)
                 ->where('type', 'debit')
-                ->whereBetween('entry_date', [$fromDate, $toDate])
+                ->where('entry_date', '<=', $toDate)
                 ->sum('amount');
 
             // Calculate total credits for this account
             $totalCredits = JournalEntry::where('account_id', $account->id)
                 ->where('type', 'credit')
-                ->whereBetween('entry_date', [$fromDate, $toDate])
+                ->where('entry_date', '<=', $toDate)
                 ->sum('amount');
 
             // Calculate net balance
@@ -597,5 +678,319 @@ class ReportController extends Controller
             'totalCreditBalance',
             'groupedByType'
         ));
+    }
+
+    public function trialBalancePdf(Request $request)
+    {
+        $view = $this->trialBalance($request);
+        $pdf = Pdf::loadView('admin.exports.trial-balance-pdf', $view->getData());
+        return $pdf->download('trial-balance-' . date('Y-m-d') . '.pdf');
+    }
+
+    public function profitLossPdf(Request $request)
+    {
+        $view = $this->profitLoss($request);
+        $pdf = Pdf::loadView('admin.exports.profit-loss-pdf', $view->getData());
+        return $pdf->download('profit-loss-' . date('Y-m-d') . '.pdf');
+    }
+
+    public function receivablePdf(Request $request)
+    {
+        $view = $this->receivable($request);
+        $pdf = Pdf::loadView('admin.exports.receivable-pdf', $view->getData());
+        return $pdf->download('receivable-' . date('Y-m-d') . '.pdf');
+    }
+
+    // =============================================
+    // 9. PAYABLE REPORT (Supplier Outstanding) - mirrors receivable()
+    // =============================================
+
+    public function payable(Request $request)
+    {
+        $query = Supplier::with('purchases', 'purchasePayments');
+
+        if ($request->city) {
+            $query->where('city', 'like', '%' . $request->city . '%');
+        }
+
+        $suppliers = $query->orderBy('name')->get();
+
+        $minBalance = $request->filled('min_balance') ? (float) $request->min_balance : null;
+
+        $suppliersWithBalance = $suppliers->filter(function ($supplier) use ($minBalance) {
+            if ($supplier->balance <= 0) {
+                return false;
+            }
+            return $minBalance === null || $supplier->balance >= $minBalance;
+        })->sortByDesc('balance');
+
+        $totalPayable = $suppliersWithBalance->sum('balance');
+        $totalSuppliers = $suppliersWithBalance->count();
+        $avgPayable = $totalSuppliers > 0 ? $totalPayable / $totalSuppliers : 0;
+
+        return view('admin.reports.payable', compact(
+            'suppliersWithBalance',
+            'totalPayable',
+            'totalSuppliers',
+            'avgPayable'
+        ));
+    }
+
+    public function payablePdf(Request $request)
+    {
+        $view = $this->payable($request);
+        $pdf = Pdf::loadView('admin.exports.payable-pdf', $view->getData());
+        return $pdf->download('payable-' . date('Y-m-d') . '.pdf');
+    }
+
+    // =============================================
+    // 10. CUSTOMER LEDGER (khata-style running balance)
+    // =============================================
+
+    /**
+     * No payment_term filter, unlike the supplier side below - a cash sale's
+     * own instant full payment (SaleService::recordPayment, fired in the
+     * same request the sale is created) shows up as its own debit+credit
+     * pair that nets to zero, which is both the correct running balance AND
+     * more informative than silently omitting cash sales from the ledger.
+     * Matches Customer::getTotalSalesAttribute()'s own no-payment_term-filter
+     * convention, so this ledger's closing balance always agrees with the
+     * balance figure shown everywhere else for this customer.
+     */
+    private function customerLedgerData(Customer $customer, ?string $fromDate, ?string $toDate): array
+    {
+        $balanceStatuses = ['confirmed', 'partial', 'paid'];
+
+        $rows = [];
+
+        foreach (Sale::where('customer_id', $customer->id)->whereIn('status', $balanceStatuses)->get() as $sale) {
+            $rows[] = [
+                'date' => $sale->sale_date,
+                'particulars' => "Sale Invoice #{$sale->invoice_no}",
+                'reference' => $sale->invoice_no,
+                'debit' => (float) $sale->total_amount,
+                'credit' => 0,
+            ];
+        }
+
+        foreach ($customer->salePayments()->whereHas('sale')->get() as $payment) {
+            $rows[] = [
+                'date' => $payment->payment_date,
+                'particulars' => 'Payment Received (' . ucfirst(str_replace('_', ' ', $payment->payment_method)) . ')',
+                'reference' => $payment->reference_no,
+                'debit' => 0,
+                'credit' => (float) $payment->amount,
+            ];
+        }
+
+        foreach (SalesReturn::where('customer_id', $customer->id)->get() as $return) {
+            $rows[] = [
+                'date' => $return->return_date,
+                'particulars' => "Sales Return #{$return->return_no}",
+                'reference' => $return->return_no,
+                'debit' => 0,
+                'credit' => (float) $return->total_amount,
+            ];
+        }
+
+        return $this->buildPeriodLedger($rows, (float) $customer->opening_balance, $fromDate, $toDate) + ['customer' => $customer];
+    }
+
+    public function customerLedger(Customer $customer, Request $request)
+    {
+        return view('admin.reports.customer-ledger', $this->customerLedgerData($customer, $request->from_date, $request->to_date));
+    }
+
+    public function customerLedgerPdf(Customer $customer, Request $request)
+    {
+        $data = $this->customerLedgerData($customer, $request->from_date, $request->to_date);
+        $pdf = Pdf::loadView('admin.exports.customer-ledger-pdf', $data);
+        return $pdf->download('customer-ledger-' . $customer->code . '-' . date('Y-m-d') . '.pdf');
+    }
+
+    // =============================================
+    // 11. SUPPLIER LEDGER (khata-style running balance)
+    // =============================================
+
+    /**
+     * Filtered to payment_term='credit' throughout, matching
+     * Supplier::total_purchases/total_paid/total_returned's own established
+     * rule that a cash purchase settles instantly and never opens a payable
+     * - keeping this ledger's closing balance consistent with the balance
+     * shown on the supplier's own profile and the Payable report above.
+     */
+    private function supplierLedgerData(Supplier $supplier, ?string $fromDate, ?string $toDate): array
+    {
+        $rows = [];
+
+        foreach (Purchase::where('supplier_id', $supplier->id)->whereIn('status', ['received', 'partial', 'paid'])->where('payment_term', 'credit')->get() as $purchase) {
+            $rows[] = [
+                'date' => $purchase->purchase_date,
+                'particulars' => "Purchase Invoice #{$purchase->invoice_no}",
+                'reference' => $purchase->invoice_no,
+                'debit' => 0,
+                'credit' => (float) $purchase->total_amount,
+            ];
+        }
+
+        foreach ($supplier->purchasePayments()->whereHas('purchase', fn ($q) => $q->where('payment_term', 'credit'))->get() as $payment) {
+            $rows[] = [
+                'date' => $payment->payment_date,
+                'particulars' => 'Payment Made (' . ucfirst(str_replace('_', ' ', $payment->payment_method)) . ')',
+                'reference' => $payment->reference_no,
+                'debit' => (float) $payment->amount,
+                'credit' => 0,
+            ];
+        }
+
+        foreach (PurchaseReturn::where('supplier_id', $supplier->id)->whereHas('purchase', fn ($q) => $q->where('payment_term', 'credit'))->get() as $return) {
+            $rows[] = [
+                'date' => $return->return_date,
+                'particulars' => "Purchase Return #{$return->return_no}",
+                'reference' => $return->return_no,
+                'debit' => (float) $return->total_amount,
+                'credit' => 0,
+            ];
+        }
+
+        // A supplier's opening_balance is what we already owed them before
+        // using this system - a payable, i.e. the credit side, so it's
+        // negated going into the debit-positive running-balance convention
+        // withRunningBalance() uses (balance += debit - credit).
+        return $this->buildPeriodLedger($rows, -(float) $supplier->opening_balance, $fromDate, $toDate) + ['supplier' => $supplier];
+    }
+
+    public function supplierLedger(Supplier $supplier, Request $request)
+    {
+        return view('admin.reports.supplier-ledger', $this->supplierLedgerData($supplier, $request->from_date, $request->to_date));
+    }
+
+    public function supplierLedgerPdf(Supplier $supplier, Request $request)
+    {
+        $data = $this->supplierLedgerData($supplier, $request->from_date, $request->to_date);
+        $pdf = Pdf::loadView('admin.exports.supplier-ledger-pdf', $data);
+        return $pdf->download('supplier-ledger-' . $supplier->code . '-' . date('Y-m-d') . '.pdf');
+    }
+
+    // =============================================
+    // 12. ACCOUNT LEDGER / CASH BOOK / BANK BOOK (khata-style running balance)
+    // =============================================
+
+    /**
+     * Generic per-account ledger straight off JournalEntry, the same rows
+     * Account::balance already sums - so "Cash Book" and "Bank Book" are
+     * just this same report pointed at account 1010/1020, not separate
+     * features. Running balance shown debit-positive (see LedgerHelper) with
+     * a Dr/Cr suffix in the view, so a credit-normal account (e.g. a
+     * payable) still reads as a normal growing amount instead of a negative
+     * number.
+     */
+    private function accountLedgerData(Account $account, ?string $fromDate, ?string $toDate): array
+    {
+        $rows = JournalEntry::where('account_id', $account->id)
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($entry) => [
+                'date' => $entry->entry_date,
+                'particulars' => $entry->description ?: (ucfirst(str_replace('_', ' ', $entry->reference_type)) . ' #' . $entry->reference_id),
+                'reference' => ucfirst(str_replace('_', ' ', $entry->reference_type)) . ' #' . $entry->reference_id,
+                'debit' => $entry->type === 'debit' ? (float) $entry->amount : 0,
+                'credit' => $entry->type === 'credit' ? (float) $entry->amount : 0,
+            ])
+            ->toArray();
+
+        return $this->buildPeriodLedger($rows, 0, $fromDate, $toDate) + ['account' => $account];
+    }
+
+    public function accountLedger(Account $account, Request $request)
+    {
+        return view('admin.reports.account-ledger', $this->accountLedgerData($account, $request->from_date, $request->to_date));
+    }
+
+    public function accountLedgerPdf(Account $account, Request $request)
+    {
+        $data = $this->accountLedgerData($account, $request->from_date, $request->to_date);
+        $pdf = Pdf::loadView('admin.exports.account-ledger-pdf', $data);
+        return $pdf->download('account-ledger-' . $account->code . '-' . date('Y-m-d') . '.pdf');
+    }
+
+    // =============================================
+    // 13. DAY BOOK (General Journal - every voucher for a date/range)
+    // =============================================
+
+    private function dayBookData(?string $fromDate, ?string $toDate): array
+    {
+        $fromDate = $fromDate ?: date('Y-m-d');
+        $toDate = $toDate ?: $fromDate;
+
+        $entries = JournalEntry::with('account')
+            ->whereBetween('entry_date', [$fromDate, $toDate])
+            ->orderBy('entry_date')
+            ->orderBy('reference_type')
+            ->orderBy('reference_id')
+            ->orderBy('id')
+            ->get();
+
+        $totalDebit = (float) $entries->where('type', 'debit')->sum('amount');
+        $totalCredit = (float) $entries->where('type', 'credit')->sum('amount');
+
+        return [
+            'entries' => $entries,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
+            'total_debit' => $totalDebit,
+            'total_credit' => $totalCredit,
+        ];
+    }
+
+    public function dayBook(Request $request)
+    {
+        return view('admin.reports.day-book', $this->dayBookData($request->from_date, $request->to_date));
+    }
+
+    public function dayBookPdf(Request $request)
+    {
+        $data = $this->dayBookData($request->from_date, $request->to_date);
+        $pdf = Pdf::loadView('admin.exports.day-book-pdf', $data);
+        return $pdf->download('day-book-' . $data['from_date'] . '_to_' . $data['to_date'] . '.pdf');
+    }
+
+    // =============================================
+    // Shared: opening-balance-as-of-from_date + windowed running balance,
+    // used by every per-party/per-account ledger above.
+    // =============================================
+    private function buildPeriodLedger(array $rows, float $openingBalance, ?string $fromDate, ?string $toDate): array
+    {
+        usort($rows, fn ($a, $b) => strtotime($a['date']) <=> strtotime($b['date']));
+
+        $periodRows = $rows;
+
+        if ($fromDate) {
+            foreach ($rows as $row) {
+                if (strtotime($row['date']) < strtotime($fromDate)) {
+                    $openingBalance += (float) $row['debit'] - (float) $row['credit'];
+                }
+            }
+            $periodRows = array_values(array_filter($rows, fn ($r) => strtotime($r['date']) >= strtotime($fromDate)));
+        }
+
+        if ($toDate) {
+            $periodRows = array_values(array_filter($periodRows, fn ($r) => strtotime($r['date']) <= strtotime($toDate . ' 23:59:59')));
+        }
+
+        $ledger = LedgerHelper::withRunningBalance($periodRows, $openingBalance);
+
+        return [
+            'rows' => $ledger['rows'],
+            'opening_balance' => $ledger['opening_balance'],
+            'opening_balance_side' => $ledger['opening_balance'] >= 0 ? 'Dr' : 'Cr',
+            'closing_balance' => $ledger['closing_balance'],
+            'closing_balance_side' => $ledger['closing_balance'] >= 0 ? 'Dr' : 'Cr',
+            'total_debit' => array_sum(array_column($ledger['rows'], 'debit')),
+            'total_credit' => array_sum(array_column($ledger['rows'], 'credit')),
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
+        ];
     }
 }

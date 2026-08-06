@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\AccountingTrait;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Expense extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, AccountingTrait;
 
     protected $fillable = [
         'expense_no',
@@ -51,14 +54,21 @@ class Expense extends Model
         });
 
         static::updated(function ($expense) {
-            // If status changed to approved/paid, post accounting
-            if ($expense->isDirty('status') && in_array($expense->status, ['approved', 'paid'])) {
-                $expense->postAccounting();
-            }
+            // Re-post if anything the journal entries were derived from
+            // changed - not just status/amount/payment_method, but also the
+            // expense_date, since that's what the journal entry itself is
+            // dated by. Without it, correcting a paid expense's date left
+            // the ledger entry stuck on the old date forever.
+            if ($expense->isDirty(['status', 'amount', 'payment_method', 'expense_date'])) {
+                DB::transaction(function () use ($expense) {
+                    $expense->reverseAccounting();
 
-            // If status changed to cancelled, reverse accounting
-            if ($expense->isDirty('status') && $expense->status == 'cancelled') {
-                $expense->reverseAccounting();
+                    if (in_array($expense->status, ['approved', 'paid'])) {
+                        $expense->postAccounting();
+                    }
+                });
+            } elseif (in_array($expense->status, ['approved', 'paid'])) {
+                $expense->postAccounting();
             }
         });
 
@@ -69,62 +79,47 @@ class Expense extends Model
     }
 
     /**
-     * Post accounting entry for expense
+     * Post accounting entry for expense.
+     *
+     * Idempotent: this is the ONLY place expense accounting gets posted (the
+     * created/updated hooks above call it, controllers just change status),
+     * but it still guards against a double-call re-posting the same entries.
      */
     public function postAccounting()
     {
+        if (JournalEntry::where('reference_type', 'expense')->where('reference_id', $this->id)->exists()) {
+            return;
+        }
+
         $expenseAccount = Account::where('code', '5030')->first(); // General Expenses
         $cashAccount = Account::where('code', '1010')->first(); // Cash Account
         $bankAccount = Account::where('code', '1020')->first(); // Bank Account
 
         if (!$expenseAccount || !$cashAccount) {
+            Log::warning('Expense accounts not found, skipping ledger post', ['expense_id' => $this->id]);
             return;
         }
 
-        $entries = [];
-
-        // Debit: Expense Account
-        $entries[] = [
-            'account_id' => $expenseAccount->id,
-            'type' => 'debit',
-            'amount' => $this->amount,
-            'description' => "Expense #{$this->expense_no} - {$this->title}"
-        ];
-
-        // Credit: Cash or Bank
-        if ($this->payment_method == 'cash') {
-            if ($cashAccount) {
-                $entries[] = [
-                    'account_id' => $cashAccount->id,
-                    'type' => 'credit',
-                    'amount' => $this->amount,
-                    'description' => "Expense Payment #{$this->expense_no}"
-                ];
-            }
-        } else {
-            if ($bankAccount) {
-                $entries[] = [
-                    'account_id' => $bankAccount->id,
-                    'type' => 'credit',
-                    'amount' => $this->amount,
-                    'description' => "Expense Payment #{$this->expense_no}"
-                ];
-            }
+        $creditAccount = $this->payment_method == 'cash' ? $cashAccount : $bankAccount;
+        if (!$creditAccount) {
+            Log::warning('Expense credit account not found, skipping ledger post', ['expense_id' => $this->id, 'payment_method' => $this->payment_method]);
+            return;
         }
 
-        foreach ($entries as $entry) {
-            if ($entry['account_id']) {
-                JournalEntry::create([
-                    'account_id' => $entry['account_id'],
-                    'type' => $entry['type'],
-                    'amount' => $entry['amount'],
-                    'description' => $entry['description'],
-                    'reference_type' => 'expense',
-                    'reference_id' => $this->id,
-                    'entry_date' => now()->toDateString(),
-                ]);
-            }
-        }
+        $this->postDoubleEntry([
+            [
+                'account_id' => $expenseAccount->id,
+                'type' => 'debit',
+                'amount' => $this->amount,
+                'description' => "Expense #{$this->expense_no} - {$this->title}",
+            ],
+            [
+                'account_id' => $creditAccount->id,
+                'type' => 'credit',
+                'amount' => $this->amount,
+                'description' => "Expense Payment #{$this->expense_no}",
+            ],
+        ], 'expense', $this->id, $this->expense_date);
     }
 
     /**

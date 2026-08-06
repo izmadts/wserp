@@ -4,14 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Traits\AccountingTrait;
 
 class Product extends Model
 {
+    use AccountingTrait;
+
+
     protected $fillable = [
         'code', 'name', 'slug', 'category_id', 'unit',
         'purchase_price', 'sale_price', 'wholesale_price',
         'current_stock', 'min_stock_level', 'max_stock_level',
-        'barcode', 'description', 'image', 'is_active'
+        'barcode', 'description', 'image', 'is_active',
+        'is_retail', 'is_wholesale', 'is_loyalty',
     ];
 
     protected $casts = [
@@ -22,6 +27,9 @@ class Product extends Model
         'min_stock_level' => 'decimal:2',
         'max_stock_level' => 'decimal:2',
         'is_active' => 'boolean',
+        'is_retail' => 'boolean',
+        'is_wholesale' => 'boolean',
+        'is_loyalty' => 'boolean',
     ];
 
     // Auto generate code and slug
@@ -62,15 +70,47 @@ class Product extends Model
         return $this->hasMany(PurchaseItem::class);
     }
 
+    public function rewards()
+    {
+        return $this->hasMany(Reward::class);
+    }
+
     // Scopes
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
+    public function scopeRetail($query)
+    {
+        return $query->where('is_retail', true);
+    }
+
+    public function scopeWholesale($query)
+    {
+        return $query->where('is_wholesale', true);
+    }
+
+    public function scopeLoyalty($query)
+    {
+        return $query->where('is_loyalty', true);
+    }
+
     public function scopeLowStock($query)
     {
         return $query->whereColumn('current_stock', '<=', 'min_stock_level');
+    }
+
+    /**
+     * max_stock_level of 0 means "no ceiling set" (that's the default for
+     * every product, both in the DB and the create/edit forms), so it's
+     * excluded here the same way a 0 credit_limit means "no limit" - a
+     * product left at the default never gets flagged.
+     */
+    public function scopeOverStock($query)
+    {
+        return $query->where('max_stock_level', '>', 0)
+            ->whereColumn('current_stock', '>', 'max_stock_level');
     }
 
     // Helper methods
@@ -79,20 +119,66 @@ class Product extends Model
         return $this->current_stock <= $this->min_stock_level;
     }
 
-    public function addStock($quantity)
+    public function isOverStock()
     {
-        $this->current_stock += $quantity;
-        $this->save();
-        return $this;
+        return (float) $this->max_stock_level > 0 && $this->current_stock > $this->max_stock_level;
     }
 
-    public function removeStock($quantity)
+    /**
+     * Record the stock this product was created with as a proper 'opening'
+     * StockMovement and a ledger entry (debit Inventory 1030, credit
+     * Opening Balance Equity 3020), instead of the value just silently
+     * sitting in current_stock with nothing behind it. Idempotent: skips if
+     * an opening movement already exists for this product.
+     */
+    public function postOpeningStock()
     {
-        if ($this->current_stock < $quantity) {
-            throw new \Exception("Insufficient stock for product: {$this->name}");
+        if ((float) $this->current_stock <= 0) {
+            return;
         }
-        $this->current_stock -= $quantity;
-        $this->save();
-        return $this;
+
+        if (StockMovement::where('reference_type', 'opening')->where('reference_id', $this->id)->exists()) {
+            return;
+        }
+
+        StockMovement::create([
+            'product_id' => $this->id,
+            'type' => 'in',
+            'reference_type' => 'opening',
+            'reference_id' => $this->id,
+            'quantity' => $this->current_stock,
+            'unit_price' => $this->purchase_price,
+            'total_price' => round((float) $this->current_stock * (float) $this->purchase_price, 2),
+            'stock_before' => 0,
+            'stock_after' => $this->current_stock,
+            'notes' => "Opening stock for {$this->name}",
+        ]);
+
+        $amount = round((float) $this->current_stock * (float) $this->purchase_price, 2);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $inventoryAccount = Account::where('code', '1030')->first();
+        $openingEquityAccount = Account::where('code', '3020')->first();
+
+        if (!$inventoryAccount || !$openingEquityAccount) {
+            return;
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $inventoryAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Opening stock - {$this->name}",
+            ],
+            [
+                'account_id' => $openingEquityAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Opening stock - {$this->name}",
+            ],
+        ], 'opening', $this->id);
     }
 }

@@ -45,7 +45,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($products as $product)
+                    @foreach($products as $product)
                     <tr class="hover:bg-gray-50 transition-colors duration-150">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $product->code }}</code>
@@ -67,6 +67,11 @@
                             @if($product->isLowStock())
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                     <i class="fas fa-exclamation-circle mr-1"></i>
+                                    {{ number_format($product->current_stock, 2) }}
+                                </span>
+                            @elseif($product->isOverStock())
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                    <i class="fas fa-box-open mr-1"></i>
                                     {{ number_format($product->current_stock, 2) }}
                                 </span>
                             @elseif($product->current_stock == 0)
@@ -94,10 +99,12 @@
                                    class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200">
                                     <i class="fas fa-edit text-sm"></i>
                                 </a>
-                                <a href="{{ route('admin.products.toggle-status', $product) }}" 
-                                   class="p-1.5 {{ $product->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
-                                    <i class="fas {{ $product->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
-                                </a>
+                                <form action="{{ route('admin.products.toggle-status', $product) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="submit" class="p-1.5 {{ $product->is_active ? 'text-gray-600 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50' }} rounded-lg transition-colors duration-200">
+                                        <i class="fas {{ $product->is_active ? 'fa-pause' : 'fa-play' }} text-sm"></i>
+                                    </button>
+                                </form>
                                 <form action="{{ route('admin.products.destroy', $product) }}" method="POST" class="inline">
                                     @csrf
                                     @method('DELETE')
@@ -109,14 +116,7 @@
                             </div>
                         </td>
                     </tr>
-                    @empty
-                    <tr>
-                        <td colspan="9" class="text-center py-8 text-gray-500">
-                            <i class="fas fa-box-open text-3xl mb-2 block"></i>
-                            No products found. Click "Add Product" to create one.
-                        </td>
-                    </tr>
-                    @endforelse
+                    @endforeach
                 </tbody>
             </table>
         </div>
@@ -130,12 +130,12 @@
         if (document.getElementById('productsTable')) {
             new DataTable('#productsTable', {
                 pageLength: 25,
-                responsive: true,
                 order: [[1, 'asc']],
                 language: {
                     search: "Search:",
                     lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    emptyTable: "No products found. Click \"Add Product\" to create one."
                 }
             });
         }

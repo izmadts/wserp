@@ -17,7 +17,7 @@ class PurchaseReturn extends Model
         'purchase_id',
         'supplier_id',
         'return_date',
-        'invoice_no',
+        'return_no',
         'reason',
         'sub_total',
         'discount',
@@ -44,8 +44,8 @@ class PurchaseReturn extends Model
         parent::boot();
 
         static::creating(function ($return) {
-            if (empty($return->invoice_no)) {
-                $return->invoice_no = 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+            if (empty($return->return_no)) {
+                $return->return_no = 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(6));
             }
         });
 
@@ -87,9 +87,16 @@ class PurchaseReturn extends Model
 
         DB::transaction(function () {
             foreach ($this->items as $item) {
-                $product = $item->product;
+                // Locked for the duration of the transaction so a concurrent
+                // sale/purchase of the same product can't interleave with
+                // this read-modify-write.
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
                 if (!$product) {
                     continue;
+                }
+
+                if ($product->current_stock < $item->quantity) {
+                    throw new \Exception("Cannot return: would take {$product->name}'s stock negative. Available: {$product->current_stock}, Returning: {$item->quantity}.");
                 }
 
                 $stockBefore = $product->current_stock;
@@ -106,12 +113,46 @@ class PurchaseReturn extends Model
                     'total_price' => $item->total_price,
                     'stock_before' => $stockBefore,
                     'stock_after' => $product->current_stock,
-                    'notes' => "Purchase Return #{$this->invoice_no}"
+                    'notes' => "Purchase Return #{$this->return_no}"
                 ]);
             }
 
             $this->postReturnAccounting();
+            $this->applyToPurchase();
         });
+    }
+
+    /**
+     * Reduce the linked purchase's outstanding balance by this return's
+     * amount - without this, a purchase that's been partially or fully
+     * returned kept showing its pre-return due_amount forever, including on
+     * the "Add Payment" form.
+     */
+    private function applyToPurchase()
+    {
+        $purchase = $this->purchase;
+        if (!$purchase) {
+            return;
+        }
+
+        $purchase->refunded_amount = (float) $purchase->refunded_amount + (float) $this->total_amount;
+        $purchase->due_amount = $purchase->total_amount - $purchase->paid_amount - $purchase->refunded_amount;
+        $purchase->saveQuietly();
+    }
+
+    /**
+     * Symmetric undo for applyToPurchase(), run when a return is deleted.
+     */
+    private function removeFromPurchase()
+    {
+        $purchase = $this->purchase;
+        if (!$purchase) {
+            return;
+        }
+
+        $purchase->refunded_amount = max(0, (float) $purchase->refunded_amount - (float) $this->total_amount);
+        $purchase->due_amount = $purchase->total_amount - $purchase->paid_amount - $purchase->refunded_amount;
+        $purchase->saveQuietly();
     }
 
     /**
@@ -130,7 +171,7 @@ class PurchaseReturn extends Model
 
         DB::transaction(function () {
             foreach ($this->items as $item) {
-                $product = $item->product;
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
                 if ($product) {
                     $product->current_stock += $item->quantity;
                     $product->save();
@@ -144,6 +185,8 @@ class PurchaseReturn extends Model
             JournalEntry::where('reference_type', 'purchase_return')
                 ->where('reference_id', $this->id)
                 ->delete();
+
+            $this->removeFromPurchase();
         });
     }
 
@@ -158,38 +201,45 @@ class PurchaseReturn extends Model
         $inventoryAccount = Account::where('code', '1030')->first();
         $payableAccount = Account::where('code', '2010')->first();
         $cashAccount = Account::where('code', '1010')->first();
+        $bankAccount = Account::where('code', '1020')->first();
 
-        $useCash = in_array($this->refund_method, ['cash', 'bank_transfer', 'cheque']);
-        $offsetAccount = $useCash ? $cashAccount : $payableAccount;
+        // 'cash' and 'bank_transfer'/'cheque' used to both route to Cash -
+        // same 2-way split Expense/Income already use (Expense.php:103), so
+        // a bank-transfer refund actually leaves the Bank account balance.
+        $offsetAccount = $this->refund_method === 'cash'
+            ? $cashAccount
+            : ($this->refund_method === 'credit' ? $payableAccount : $bankAccount);
+        $isPayableReduction = $this->refund_method === 'credit';
 
-        // NOTE: previously there was no null-check here at all - a missing
-        // account code would throw a fatal error calling ->id on null.
+        // Thrown (not logged-and-skipped) because stock has already been
+        // mutated by the time this executes - silently returning would
+        // leave inventory moved with zero ledger trail. Wrapped in
+        // updateStockAndAccounts()'s DB::transaction, so throwing here
+        // correctly rolls the stock change back too.
         if (!$inventoryAccount || !$offsetAccount) {
-            Log::warning('Accounts not found for purchase return accounting', [
-                'return_id' => $this->id,
-                'refund_method' => $this->refund_method,
-            ]);
-            return;
+            throw new \Exception("Cannot post purchase return accounting: required chart-of-accounts entries not found for return #{$this->id} (refund method: {$this->refund_method}).");
         }
 
         $entries = [
             [
                 'account_id' => $offsetAccount->id,
                 'type' => 'debit',
-                'amount' => $this->total_amount
+                'amount' => $this->total_amount,
+                'description' => "Purchase Return #{$this->return_no}" . ($isPayableReduction ? ' - Payable reduced' : ' - ' . ucfirst(str_replace('_', ' ', $this->refund_method)) . ' refund'),
             ],
             [
                 'account_id' => $inventoryAccount->id,
                 'type' => 'credit',
-                'amount' => $this->total_amount
+                'amount' => $this->total_amount,
+                'description' => "Inventory reduction for Purchase Return #{$this->return_no}",
             ]
         ];
 
         $this->postDoubleEntry(
-            "Purchase Return #{$this->invoice_no}",
             $entries,
             'purchase_return',
-            $this->id
+            $this->id,
+            $this->return_date
         );
     }
 

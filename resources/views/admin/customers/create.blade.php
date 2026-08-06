@@ -29,6 +29,21 @@
                     </select>
                     <p class="text-xs text-gray-500 mt-1">Select an agent to link this customer. Agent will be able to view and manage this customer.</p>
                 </div>
+                <!-- Customer Group -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Customer Group</label>
+                    <select name="customer_group_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('customer_group_id') border-red-500 @enderror">
+                        <option value="">None</option>
+                        @foreach($customerGroups as $group)
+                        <option value="{{ $group->id }}" {{ old('customer_group_id', optional($customerGroups->firstWhere('is_default', true))->id) == $group->id ? 'selected' : '' }}>
+                            {{ $group->name }} @if($group->price_field == 'wholesale_price') (Wholesale pricing) @else (Retail pricing) @endif
+                        </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Determines which price (retail/wholesale) is auto-filled for this customer when creating a sale.</p>
+                    @error('customer_group_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                </div>
+
                 <!-- Code -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Customer Code</label>
@@ -126,7 +141,10 @@
 
                 <!-- Financial Fields -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Opening Balance
+                        <x-help-tooltip>What this customer already owed before you started using this system. It's added straight into their outstanding balance shown everywhere else, so a genuinely new customer should leave this at 0.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="opening_balance" value="{{ old('opening_balance', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('opening_balance') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -134,7 +152,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Credit Limit</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Credit Limit
+                        <x-help-tooltip>The most this customer should owe at once. If Settings &gt; Commission &amp; Bonus has "Block new credit sales that would exceed a customer's Credit Limit" turned on (it's off by default), a new credit sale that would push their balance past this number is refused. Leave at 0 for no limit.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="credit_limit" value="{{ old('credit_limit', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('credit_limit') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -142,7 +163,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Credit Days</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Credit Days
+                        <x-help-tooltip>How many days one of this customer's credit sales can sit unpaid before it counts as "overdue" - overrides the global grace period in Settings &gt; Commission &amp; Bonus just for this customer. Leave at 0 to use the global default instead.</x-help-tooltip>
+                    </label>
                     <input type="number" name="credit_days" value="{{ old('credit_days', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('credit_days') border-red-500 @enderror"
                         min="0">

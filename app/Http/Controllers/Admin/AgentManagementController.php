@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Sale;
 use App\Models\AgentCommissionLog;
 use App\Models\AgentMonthlyTarget;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +15,13 @@ use Illuminate\Validation\Rule;
 
 class AgentManagementController extends Controller
 {
+    protected $commissionService;
+
+    public function __construct(CommissionService $commissionService)
+    {
+        $this->commissionService = $commissionService;
+    }
+
     /**
      * Display a listing of all agents
      */
@@ -65,6 +74,10 @@ class AgentManagementController extends Controller
             'fuel_allowance' => 'required|numeric|min:0',
             'commission_rate_credit' => 'required|numeric|min:0|max:100',
             'admin_note' => 'nullable|string',
+            // Which customer channel(s) this agent is allowed to work -
+            // gates their own customer/product/sale APIs (see
+            // Api\Agent\CustomerController/ProductController/SaleController).
+            'channel' => 'required|in:wholesale,retail,both',
             // Slabs validation
             'slabs' => 'required|array|min:1',
             'slabs.*.from' => 'required|numeric|min:0',
@@ -87,6 +100,7 @@ class AgentManagementController extends Controller
             'commission_rate_credit' => $validated['commission_rate_credit'],
             'commission_slabs' => $slabs,
             'admin_note' => $validated['admin_note'] ?? $user->admin_note,
+            'channel' => $validated['channel'],
             'is_active' => true,
             'approved_at' => now(),
             'approved_by' => Auth::id(),
@@ -141,9 +155,11 @@ class AgentManagementController extends Controller
 
         $user->load('sales', 'customers');
 
-        // Get commission summary
+        // Get commission summary. paid_amount is summed across ALL logs
+        // (not just ones flagged fully is_paid) so a partially-paid log's
+        // progress is actually reflected here.
         $totalCommission = AgentCommissionLog::where('agent_id', $user->id)->sum('amount');
-        $paidCommission = AgentCommissionLog::where('agent_id', $user->id)->where('is_paid', true)->sum('amount');
+        $paidCommission = AgentCommissionLog::where('agent_id', $user->id)->sum('paid_amount');
         $dueCommission = $totalCommission - $paidCommission;
 
         // Get monthly targets
@@ -188,10 +204,15 @@ class AgentManagementController extends Controller
             'commission_rate_cash' => 'nullable|numeric|min:0|max:100',
             'commission_rate_credit' => 'nullable|numeric|min:0|max:100',
             'admin_note' => 'nullable|string',
+            'channel' => 'nullable|in:wholesale,retail,both',
             'is_active' => 'boolean',
         ]);
 
-        $validated['is_active'] = $validated['is_active'] ?? $user->is_active;
+        // A checkbox rule of 'boolean' only validates the key if present -
+        // it doesn't default one in when absent, so an unchecked box (which
+        // sends no key at all) used to silently fall back to the old value
+        // and the admin's "deactivate agent" click would do nothing.
+        $validated['is_active'] = $request->boolean('is_active');
 
         if ($request->filled('password')) {
             $request->validate([
@@ -251,37 +272,85 @@ class AgentManagementController extends Controller
             return back()->with('error', 'User is not a sales agent!');
         }
 
+        $totalDue = AgentCommissionLog::where('agent_id', $user->id)->sum('amount')
+            - AgentCommissionLog::where('agent_id', $user->id)->sum('paid_amount');
+
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0.01|max:' . max($totalDue, 0.01),
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,cheque',
             'reference_no' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
 
-        // Update commission logs
-        $dueLogs = AgentCommissionLog::where('agent_id', $user->id)
-            ->where('is_paid', false)
-            ->orderBy('created_at', 'asc')
-            ->get();
-
-        $remainingAmount = $validated['amount'];
-
-        foreach ($dueLogs as $log) {
-            if ($remainingAmount <= 0) break;
-
-            $payAmount = min($log->amount, $remainingAmount);
-            $log->update([
-                'is_paid' => true,
-                'paid_date' => $validated['payment_date'],
-                'paid_by' => Auth::id(),
-            ]);
-
-            $remainingAmount -= $payAmount;
-        }
+        // Allocates across unpaid logs (oldest first), actually tracking
+        // paid_amount per log instead of flipping the whole log to
+        // is_paid=true regardless of how much was actually paid against it.
+        $this->commissionService->payCommission(
+            $user,
+            $validated['amount'],
+            $validated['payment_date'],
+            $validated['payment_method'],
+            $validated['reference_no'] ?? null,
+            $validated['notes'] ?? null,
+            Auth::id()
+        );
 
         return redirect()->route('admin.agents.view', $user)
             ->with('success', 'Commission paid successfully!');
+    }
+
+    /**
+     * Hold an agent's commission on a specific sale (fraud/dispute/
+     * overdue-recovery hold per the commission policy's outstanding-
+     * balances clause).
+     */
+    public function holdCommission(Request $request, User $user, Sale $sale)
+    {
+        if ($sale->agent_id !== $user->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|min:5',
+        ]);
+
+        $this->commissionService->holdCommission($sale, $validated['reason']);
+
+        return back()->with('success', 'Commission held for this sale.');
+    }
+
+    public function releaseCommission(User $user, Sale $sale)
+    {
+        if ($sale->agent_id !== $user->id) {
+            abort(404);
+        }
+
+        $this->commissionService->releaseCommission($sale);
+
+        return back()->with('success', 'Commission released for this sale.');
+    }
+
+    /**
+     * Close the current month and post target-achievement bonuses for
+     * every active agent (100%/120%/150% tiers) - previously only ever
+     * computed for on-screen display, never actually paid.
+     */
+    public function closeMonth(Request $request)
+    {
+        $validated = $request->validate([
+            'year' => 'nullable|integer|min:2020|max:2100',
+            'month' => 'nullable|integer|min:1|max:12',
+        ]);
+
+        $results = $this->commissionService->closeMonthTargetBonuses(
+            $validated['year'] ?? null,
+            $validated['month'] ?? null
+        );
+
+        $bonusCount = collect($results)->where('bonus', '>', 0)->count();
+
+        return back()->with('success', "Month closed - target bonuses posted for {$bonusCount} agent(s).");
     }
 
     /**
@@ -310,6 +379,7 @@ class AgentManagementController extends Controller
             'commission_rate_cash' => 'nullable|numeric|min:0|max:100',
             'commission_rate_credit' => 'nullable|numeric|min:0|max:100',
             'admin_note' => 'nullable|string',
+            'channel' => 'nullable|in:wholesale,retail,both',
             'is_active' => 'boolean',
         ]);
 

@@ -30,6 +30,8 @@ class CategoryController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        $validated['is_active'] = $request->boolean('is_active', true);
+
         Category::create($validated);
 
         return redirect()->route('admin.categories.index')
@@ -56,6 +58,11 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean',
         ]);
+
+        // An unchecked checkbox sends no key at all, so leaving is_active
+        // out of $validated left the column untouched on every update,
+        // regardless of what the admin selected.
+        $validated['is_active'] = $request->boolean('is_active');
 
         $category->update($validated);
 

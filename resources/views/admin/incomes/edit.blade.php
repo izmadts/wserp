@@ -24,7 +24,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Category
+                        <x-help-tooltip>Groups this income for reporting/filtering only - which ledger account gets credited is decided entirely by Source, not by category.</x-help-tooltip>
+                    </label>
                     <select name="category_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="">Select Category</option>
                         @foreach($categories as $category)
@@ -49,7 +52,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Payment Method <span class="text-red-500">*</span>
+                        <x-help-tooltip>Decides which account is debited when this posts to the ledger - Cash debits the Cash account, anything else (Bank Transfer/Cheque/Credit Card) debits the Bank account. Editing this reverses and re-posts the ledger entries to match.</x-help-tooltip>
+                    </label>
                     <select name="payment_method" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="cash" {{ old('payment_method', $income->payment_method) == 'cash' ? 'selected' : '' }}>Cash</option>
                         <option value="bank_transfer" {{ old('payment_method', $income->payment_method) == 'bank_transfer' ? 'selected' : '' }}>Bank Transfer</option>
@@ -66,6 +72,7 @@
                         <option value="loan" {{ old('source', $income->source) == 'loan' ? 'selected' : '' }}>Loan</option>
                         <option value="other" {{ old('source', $income->source) == 'other' ? 'selected' : '' }}>Other</option>
                     </select>
+                    <p class="mt-1 text-xs text-amber-600"><i class="fas fa-exclamation-triangle mr-1"></i>Only use "Sale" here for revenue that was NOT already recorded through the Sales module - otherwise it will double-count that revenue.</p>
                 </div>
 
                 <div>

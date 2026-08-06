@@ -5,7 +5,12 @@
 
 @section('content')
 <div class="space-y-6">
-    @include('admin.partials.export-buttons', ['type' => 'receivable'])
+    <div class="flex flex-wrap items-center gap-2">
+        @include('admin.partials.export-buttons', ['type' => 'receivable', 'showPdf' => false])
+        <a href="{{ route('admin.reports.receivable-pdf', request()->all()) }}" target="_blank" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200">
+            <i class="fas fa-file-pdf mr-1"></i> PDF (Khata Statement)
+        </a>
+    </div>
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl shadow-card p-4">
@@ -37,13 +42,13 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
                 <input type="text" name="city" value="{{ request('city') }}" class="px-3 py-2 border border-gray-300 rounded-lg" placeholder="City">
             </div>
-            <div>
+            <div class="pt-6">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
                     <i class="fas fa-filter mr-1"></i> Filter
                 </button>
             </div>
-            <div>
-                <a href="{{ route('admin.reports.receivable') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <div class="pt-6">
+                <a href="{{ route('admin.reports.receivable') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
                     <i class="fas fa-undo mr-1"></i> Reset
                 </a>
             </div>
@@ -79,6 +84,8 @@
                             <td class="py-2 px-2 text-right font-bold text-red-600">Rs. {{ number_format($customer->balance, 2) }}</td>
                             <td class="py-2 px-2 text-center">
                                 <a href="{{ route('admin.reports.customer-detail', $customer) }}" class="text-blue-600 hover:underline text-sm">View</a>
+                                &middot;
+                                <a href="{{ route('admin.reports.customer-ledger', $customer) }}" class="text-blue-600 hover:underline text-sm">Ledger</a>
                             </td>
                         </tr>
                         @endforeach

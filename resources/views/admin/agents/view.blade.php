@@ -36,6 +36,10 @@
                         <i class="fas fa-check-circle mr-1"></i> Approved
                     </span>
                     @endif
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        <i class="fas fa-shopping-basket mr-1"></i>
+                        {{ match($user->channel) { 'wholesale' => 'Wholesale only', 'retail' => 'Retail only', default => 'Wholesale + Retail' } }}
+                    </span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-sm">
                     <div>

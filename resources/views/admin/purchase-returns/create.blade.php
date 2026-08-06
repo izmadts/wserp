@@ -19,7 +19,10 @@
                 <!-- Purchase Selection -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Purchase <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Select Purchase <span class="text-red-500">*</span>
+                            <x-help-tooltip>Only purchases that actually posted stock/payable (Received, Partial, or Paid) are listed - stock this return can't reduce below zero has to have been received first. Submitting this form immediately removes the returned quantities from stock and posts the ledger entries below; there's no edit afterward, only view or delete (deleting reverses it again).</x-help-tooltip>
+                        </label>
                         <select name="purchase_id" x-model="purchaseId" @change="loadPurchaseDetails()" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select Purchase</option>
@@ -38,7 +41,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Refund Method <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Refund Method <span class="text-red-500">*</span>
+                            <x-help-tooltip>How this specific return is being settled - independent of how the original purchase was paid. Cash/Bank Transfer/Cheque move money into that account (the supplier paying you back). Credit moves no cash at all; it just reduces what you owe the supplier.</x-help-tooltip>
+                        </label>
                         <select name="refund_method" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="cash">Cash</option>

@@ -29,7 +29,12 @@ class Supplier extends Model
         
         static::creating(function ($supplier) {
             if (empty($supplier->code)) {
-                $supplier->code = 'SUP-' . date('dmy-Hi-s');
+                // date()-to-the-second with no random component collided
+                // whenever two suppliers were created within the same
+                // second (e.g. a quick bulk-add) - matches the
+                // date+random-suffix pattern Product/Customer/Expense
+                // already use for exactly this reason.
+                $supplier->code = 'SUP-' . date('dmy') . '-' . strtoupper(Str::random(6));
             }
         });
     }
@@ -45,13 +50,19 @@ class Supplier extends Model
         return $this->hasMany(PurchasePayment::class);
     }
 
+    public function purchaseReturns()
+    {
+        return $this->hasMany(PurchaseReturn::class);
+    }
+
     // Scopes
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    // ✅ FIXED: Only credit purchases affect supplier balance
+    // Only credit purchases create a payable balance - cash purchases are
+    // settled at the moment they're recorded and must not count as "owed".
     public function getTotalPurchasesAttribute()
     {
         return $this->purchases()
@@ -60,14 +71,41 @@ class Supplier extends Model
             ->sum('total_amount') ?? 0;
     }
 
+    // whereHas('purchase', ...) both excludes payments whose purchase was
+    // soft-deleted and, critically, excludes payments made against CASH
+    // purchases - those were never added to total_purchases above, so
+    // counting their payments here was subtracting money that was never
+    // added in the first place (the supplier balance going negative on a
+    // fully-settled cash purchase).
     public function getTotalPaidAttribute()
     {
-        return $this->purchasePayments()->sum('amount') ?? 0;
+        return $this->purchasePayments()
+            ->whereHas('purchase', function ($q) {
+                $q->where('payment_term', 'credit');
+            })
+            ->sum('amount') ?? 0;
+    }
+
+    // Same credit-only filter as total_purchases - a return against a cash
+    // purchase doesn't reduce a payable balance that never counted that
+    // purchase to begin with.
+    public function getTotalReturnedAttribute()
+    {
+        return $this->purchaseReturns()
+            ->whereHas('purchase', function ($q) {
+                $q->where('payment_term', 'credit');
+            })
+            ->sum('total_amount') ?? 0;
+    }
+
+    public function getTotalDueAttribute()
+    {
+        return $this->total_purchases - $this->total_paid - $this->total_returned;
     }
 
     public function getBalanceAttribute()
     {
-        return ($this->opening_balance ?? 0) + $this->total_purchases - $this->total_paid;
+        return ($this->opening_balance ?? 0) + $this->total_due;
     }
 
     public function getFormattedBalanceAttribute()

@@ -13,13 +13,13 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
                 <input type="date" name="date" value="{{ $summary['date'] }}" class="px-3 py-2 border border-gray-300 rounded-lg">
             </div>
-            <div>
+            <div class="pt-6">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
                     <i class="fas fa-calendar-day mr-1"></i> View
                 </button>
             </div>
-            <div>
-                <a href="{{ route('admin.reports.daily-summary') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <div class="pt-6">
+                <a href="{{ route('admin.reports.daily-summary') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
                     <i class="fas fa-undo mr-1"></i> Today
                 </a>
             </div>
@@ -102,7 +102,7 @@
             </div>
             <div class="p-4">
                 @php
-                    $sales = App\Models\Sale::whereDate('sale_date', $summary['date'])->get();
+                    $sales = App\Models\Sale::whereDate('sale_date', $summary['date'])->whereIn('status', ['confirmed', 'partial', 'paid'])->get();
                 @endphp
                 @if($sales->count() > 0)
                     @foreach($sales as $sale)
@@ -132,7 +132,7 @@
             </div>
             <div class="p-4">
                 @php
-                    $purchases = App\Models\Purchase::whereDate('purchase_date', $summary['date'])->get();
+                    $purchases = App\Models\Purchase::whereDate('purchase_date', $summary['date'])->whereIn('status', ['received', 'partial', 'paid'])->get();
                 @endphp
                 @if($purchases->count() > 0)
                     @foreach($purchases as $purchase)

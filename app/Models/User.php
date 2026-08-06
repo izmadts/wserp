@@ -5,16 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'channel',
         'employee_id',
         'phone',
         'cnic',
@@ -81,6 +83,23 @@ class User extends Authenticatable
         return $this->role === 'sales_agent';
     }
 
+    /**
+     * Whether this agent is allowed to work a CustomerGroup priced via
+     * $priceField ('sale_price' = retail, 'wholesale_price' = wholesale).
+     * Null/'both' channel is unrestricted - the default for every agent
+     * created before this field existed, so nothing breaks retroactively.
+     */
+    public function allowsPriceField(string $priceField): bool
+    {
+        if (empty($this->channel) || $this->channel === 'both') {
+            return true;
+        }
+
+        return $this->channel === 'wholesale'
+            ? $priceField === 'wholesale_price'
+            : $priceField === 'sale_price';
+    }
+
     public function isActive()
     {
         return $this->is_active && !is_null($this->approved_at);
@@ -89,6 +108,28 @@ class User extends Authenticatable
     public function isApproved()
     {
         return !is_null($this->approved_at);
+    }
+
+    /**
+     * Per-module permission check backed by the role_permissions matrix
+     * (Settings > Users & Permissions). Named hasPermission() rather than
+     * can() to avoid colliding with Laravel's own Gate-based
+     * Authorizable::can($ability, $model) that Authenticatable already
+     * provides - a same-named override here would silently break that.
+     *
+     * admin always passes everything; the matrix only constrains
+     * manager/accountant/sales_agent.
+     */
+    public function hasPermission($module, $ability = 'view')
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $column = 'can_' . $ability;
+        $permission = RolePermission::where('role', $this->role)->where('module', $module)->first();
+
+        return $permission ? (bool) $permission->{$column} : false;
     }
 
     // =============================================
@@ -191,93 +232,5 @@ class User extends Authenticatable
             return 'bg-orange-100 text-orange-800';
         }
         return 'bg-green-100 text-green-800';
-    }
-    /**
-     * Calculate commission based on sale
-     */
-    public function calculateCommission($sale)
-    {
-        $commission = 0;
-
-        // Cash Sales - Tiered Commission
-        if ($sale->payment_term == 'cash') {
-            $amount = $sale->total_amount;
-
-            if ($amount <= 300000) {
-                $rate = 1;
-            } elseif ($amount <= 700000) {
-                $rate = 1.5;
-            } elseif ($amount <= 1500000) {
-                $rate = 2;
-            } else {
-                $rate = 2.5;
-            }
-            $commission = ($amount * $rate / 100);
-        }
-        // Credit Sales - 1% on recovered amount
-        else if ($sale->payment_term == 'credit') {
-            $commission = ($sale->paid_amount * 1 / 100);
-        }
-
-        return $commission;
-    }
-
-    /**
-     * Check New Customer Bonus
-     */
-    public function checkNewCustomerBonus($customer, $sale)
-    {
-        // Check if customer is new (created by this agent)
-        if ($customer->created_by_agent_id == $this->id && $customer->order_count >= 3) {
-            // Check if bonus already given
-            $existing = AgentCommissionLog::where('agent_id', $this->id)
-                ->where('reference_type', 'new_customer_bonus')
-                ->where('reference_id', $customer->id)
-                ->exists();
-
-            if (!$existing) {
-                $bonusAmount = rand(500, 1000);
-
-                AgentCommissionLog::create([
-                    'agent_id' => $this->id,
-                    'sale_id' => $sale->id,
-                    'reference_type' => 'new_customer_bonus',
-                    'reference_id' => $customer->id,
-                    'amount' => $bonusAmount,
-                    'commission_rate' => 0,
-                    'commission_type' => 'bonus',
-                    'description' => "New Customer Bonus: {$customer->name}",
-                    'is_paid' => false,
-                ]);
-
-                return $bonusAmount;
-            }
-        }
-        return 0;
-    }
-
-    /**
-     * Check Recovery Bonus
-     */
-    public function checkRecoveryBonus($sale)
-    {
-        if ($sale->recovery_percentage >= 95) {
-            $bonusAmount = $sale->total_amount * 0.005; // 0.5%
-
-            AgentCommissionLog::create([
-                'agent_id' => $this->id,
-                'sale_id' => $sale->id,
-                'reference_type' => 'recovery_bonus',
-                'reference_id' => $sale->id,
-                'amount' => $bonusAmount,
-                'commission_rate' => 0.5,
-                'commission_type' => 'bonus',
-                'description' => "Recovery Bonus (95%+ recovery)",
-                'is_paid' => false,
-            ]);
-
-            return $bonusAmount;
-        }
-        return 0;
     }
 }

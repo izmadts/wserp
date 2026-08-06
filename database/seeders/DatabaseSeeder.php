@@ -29,6 +29,11 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
             ExpenseCategorySeeder::class,
             IncomeCategorySeeder::class,
+            GoldenClubSettingsSeeder::class,
+            CommissionSettingsSeeder::class,
+            CustomerGroupSeeder::class,
+            RolePermissionSeeder::class,
+            RewardSeeder::class,
         ]);
     }
 

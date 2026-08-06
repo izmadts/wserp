@@ -68,7 +68,10 @@
 
                 <!-- Purchase Price -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Price <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Purchase Price <span class="text-red-500">*</span>
+                        <x-help-tooltip>Your cost to acquire one unit. Selling below this on a Sale shows a "below cost" warning there, so keep this current when your buying price changes.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="purchase_price" value="{{ old('purchase_price', 0) }}" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('purchase_price') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -77,7 +80,10 @@
 
                 <!-- Sale Price -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sale Price <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Sale Price <span class="text-red-500">*</span>
+                        <x-help-tooltip>The retail price charged to customers whose group prices off "Retail" (see Available For below). Only applies if "Retail" is checked.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="sale_price" value="{{ old('sale_price', 0) }}" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('sale_price') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -86,7 +92,10 @@
 
                 <!-- Wholesale Price -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Wholesale Price</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Wholesale Price
+                        <x-help-tooltip>Charged to customers whose group prices off "Wholesale" instead of Retail. Leave blank to just use your Sale Price for wholesale customers too.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="wholesale_price" value="{{ old('wholesale_price', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('wholesale_price') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -95,7 +104,10 @@
 
                 <!-- Current Stock -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Current Stock
+                        <x-help-tooltip>Your opening quantity on hand for this product - this is the only place you can set it directly. From here on, stock only changes through actual sales, purchases, returns, or stock adjustments, each leaving its own audit trail; you won't be able to edit this number directly once the product exists.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="current_stock" value="{{ old('current_stock', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('current_stock') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -104,7 +116,10 @@
 
                 <!-- Min Stock Level -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Min Stock Level</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Min Stock Level
+                        <x-help-tooltip>Once Current Stock falls to or below this, the product is flagged as low stock wherever that's shown (e.g. a low-stock list/report) - it doesn't block any sale by itself.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="min_stock_level" value="{{ old('min_stock_level', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('min_stock_level') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -113,7 +128,10 @@
 
                 <!-- Max Stock Level -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Stock Level</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Max Stock Level
+                        <x-help-tooltip>Your ceiling for how much of this to keep on hand. Once Current Stock goes above it, the product shows an "Overstocked" flag on this list and its detail page - a visual warning only, it doesn't block a purchase or stock adjustment from pushing stock higher. Leave at 0 for no ceiling.</x-help-tooltip>
+                    </label>
                     <input type="number" step="0.01" name="max_stock_level" value="{{ old('max_stock_level', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('max_stock_level') border-red-500 @enderror"
                         min="0" step="0.01">
@@ -142,6 +160,30 @@
                     <textarea name="description" rows="3"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('description') border-red-500 @enderror">{{ old('description') }}</textarea>
                     @error('description')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <!-- Available For (Retail / Wholesale) -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Available For <span class="text-red-500">*</span></label>
+                    <div class="flex flex-wrap gap-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="is_retail" value="1" {{ old('is_retail', 1) ? 'checked' : '' }}
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-600">Retail</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="is_wholesale" value="1" {{ old('is_wholesale', 1) ? 'checked' : '' }}
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-600">Wholesale</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="is_loyalty" value="1" {{ old('is_loyalty') ? 'checked' : '' }}
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-600">Loyalty eligible</span>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Controls whether this product shows up for retail customers, wholesale customers, or both when creating a sale. "Loyalty eligible" makes it selectable when linking a Golden Club reward to a real product.</p>
+                    @error('is_retail')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <!-- Active -->

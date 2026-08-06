@@ -24,7 +24,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Category
+                        <x-help-tooltip>Groups this expense for reporting/filtering only - every expense posts to the same General Expenses ledger account regardless of category.</x-help-tooltip>
+                    </label>
                     <select name="category_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="">Select Category</option>
                         @foreach($categories as $category)
@@ -49,7 +52,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Payment Method <span class="text-red-500">*</span>
+                        <x-help-tooltip>Decides which account is credited when this posts to the ledger - Cash credits the Cash account, anything else (Bank Transfer/Cheque/Credit Card) credits the Bank account.</x-help-tooltip>
+                    </label>
                     <select name="payment_method" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="cash" {{ old('payment_method', $expense->payment_method) == 'cash' ? 'selected' : '' }}>Cash</option>
                         <option value="bank_transfer" {{ old('payment_method', $expense->payment_method) == 'bank_transfer' ? 'selected' : '' }}>Bank Transfer</option>
@@ -66,7 +72,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Status <span class="text-red-500">*</span>
+                        <x-help-tooltip>Only Approved or Paid actually post this to the ledger - Pending and Cancelled have zero accounting effect. Changing status here reverses and re-posts the ledger entries to match.</x-help-tooltip>
+                    </label>
                     <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="pending" {{ old('status', $expense->status) == 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="approved" {{ old('status', $expense->status) == 'approved' ? 'selected' : '' }}>Approved</option>

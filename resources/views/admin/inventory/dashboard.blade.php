@@ -10,50 +10,58 @@
         <!-- Total Products -->
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Products</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $totalProducts }}</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="{{ number_format($totalProducts) }}">
+                        {{ \App\Helpers\NumberHelper::compact($totalProducts) }}
+                    </p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-box text-blue-600 text-xl"></i>
                 </div>
             </div>
         </div>
-        
+
         <!-- Low Stock -->
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Low Stock</p>
-                    <p class="text-2xl font-bold text-red-600">{{ $lowStockCount }}</p>
+                    <p class="text-2xl font-bold text-red-600 truncate" title="{{ number_format($lowStockCount) }}">
+                        {{ \App\Helpers\NumberHelper::compact($lowStockCount) }}
+                    </p>
                 </div>
-                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
                 </div>
             </div>
         </div>
-        
+
         <!-- Out of Stock -->
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Out of Stock</p>
-                    <p class="text-2xl font-bold text-gray-600">{{ $outOfStockCount }}</p>
+                    <p class="text-2xl font-bold text-gray-600 truncate" title="{{ number_format($outOfStockCount) }}">
+                        {{ \App\Helpers\NumberHelper::compact($outOfStockCount) }}
+                    </p>
                 </div>
-                <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-times-circle text-gray-600 text-xl"></i>
                 </div>
             </div>
         </div>
-        
+
         <!-- Total Stock Value -->
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Stock Value</p>
-                    <p class="text-2xl font-bold text-green-600">Rs. {{ number_format($totalStockValue, 2) }}</p>
+                    <p class="text-2xl font-bold text-green-600 truncate" title="Rs. {{ number_format($totalStockValue, 2) }}">
+                        Rs. {{ \App\Helpers\NumberHelper::compact($totalStockValue) }}
+                    </p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-rupee-sign text-green-600 text-xl"></i>
                 </div>
             </div>
@@ -135,7 +143,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @forelse($products as $product)
+                        @foreach($products as $product)
                         <tr class="hover:bg-gray-50 transition-colors duration-150">
                             <td class="py-3 px-2">
                                 <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $product->code }}</code>
@@ -175,14 +183,7 @@
                                 </span>
                             </td>
                         </tr>
-                        @empty
-                        <tr>
-                            <td colspan="8" class="text-center py-8 text-gray-500">
-                                <i class="fas fa-box-open text-3xl mb-2 block"></i>
-                                No products found.
-                            </td>
-                        </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                     <tfoot class="bg-gray-50 font-bold">
                         <tr>
@@ -251,12 +252,12 @@
         if (document.getElementById('inventoryProductsTable')) {
             new DataTable('#inventoryProductsTable', {
                 pageLength: 25,
-                responsive: true,
                 order: [[1, 'asc']],
                 language: {
                     search: "Search:",
                     lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    emptyTable: "No products found."
                 }
             });
         }

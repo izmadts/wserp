@@ -9,6 +9,34 @@ use Illuminate\Support\Facades\File;
 
 class BackupController extends Controller
 {
+    /**
+     * Resolve a backup filename from user input into a safe, existing path
+     * inside storage/app/backups. Throws if the name tries to escape that
+     * directory or points at a file with a disallowed extension.
+     */
+    private function resolveBackupPath($filename)
+    {
+        $safeName = basename((string) $filename);
+
+        if ($safeName === '' || $safeName !== $filename) {
+            throw new \Exception('Invalid backup filename.');
+        }
+
+        $extension = strtolower(pathinfo($safeName, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['sql', 'zip'])) {
+            throw new \Exception('Invalid backup file type.');
+        }
+
+        $base = storage_path('app/backups');
+        $path = $base . DIRECTORY_SEPARATOR . $safeName;
+
+        if (!File::exists($path) || dirname(realpath($path)) !== realpath($base)) {
+            throw new \Exception('Backup file not found!');
+        }
+
+        return $path;
+    }
+
     public function index()
     {
         $backups = $this->getBackupFiles();
@@ -37,10 +65,11 @@ class BackupController extends Controller
 
     public function download($filename)
     {
-        $path = storage_path('app/backups/' . $filename);
-        if (!File::exists($path)) {
+        try {
+            $path = $this->resolveBackupPath($filename);
+        } catch (\Exception $e) {
             return redirect()->route('admin.backups.index')
-                ->with('error', 'Backup file not found!');
+                ->with('error', $e->getMessage());
         }
         return response()->download($path);
     }
@@ -48,13 +77,8 @@ class BackupController extends Controller
     public function destroy($filename)
     {
         try {
-            $path = storage_path('app/backups/' . $filename);
-            
-            if (!File::exists($path)) {
-                return redirect()->route('admin.backups.index')
-                    ->with('error', 'Backup file not found!');
-            }
-            
+            $path = $this->resolveBackupPath($filename);
+
             if (File::delete($path)) {
                 return redirect()->route('admin.backups.index')
                     ->with('success', 'Backup deleted successfully!');
@@ -117,12 +141,7 @@ class BackupController extends Controller
     public function restore(Request $request, $filename)
     {
         try {
-            $path = storage_path('app/backups/' . $filename);
-            
-            if (!File::exists($path)) {
-                return redirect()->route('admin.backups.index')
-                    ->with('error', 'Backup file not found!');
-            }
+            $path = $this->resolveBackupPath($filename);
 
             // If zip, extract first
             $sqlFile = $path;
@@ -135,21 +154,32 @@ class BackupController extends Controller
             }
 
             $sql = File::get($sqlFile);
-            $queries = array_filter(array_map('trim', explode(';', $sql)));
-            
+            $queries = $this->splitSqlStatements($sql);
+
             DB::statement('SET FOREIGN_KEY_CHECKS=0');
-            
+
+            $failures = [];
             foreach ($queries as $query) {
                 if (!empty($query) && !str_starts_with(strtoupper($query), 'SET')) {
                     try {
                         DB::statement($query);
                     } catch (\Exception $e) {
-                        // Skip errors
+                        // Collected (not silently discarded) so a partial
+                        // restore is reported as such instead of a false
+                        // "restored successfully" - a truncated/edited backup
+                        // file, or a table that no longer matches the current
+                        // schema, could otherwise fail mid-restore with no
+                        // visible sign anything was wrong.
+                        $failures[] = $e->getMessage();
                     }
                 }
             }
-            
+
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+            if (!empty($failures)) {
+                throw new \Exception(count($failures) . ' statement(s) failed during restore - the database may be partially restored. First error: ' . $failures[0]);
+            }
             
             // Clean up extracted file
             if ($sqlFile != $path && File::exists($sqlFile)) {
@@ -168,6 +198,57 @@ class BackupController extends Controller
     // =============================================
     // PRIVATE METHODS
     // =============================================
+
+    /**
+     * Splits a SQL dump into individual statements on ';', but - unlike a
+     * bare explode(';', $sql) - never splits on a semicolon that appears
+     * inside a single-quoted string literal. exportDatabase() below embeds
+     * every text column's raw value verbatim (only addslashes()'d) inside
+     * 'single quotes', so any note/address/etc. containing a literal ';'
+     * would otherwise break that row's INSERT into two invalid fragments -
+     * silently corrupting that row on restore (previously masked entirely,
+     * since restore() discarded every statement failure and always reported
+     * "restored successfully" regardless).
+     */
+    private function splitSqlStatements(string $sql): array
+    {
+        $statements = [];
+        $current = '';
+        $inString = false;
+        $length = strlen($sql);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            $current .= $char;
+
+            if ($char === '\\' && $inString) {
+                // Escaped character inside a string (addslashes() produces
+                // \' and \\) - consume the next byte verbatim so it can't be
+                // mistaken for a closing quote or otherwise change state.
+                if ($i + 1 < $length) {
+                    $current .= $sql[$i + 1];
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($char === "'") {
+                $inString = !$inString;
+                continue;
+            }
+
+            if ($char === ';' && !$inString) {
+                $statements[] = trim($current, "; \t\n\r\0\x0B");
+                $current = '';
+            }
+        }
+
+        if (trim($current) !== '') {
+            $statements[] = trim($current, "; \t\n\r\0\x0B");
+        }
+
+        return array_filter($statements, fn ($s) => $s !== '');
+    }
 
     private function backupDatabase()
     {
@@ -208,11 +289,10 @@ class BackupController extends Controller
             $this->addFolderToZip($zip, $uploadsPath, 'uploads');
         }
 
-        // 4. Add .env file (if exists)
-        $envPath = base_path('.env');
-        if (File::exists($envPath)) {
-            $zip->addFile($envPath, '.env');
-        }
+        // .env is intentionally NOT included: full backups can be downloaded
+        // by anyone with a "backups.download" permission, and shipping the
+        // app key + DB credentials inside them is a needless secret-exposure
+        // risk. Restore .env from your deployment's secret store instead.
 
         $zip->close();
 

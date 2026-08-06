@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Income;
 use App\Models\IncomeCategory;
-use App\Models\Account;
-use App\Models\JournalEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +44,7 @@ class IncomeController extends Controller
             'reference_no' => 'nullable|string|max:100',
             'source' => 'required|in:sale,investment,loan,other',
             'notes' => 'nullable|string',
-            'receipt' => 'nullable|image|mimes:jpeg,png,jpg,pdf|max:2048',
+            'receipt' => 'nullable|mimes:jpeg,png,jpg,pdf|max:2048',
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -98,12 +96,10 @@ class IncomeController extends Controller
             'reference_no' => 'nullable|string|max:100',
             'source' => 'required|in:sale,investment,loan,other',
             'notes' => 'nullable|string',
-            'receipt' => 'nullable|image|mimes:jpeg,png,jpg,pdf|max:2048',
+            'receipt' => 'nullable|mimes:jpeg,png,jpg,pdf|max:2048',
         ]);
 
         DB::transaction(function () use ($validated, $income) {
-            $income->reverseAccounting();
-
             $receiptPath = $income->receipt;
             if (request()->hasFile('receipt')) {
                 if ($income->receipt && file_exists(storage_path('app/public/' . $income->receipt))) {
@@ -112,6 +108,8 @@ class IncomeController extends Controller
                 $receiptPath = request()->file('receipt')->store('incomes', 'public');
             }
 
+            // Income::updated() reverses+reposts accounting automatically
+            // whenever amount/payment_method/source actually changed.
             $income->update([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
@@ -124,8 +122,6 @@ class IncomeController extends Controller
                 'receipt' => $receiptPath,
                 'notes' => $validated['notes'] ?? null,
             ]);
-
-            $income->postAccounting();
         });
 
         return redirect()->route('admin.incomes.index')

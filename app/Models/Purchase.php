@@ -15,7 +15,7 @@ class Purchase extends Model
         'invoice_no', 'supplier_id', 'purchase_date', 'due_date',
         'payment_term', 'status', 'sub_total', 'discount', 'discount_type',
         'tax', 'shipping_cost', 'total_amount', 'paid_amount', 'due_amount',
-        'notes', 'created_by'
+        'refunded_amount', 'notes', 'created_by'
     ];
 
     protected $casts = [
@@ -28,6 +28,7 @@ class Purchase extends Model
         'total_amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'due_amount' => 'decimal:2',
+        'refunded_amount' => 'decimal:2',
     ];
 
     /**
@@ -67,7 +68,10 @@ class Purchase extends Model
             : $this->discount;
 
         $this->total_amount = $this->sub_total - $discountAmount + $this->tax + $this->shipping_cost;
-        $this->due_amount = $this->total_amount - $this->paid_amount;
+        // Same null-safety as Sale::calculateTotals() - refunded_amount
+        // defaults to 0 in the database but may not be set on the
+        // in-memory model yet the first time this runs pre-insert.
+        $this->due_amount = $this->total_amount - $this->paid_amount - ($this->refunded_amount ?? 0);
     }
 
     // =============================================

@@ -38,6 +38,7 @@
             </div>
             
             <div class="px-6 py-4 border-t border-gray-200 flex flex-wrap gap-2">
+                <a href="{{ route('admin.reports.customer-ledger', $customer) }}" class="flex-1 px-4 py-2 bg-blue-600 text-white text-center rounded-lg font-medium hover:bg-blue-700">Ledger</a>
                 <a href="{{ route('admin.customers.edit', $customer) }}" class="flex-1 px-4 py-2 bg-yellow-600 text-white text-center rounded-lg font-medium hover:bg-yellow-700">Edit</a>
                 <a href="{{ route('admin.customers.index') }}" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 text-center rounded-lg font-medium hover:bg-gray-300">Back</a>
             </div>

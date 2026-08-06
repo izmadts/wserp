@@ -49,6 +49,7 @@
                     <div>
                         <label for="payment_term" class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                             Payment <span class="text-red-500">*</span>
+                            <x-help-tooltip>Decides which ledger account is credited once this purchase posts - Cash directly, or Accounts Payable for Credit. It doesn't force full payment by itself; whether it's fully settled depends on the Status you choose below.</x-help-tooltip>
                         </label>
                         <select class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('payment_term') border-red-500 @enderror"
                             id="payment_term" name="payment_term" required>
@@ -64,6 +65,7 @@
                     <div>
                         <label for="status" class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                             Status <span class="text-red-500">*</span>
+                            <x-help-tooltip>Draft and Ordered don't touch stock or the ledger yet. Received posts the stock in and records the payable as unpaid (add a payment afterwards to settle it). Paid does the same but also records the full amount as settled immediately.</x-help-tooltip>
                         </label>
                         <select class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('status') border-red-500 @enderror"
                             id="status" name="status" required>
@@ -115,7 +117,7 @@
                                         <td class="py-1.5 px-1.5">
                                             <select :name="'items['+index+'][product_id]'"
                                                 x-model="item.product_id"
-                                                @change="calculateRow(index)"
+                                                @change="onProductChange(index, $event)"
                                                 class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
                                                 @foreach($products as $product)
@@ -124,6 +126,9 @@
                                                 </option>
                                                 @endforeach
                                             </select>
+                                            <p class="mt-1 text-xs text-orange-600" x-show="overCost(item)">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>Well above last cost (Rs. <span x-text="item.expectedCost"></span>)
+                                            </p>
                                         </td>
                                         <td class="py-1.5 px-1.5">
                                             <input type="number" step="0.01"
@@ -139,6 +144,7 @@
                                                 x-model="item.unit_price"
                                                 @input="calculateRow(index)"
                                                 class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                :class="overCost(item) ? 'border-orange-400 bg-orange-50' : ''"
                                                 min="0" step="0.01">
                                         </td>
                                         <td class="py-1.5 px-1.5">
@@ -231,7 +237,7 @@
                                     <div>
                                         <select :name="'items['+index+'][product_id]'"
                                             x-model="item.product_id"
-                                            @change="calculateRow(index)"
+                                            @change="onProductChange(index, $event)"
                                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                             <option value="">Select Product</option>
                                             @foreach($products as $product)
@@ -240,8 +246,11 @@
                                             </option>
                                             @endforeach
                                         </select>
+                                        <p class="mt-1 text-xs text-orange-600" x-show="overCost(item)">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>Well above last cost (Rs. <span x-text="item.expectedCost"></span>)
+                                        </p>
                                     </div>
-                                    
+
                                     <div class="grid grid-cols-3 gap-2">
                                         <div>
                                             <label class="text-xs text-gray-500">Qty</label>
@@ -259,6 +268,7 @@
                                                 x-model="item.unit_price"
                                                 @input="calculateRow(index)"
                                                 class="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                :class="overCost(item) ? 'border-orange-400 bg-orange-50' : ''"
                                                 min="0" step="0.01">
                                         </div>
                                         <div>
@@ -362,7 +372,8 @@ function purchaseForm() {
                 unit_price: 0,
                 discount: 0,
                 tax: 0,
-                total: 0
+                total: 0,
+                expectedCost: null
             });
             this.calculateTotals();
         },
@@ -372,6 +383,27 @@ function purchaseForm() {
                 this.items.splice(index, 1);
                 this.calculateTotals();
             }
+        },
+
+        onProductChange(index, event) {
+            const option = event.target.selectedOptions[0];
+            const item = this.items[index];
+            if (option && option.value) {
+                const price = parseFloat(option.dataset.price) || 0;
+                item.unit_price = price;
+                item.expectedCost = price;
+            } else {
+                item.expectedCost = null;
+            }
+            this.calculateRow(index);
+        },
+
+        // Flags a unit price more than 50% above the product's last
+        // recorded purchase price - catches fat-finger entry without
+        // blocking genuinely higher supplier quotes.
+        overCost(item) {
+            if (!item.product_id || !item.expectedCost || item.expectedCost <= 0) return false;
+            return (parseFloat(item.unit_price) || 0) > item.expectedCost * 1.5;
         },
 
         calculateRow(index) {

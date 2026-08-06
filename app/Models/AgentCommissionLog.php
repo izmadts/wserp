@@ -12,6 +12,7 @@ class AgentCommissionLog extends Model
         'reference_type',
         'reference_id',
         'amount',
+        'paid_amount',
         'commission_rate',
         'commission_type',
         'description',
@@ -22,6 +23,7 @@ class AgentCommissionLog extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
         'commission_rate' => 'decimal:2',
         'is_paid' => 'boolean',
         'paid_date' => 'date',
@@ -40,5 +42,10 @@ class AgentCommissionLog extends Model
     public function paidBy()
     {
         return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    public function getDueAmountAttribute()
+    {
+        return $this->amount - $this->paid_amount;
     }
 }

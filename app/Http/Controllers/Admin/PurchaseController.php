@@ -57,75 +57,83 @@ class PurchaseController extends Controller
             'items.*.tax' => 'nullable|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated) {
-            $subTotal = 0;
-            $itemsData = [];
+        try {
+            DB::transaction(function () use ($validated) {
+                $subTotal = 0;
+                $itemsData = [];
 
-            foreach ($validated['items'] as $item) {
-                $itemTotal = $item['quantity'] * $item['unit_price'];
-                $itemDiscount = $item['discount'] ?? 0;
-                $itemTax = $item['tax'] ?? 0;
-                $totalPrice = $itemTotal - $itemDiscount + $itemTax;
+                foreach ($validated['items'] as $item) {
+                    $itemTotal = $item['quantity'] * $item['unit_price'];
+                    $itemDiscount = $item['discount'] ?? 0;
+                    $itemTax = $item['tax'] ?? 0;
+                    $totalPrice = $itemTotal - $itemDiscount + $itemTax;
 
-                $subTotal += $totalPrice;
-                $itemsData[] = [
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'discount' => $item['discount'] ?? 0,
-                    'tax' => $item['tax'] ?? 0,
-                    'total_price' => $totalPrice,
-                ];
-            }
+                    $subTotal += $totalPrice;
+                    $itemsData[] = [
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'discount' => $item['discount'] ?? 0,
+                        'tax' => $item['tax'] ?? 0,
+                        'total_price' => $totalPrice,
+                    ];
+                }
 
-            $discountAmount = $validated['discount_type'] == 'percentage'
-                ? ($subTotal * ($validated['discount'] ?? 0) / 100)
-                : ($validated['discount'] ?? 0);
+                $discountAmount = $validated['discount_type'] == 'percentage'
+                    ? ($subTotal * ($validated['discount'] ?? 0) / 100)
+                    : ($validated['discount'] ?? 0);
 
-            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
+                $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
 
-            // Always start at 0 paid. recordPayment() below is the ONLY place
-            // that increments paid_amount, so it can never be double-counted.
-            $purchase = Purchase::create([
-                'supplier_id' => $validated['supplier_id'],
-                'purchase_date' => $validated['purchase_date'],
-                'payment_term' => $validated['payment_term'],
-                'status' => $validated['status'],
-                'sub_total' => $subTotal,
-                'discount' => $validated['discount'] ?? 0,
-                'discount_type' => $validated['discount_type'] ?? 'fixed',
-                'tax' => $validated['tax'] ?? 0,
-                'shipping_cost' => $validated['shipping_cost'] ?? 0,
-                'total_amount' => $totalAmount,
-                'paid_amount' => 0,
-                'due_amount' => $totalAmount,
-                'notes' => $validated['notes'] ?? null,
-                'created_by' => Auth::id(),
-            ]);
+                // Always start at 0 paid. recordPayment() below is the ONLY place
+                // that increments paid_amount, so it can never be double-counted.
+                $purchase = Purchase::create([
+                    'supplier_id' => $validated['supplier_id'],
+                    'purchase_date' => $validated['purchase_date'],
+                    'payment_term' => $validated['payment_term'],
+                    'status' => $validated['status'],
+                    'sub_total' => $subTotal,
+                    'discount' => $validated['discount'] ?? 0,
+                    'discount_type' => $validated['discount_type'] ?? 'fixed',
+                    'tax' => $validated['tax'] ?? 0,
+                    'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'total_amount' => $totalAmount,
+                    'paid_amount' => 0,
+                    'due_amount' => $totalAmount,
+                    'notes' => $validated['notes'] ?? null,
+                    'created_by' => Auth::id(),
+                ]);
 
-            foreach ($itemsData as $itemData) {
-                $purchase->items()->create($itemData);
-            }
+                foreach ($itemsData as $itemData) {
+                    $purchase->items()->create($itemData);
+                }
 
-            // Apply stock + inventory/payable-or-cash accounting (idempotent)
-            $this->purchaseService->applyStockAndAccounting($purchase);
+                // Apply stock + inventory/payable-or-cash accounting (idempotent)
+                $this->purchaseService->applyStockAndAccounting($purchase);
 
-            // If created directly as "paid", record the settling payment.
-            if ($validated['status'] == 'paid') {
-                $isCash = $validated['payment_term'] == 'cash';
-                $this->purchaseService->recordPayment(
-                    $purchase,
-                    $totalAmount,
-                    $isCash ? 'cash' : 'bank_transfer',
-                    $validated['purchase_date'],
-                    null,
-                    'Full payment at purchase creation',
-                    // Cash purchases already credited Cash directly above,
-                    // so skip re-posting the cash journal entry here.
-                    !$isCash
-                );
-            }
-        });
+                // If created directly as "paid", record the settling payment.
+                if ($validated['status'] == 'paid') {
+                    $isCash = $validated['payment_term'] == 'cash';
+                    $this->purchaseService->recordPayment(
+                        $purchase,
+                        $totalAmount,
+                        $isCash ? 'cash' : 'bank_transfer',
+                        $validated['purchase_date'],
+                        null,
+                        'Full payment at purchase creation',
+                        // Cash purchases already credited Cash directly above,
+                        // so skip re-posting the cash journal entry here.
+                        !$isCash
+                    );
+                }
+            });
+        } catch (\Exception $e) {
+            // Catches PurchaseService's defensive throws (a missing
+            // chart-of-accounts entry, etc.) - without this they surfaced as
+            // a raw 500 error page instead of telling the admin what
+            // actually went wrong.
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         return redirect()->route('admin.purchases.index')
             ->with('success', 'Purchase created successfully! Stock and accounting updated.');
@@ -174,44 +182,48 @@ class PurchaseController extends Controller
             'items.*.tax' => 'nullable|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated, $purchase) {
-            $subTotal = 0;
-            $itemsData = [];
+        try {
+            DB::transaction(function () use ($validated, $purchase) {
+                $subTotal = 0;
+                $itemsData = [];
 
-            foreach ($validated['items'] as $item) {
-                $itemTotal = $item['quantity'] * $item['unit_price'];
-                $itemDiscount = $item['discount'] ?? 0;
-                $itemTax = $item['tax'] ?? 0;
-                $totalPrice = $itemTotal - $itemDiscount + $itemTax;
+                foreach ($validated['items'] as $item) {
+                    $itemTotal = $item['quantity'] * $item['unit_price'];
+                    $itemDiscount = $item['discount'] ?? 0;
+                    $itemTax = $item['tax'] ?? 0;
+                    $totalPrice = $itemTotal - $itemDiscount + $itemTax;
 
-                $subTotal += $totalPrice;
-                $itemsData[] = [
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'discount' => $item['discount'] ?? 0,
-                    'tax' => $item['tax'] ?? 0,
-                    'total_price' => $totalPrice,
-                ];
-            }
+                    $subTotal += $totalPrice;
+                    $itemsData[] = [
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'discount' => $item['discount'] ?? 0,
+                        'tax' => $item['tax'] ?? 0,
+                        'total_price' => $totalPrice,
+                    ];
+                }
 
-            $purchase->update([
-                'supplier_id' => $validated['supplier_id'],
-                'purchase_date' => $validated['purchase_date'],
-                'payment_term' => $validated['payment_term'],
-                'status' => $validated['status'],
-                'sub_total' => $subTotal,
-                'discount' => $validated['discount'] ?? 0,
-                'discount_type' => $validated['discount_type'] ?? 'fixed',
-                'tax' => $validated['tax'] ?? 0,
-                'shipping_cost' => $validated['shipping_cost'] ?? 0,
-                'notes' => $validated['notes'] ?? null,
-            ]);
+                $purchase->update([
+                    'supplier_id' => $validated['supplier_id'],
+                    'purchase_date' => $validated['purchase_date'],
+                    'payment_term' => $validated['payment_term'],
+                    'status' => $validated['status'],
+                    'sub_total' => $subTotal,
+                    'discount' => $validated['discount'] ?? 0,
+                    'discount_type' => $validated['discount_type'] ?? 'fixed',
+                    'tax' => $validated['tax'] ?? 0,
+                    'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'notes' => $validated['notes'] ?? null,
+                ]);
 
-            // Reverses old stock/accounting, syncs items, re-applies fresh
-            // stock/accounting, and auto-settles payment if now marked paid.
-            $this->purchaseService->syncItemsAndUpdate($purchase, $itemsData);
-        });
+                // Reverses old stock/accounting, syncs items, re-applies fresh
+                // stock/accounting, and auto-settles payment if now marked paid.
+                $this->purchaseService->syncItemsAndUpdate($purchase, $itemsData);
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         return redirect()->route('admin.purchases.index')
             ->with('success', 'Purchase updated successfully! Stock and accounting adjusted.');
@@ -223,11 +235,15 @@ class PurchaseController extends Controller
             return back()->with('error', 'Cannot delete a paid purchase!');
         }
 
-        DB::transaction(function () use ($purchase) {
-            $this->purchaseService->reverseStockAndAccounting($purchase);
-            $this->purchaseService->reversePaymentsAndAccounting($purchase);
-            $purchase->delete();
-        });
+        try {
+            DB::transaction(function () use ($purchase) {
+                $this->purchaseService->reverseStockAndAccounting($purchase);
+                $this->purchaseService->reversePaymentsAndAccounting($purchase);
+                $purchase->delete();
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('admin.purchases.index')
             ->with('success', 'Purchase deleted successfully! Stock, payments, and accounting reversed.');
@@ -243,16 +259,20 @@ class PurchaseController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        // Single call: creates the payment row, updates paid/due/status,
-        // and posts the payment journal entry. No manual duplication here.
-        $this->purchaseService->recordPayment(
-            $purchase,
-            $validated['amount'],
-            $validated['payment_method'],
-            $validated['payment_date'],
-            $validated['reference_no'] ?? null,
-            $validated['notes'] ?? null
-        );
+        try {
+            // Single call: creates the payment row, updates paid/due/status,
+            // and posts the payment journal entry. No manual duplication here.
+            $this->purchaseService->recordPayment(
+                $purchase,
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['payment_date'],
+                $validated['reference_no'] ?? null,
+                $validated['notes'] ?? null
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Payment added successfully!');
     }

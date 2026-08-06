@@ -11,6 +11,7 @@ class SaleItem extends Model
         'product_id',
         'quantity',
         'unit_price',
+        'unit_cost',
         'discount',
         'tax',
         'total_price'
@@ -19,6 +20,7 @@ class SaleItem extends Model
     protected $casts = [
         'quantity' => 'decimal:2',
         'unit_price' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
         'total_price' => 'decimal:2',

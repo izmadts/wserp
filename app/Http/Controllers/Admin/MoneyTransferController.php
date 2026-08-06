@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\MoneyTransfer;
 use App\Models\Account;
-use App\Models\JournalEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +43,9 @@ class MoneyTransferController extends Controller
         ]);
 
         DB::transaction(function () use ($validated) {
-            $transfer = MoneyTransfer::create([
+            // MoneyTransfer::created() posts accounting automatically when
+            // status is completed - no need to call it again here.
+            MoneyTransfer::create([
                 'from_account_id' => $validated['from_account_id'],
                 'to_account_id' => $validated['to_account_id'],
                 'amount' => $validated['amount'],
@@ -54,11 +55,6 @@ class MoneyTransferController extends Controller
                 'reference_no' => $validated['reference_no'] ?? null,
                 'created_by' => Auth::id(),
             ]);
-
-            // If status is completed, post accounting immediately
-            if ($validated['status'] == 'completed') {
-                $transfer->postAccounting();
-            }
         });
 
         return redirect()->route('admin.money-transfers.index')
@@ -98,9 +94,8 @@ class MoneyTransferController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $moneyTransfer) {
-            // Reverse old accounting if exists
-            $moneyTransfer->reverseAccounting();
-
+            // MoneyTransfer::updated() reverses+reposts accounting
+            // automatically whenever status/amount/accounts actually changed.
             $moneyTransfer->update([
                 'from_account_id' => $validated['from_account_id'],
                 'to_account_id' => $validated['to_account_id'],
@@ -110,11 +105,6 @@ class MoneyTransferController extends Controller
                 'description' => $validated['description'] ?? null,
                 'reference_no' => $validated['reference_no'] ?? null,
             ]);
-
-            // Post new accounting if status is completed
-            if ($validated['status'] == 'completed') {
-                $moneyTransfer->postAccounting();
-            }
         });
 
         return redirect()->route('admin.money-transfers.index')
@@ -138,10 +128,7 @@ class MoneyTransferController extends Controller
             return back()->with('error', 'Transfer already completed!');
         }
 
-        DB::transaction(function () use ($moneyTransfer) {
-            $moneyTransfer->update(['status' => 'completed']);
-            $moneyTransfer->postAccounting();
-        });
+        $moneyTransfer->update(['status' => 'completed']);
 
         return back()->with('success', 'Money transfer completed successfully!');
     }

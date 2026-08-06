@@ -7,6 +7,21 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'WSERP - Admin Panel')</title>
 
+    {{-- Runs synchronously, before anything paints, so the page never
+         flashes light-then-dark on reload. Deliberately plain JS, not
+         Alpine (which is bundled/deferred and would run too late) -
+         wserpToggleTheme() is also used by the header button below. --}}
+    <script>
+        (function () {
+            var stored = localStorage.getItem('wserp-theme');
+            if (stored === 'dark') document.documentElement.classList.add('dark');
+            window.wserpToggleTheme = function () {
+                var isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('wserp-theme', isDark ? 'dark' : 'light');
+            };
+        })();
+    </script>
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -19,6 +34,7 @@
     <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
     <!-- Vite -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme-style')
 
     {{-- @livewireStyles --}}
 
@@ -118,10 +134,14 @@
             <!-- Brand -->
             <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
                 <div class="flex items-center">
-                    <div class="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-                        <span class="text-white font-bold text-lg">W</span>
-                    </div>
-                    <span class="ml-2 text-xl font-bold text-gray-800">WSERP</span>
+                    @if($siteLogo)
+                        <img src="{{ asset($siteLogo) }}" alt="{{ $siteName }}" class="h-8 w-auto max-w-[7rem] object-contain">
+                    @else
+                        <div class="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-lg">{{ substr($siteName, 0, 1) }}</span>
+                        </div>
+                    @endif
+                    <span class="ml-2 text-xl font-bold text-gray-800">{{ $siteName }}</span>
                 </div>
                 <button @click="sidebarOpen = false" class="lg:hidden text-gray-500 hover:text-gray-700">
                     <i class="fas fa-times"></i>
@@ -129,332 +149,156 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="px-2 py-4 overflow-y-auto h-[calc(100vh-4rem)]">
+            <nav class="px-2 py-3 overflow-y-auto h-[calc(100vh-4rem)] text-sm">
 
-                <!-- ========================================== -->
-                <!-- DASHBOARD -->
-                <!-- ========================================== -->
-                <div class="space-y-1">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Main Menu</p>
+                <!-- Dashboard: always visible, no accordion needed for a single link -->
+                <a href="{{ route('admin.dashboard') }}"
+                    class="flex items-center px-3 py-2 rounded-lg font-medium transition-colors duration-150
+                  {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                    <i class="fas fa-home w-5 text-lg text-green-600"></i>
+                    <span class="ml-3">Dashboard</span>
+                </a>
 
-                    <a href="{{ route('admin.dashboard') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-home w-5 text-lg text-green-600"></i>
-                        <span class="ml-3">Dashboard</span>
-                    </a>
+                @php
+                    $sidebarSections = [
+                        [
+                            'key' => 'inventory', 'label' => 'Inventory', 'icon' => 'fa-warehouse', 'color' => 'text-yellow-600',
+                            'active' => request()->routeIs('admin.products.*', 'admin.categories.*', 'admin.inventory.*'),
+                            'links' => [
+                                ['route' => 'admin.products.index', 'is' => 'admin.products.*', 'icon' => 'fa-box', 'label' => 'Products'],
+                                ['route' => 'admin.categories.index', 'is' => 'admin.categories.*', 'icon' => 'fa-tags', 'label' => 'Categories'],
+                                ['route' => 'admin.inventory.dashboard', 'is' => 'admin.inventory.dashboard', 'icon' => 'fa-warehouse', 'label' => 'Inventory'],
+                                ['route' => 'admin.inventory.adjustments.index', 'is' => 'admin.inventory.adjustments.*', 'icon' => 'fa-sliders-h', 'label' => 'Stock Adjustments'],
+                                ['route' => 'admin.inventory.history', 'is' => 'admin.inventory.history', 'icon' => 'fa-history', 'label' => 'Stock History'],
+                                ['route' => 'admin.products.low-stock', 'is' => 'admin.products.low-stock', 'icon' => 'fa-exclamation-triangle', 'label' => 'Low Stock Alert', 'badge' => App\Models\Product::lowStock()->count(), 'badgeColor' => 'bg-red-500'],
+                            ],
+                        ],
+                        [
+                            'key' => 'purchases', 'label' => 'Purchases', 'icon' => 'fa-shopping-cart', 'color' => 'text-purple-700',
+                            'active' => request()->routeIs('admin.suppliers.*', 'admin.purchases.*', 'admin.purchase-returns.*'),
+                            'links' => [
+                                ['route' => 'admin.suppliers.index', 'is' => 'admin.suppliers.*', 'icon' => 'fa-truck', 'label' => 'Suppliers'],
+                                ['route' => 'admin.purchases.index', 'is' => 'admin.purchases.*', 'icon' => 'fa-shopping-cart', 'label' => 'Purchases'],
+                                ['route' => 'admin.purchase-returns.index', 'is' => 'admin.purchase-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Purchase Returns'],
+                            ],
+                        ],
+                        [
+                            'key' => 'sales', 'label' => 'Sales', 'icon' => 'fa-shopping-bag', 'color' => 'text-emerald-600',
+                            'active' => request()->routeIs('admin.customers.*', 'admin.sales.*', 'admin.sales-returns.*'),
+                            'links' => [
+                                ['route' => 'admin.customers.index', 'is' => 'admin.customers.*', 'icon' => 'fa-users', 'label' => 'Customers'],
+                                ['route' => 'admin.sales.index', 'is' => 'admin.sales.*', 'icon' => 'fa-shopping-bag', 'label' => 'Sales'],
+                                ['route' => 'admin.sales-returns.index', 'is' => 'admin.sales-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Sales Returns'],
+                            ],
+                        ],
+                        [
+                            'key' => 'agents', 'label' => 'Agents', 'icon' => 'fa-user-tie', 'color' => 'text-teal-500',
+                            'active' => request()->routeIs('admin.agents.*'),
+                            'links' => [
+                                ['route' => 'admin.agents.index', 'is' => 'admin.agents.*', 'icon' => 'fa-user-tie', 'label' => 'Agents', 'badge' => $pendingAgents = App\Models\User::where('role', 'sales_agent')->where('is_active', false)->whereNull('approved_at')->count(), 'badgeColor' => 'bg-yellow-500'],
+                                ['route' => 'admin.agents.pending', 'is' => 'admin.agents.pending', 'icon' => 'fa-clock', 'label' => 'Pending Approvals', 'badge' => $pendingAgents, 'badgeColor' => 'bg-yellow-500'],
+                            ],
+                        ],
+                        [
+                            'key' => 'finance', 'label' => 'Finance', 'icon' => 'fa-wallet', 'color' => 'text-green-600',
+                            'active' => request()->routeIs('admin.incomes.*', 'admin.income-categories.*', 'admin.expenses.*', 'admin.expense-categories.*', 'admin.money-transfers.*'),
+                            'links' => [
+                                ['route' => 'admin.incomes.index', 'is' => 'admin.incomes.*', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-600'],
+                                ['route' => 'admin.income-categories.index', 'is' => 'admin.income-categories.*', 'icon' => 'fa-tags', 'label' => 'Income Categories', 'iconColor' => 'text-green-600'],
+                                ['route' => 'admin.expenses.index', 'is' => 'admin.expenses.*', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-600'],
+                                ['route' => 'admin.expense-categories.index', 'is' => 'admin.expense-categories.*', 'icon' => 'fa-tags', 'label' => 'Expense Categories', 'iconColor' => 'text-red-600'],
+                                ['route' => 'admin.money-transfers.index', 'is' => 'admin.money-transfers.*', 'icon' => 'fa-exchange-alt', 'label' => 'Money Transfer', 'iconColor' => 'text-blue-600'],
+                            ],
+                        ],
+                        [
+                            'key' => 'accounting', 'label' => 'Accounting', 'icon' => 'fa-book', 'color' => 'text-cyan-500',
+                            'active' => request()->routeIs('admin.accounts.*', 'admin.bank-reconciliations.*'),
+                            'links' => [
+                                ['route' => 'admin.accounts.index', 'is' => 'admin.accounts.*', 'icon' => 'fa-book', 'label' => 'Chart of Accounts'],
+                                ['route' => 'admin.bank-reconciliations.index', 'is' => 'admin.bank-reconciliations.*', 'icon' => 'fa-university', 'label' => 'Bank Reconciliation'],
+                            ],
+                        ],
+                        [
+                            'key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-bar', 'color' => 'text-gray-600',
+                            'active' => request()->routeIs('admin.reports.*'),
+                            'links' => [
+                                ['route' => 'admin.reports.profit-loss', 'is' => 'admin.reports.profit-loss', 'icon' => 'fa-chart-bar', 'label' => 'Profit & Loss'],
+                                ['route' => 'admin.reports.trial-balance', 'is' => 'admin.reports.trial-balance', 'icon' => 'fa-balance-scale', 'label' => 'Trial Balance'],
+                                ['route' => 'admin.reports.customers', 'is' => 'admin.reports.customers', 'icon' => 'fa-users', 'label' => 'Customers'],
+                                ['route' => 'admin.reports.receivable', 'is' => 'admin.reports.receivable', 'icon' => 'fa-hand-holding-usd', 'label' => 'Receivable'],
+                                ['route' => 'admin.reports.payable', 'is' => 'admin.reports.payable', 'icon' => 'fa-file-invoice-dollar', 'label' => 'Payable'],
+                                ['route' => 'admin.reports.suppliers', 'is' => 'admin.reports.suppliers', 'icon' => 'fa-truck', 'label' => 'Suppliers'],
+                                ['route' => 'admin.reports.day-book', 'is' => 'admin.reports.day-book', 'icon' => 'fa-book', 'label' => 'Day Book'],
+                                ['route' => 'admin.reports.expenses', 'is' => 'admin.reports.expenses', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-500'],
+                                ['route' => 'admin.reports.incomes', 'is' => 'admin.reports.incomes', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-500'],
+                                ['route' => 'admin.reports.agents', 'is' => 'admin.reports.agents', 'icon' => 'fa-user-tie', 'label' => 'Agents'],
+                                ['route' => 'admin.reports.daily-summary', 'is' => 'admin.reports.daily-summary', 'icon' => 'fa-calendar-day', 'label' => 'Daily Summary'],
+                                ['route' => 'admin.reports.tax', 'is' => 'admin.reports.tax', 'icon' => 'fa-percentage', 'label' => 'Tax Report'],
+                            ],
+                        ],
+                        [
+                            'key' => 'golden-club', 'label' => 'Golden Club', 'icon' => 'fa-crown', 'color' => 'text-yellow-500',
+                            'active' => request()->routeIs('admin.golden-club.*'),
+                            'links' => [
+                                ['route' => 'admin.golden-club.dashboard', 'is' => 'admin.golden-club.dashboard', 'icon' => 'fa-chart-pie', 'label' => 'Dashboard'],
+                                ['route' => 'admin.golden-club.customers.index', 'is' => 'admin.golden-club.customers.*', 'icon' => 'fa-user-friends', 'label' => 'Customers'],
+                                ['route' => 'admin.golden-club.rewards.index', 'is' => 'admin.golden-club.rewards.*', 'icon' => 'fa-gift', 'label' => 'Rewards'],
+                                ['route' => 'admin.golden-club.lucky-draw.campaigns', 'is' => 'admin.golden-club.lucky-draw.*', 'icon' => 'fa-dice', 'label' => 'Lucky Draw'],
+                            ],
+                        ],
+                        [
+                            'key' => 'system', 'label' => 'System', 'icon' => 'fa-cogs', 'color' => 'text-gray-600',
+                            'active' => request()->routeIs('admin.activity-logs.*', 'admin.backups.*', 'admin.system.api.*', 'admin.system.golden-guide'),
+                            'links' => [
+                                ['route' => 'admin.activity-logs.index', 'is' => 'admin.activity-logs.*', 'icon' => 'fa-history', 'label' => 'Activity Logs'],
+                                ['route' => 'admin.backups.index', 'is' => 'admin.backups.*', 'icon' => 'fa-cloud-upload-alt', 'label' => 'Backup & Restore'],
+                                ['route' => 'admin.system.api.docs', 'is' => 'admin.system.api.docs', 'icon' => 'fa-book', 'label' => 'API Documentation'],
+                                ['route' => 'admin.system.golden-guide', 'is' => 'admin.system.golden-guide', 'icon' => 'fa-crown', 'label' => 'Golden Customer Guide (Urdu)'],
+                                ['route' => 'admin.system.api.tester', 'is' => 'admin.system.api.tester', 'icon' => 'fa-flask', 'label' => 'API Testing'],
+                            ],
+                        ],
+                    ];
+
+                    if (auth()->user() && auth()->user()->isAdmin()) {
+                        $sidebarSections[] = [
+                            'key' => 'settings', 'label' => 'Settings', 'icon' => 'fa-cog', 'color' => 'text-gray-500',
+                            'active' => request()->routeIs('admin.settings.*'),
+                            'links' => [
+                                ['route' => 'admin.settings.general', 'is' => 'admin.settings.general', 'icon' => 'fa-sliders-h', 'label' => 'General'],
+                                ['route' => 'admin.settings.customer-groups.index', 'is' => 'admin.settings.customer-groups.*', 'icon' => 'fa-layer-group', 'label' => 'Customer Groups'],
+                                ['route' => 'admin.settings.users.index', 'is' => 'admin.settings.users.*', 'icon' => 'fa-users-cog', 'label' => 'Users'],
+                                ['route' => 'admin.settings.permissions.index', 'is' => 'admin.settings.permissions.*', 'icon' => 'fa-shield-alt', 'label' => 'Permissions'],
+                                ['route' => 'admin.settings.commission', 'is' => 'admin.settings.commission', 'icon' => 'fa-percentage', 'label' => 'Commission & Bonus'],
+                                ['route' => 'admin.settings.golden-club', 'is' => 'admin.settings.golden-club', 'icon' => 'fa-crown', 'label' => 'Golden Club'],
+                            ],
+                        ];
+                    }
+                @endphp
+
+                @foreach($sidebarSections as $section)
+                <div class="mt-1" x-data="{ open: {{ $section['active'] ? 'true' : 'false' }} }">
+                    <button type="button" @click="open = !open"
+                        class="w-full flex items-center px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors duration-150
+                          {{ $section['active'] ? 'text-gray-700' : 'text-gray-400 hover:text-gray-600' }}">
+                        <i class="fas {{ $section['icon'] }} w-5 text-sm {{ $section['color'] }}"></i>
+                        <span class="ml-3">{{ $section['label'] }}</span>
+                        <i class="fas fa-chevron-down ml-auto text-[10px] transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+                    </button>
+                    <div x-show="open" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="space-y-1 mt-1" x-cloak>
+                        @foreach($section['links'] as $link)
+                        <a href="{{ route($link['route']) }}"
+                            class="flex items-center pl-8 pr-3 py-1.5 rounded-lg font-medium transition-colors duration-150
+                              {{ request()->routeIs($link['is']) ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                            <i class="fas {{ $link['icon'] }} w-4 text-xs {{ $link['iconColor'] ?? $section['color'] }}"></i>
+                            <span class="ml-2.5">{{ $link['label'] }}</span>
+                            @if(!empty($link['badge']))
+                            <span class="ml-auto {{ $link['badgeColor'] }} text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ $link['badge'] }}</span>
+                            @endif
+                        </a>
+                        @endforeach
+                    </div>
                 </div>
-
-                <!-- ========================================== -->
-                <!-- INVENTORY -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Inventory</p>
-
-                    <a href="{{ route('admin.products.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.products.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-box w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Products</span>
-                    </a>
-
-                    <a href="{{ route('admin.categories.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.categories.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-tags w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Categories</span>
-                    </a>
-
-                    <a href="{{ route('admin.inventory.dashboard') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.inventory.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-warehouse w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Inventory</span>
-                    </a>
-
-                    <a href="{{ route('admin.inventory.adjustments.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.inventory.adjustments.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-sliders-h w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Stock Adjustments</span>
-                    </a>
-
-                    <a href="{{ route('admin.inventory.history') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.inventory.history') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-history w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Stock History</span>
-                    </a>
-
-                    <a href="{{ route('admin.products.low-stock') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.products.low-stock') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-exclamation-triangle w-5 text-lg text-yellow-600"></i>
-                        <span class="ml-3">Low Stock Alert</span>
-                        @php $count = App\Models\Product::lowStock()->count(); @endphp
-                        @if($count > 0)
-                        <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                            {{ $count }}
-                        </span>
-                        @endif
-                    </a>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- PURCHASES -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Purchases</p>
-
-                    <a href="{{ route('admin.suppliers.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.suppliers.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-truck w-5 text-lg text-purple-700"></i>
-                        <span class="ml-3">Suppliers</span>
-                    </a>
-
-                    <a href="{{ route('admin.purchases.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.purchases.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-shopping-cart w-5 text-lg text-purple-700"></i>
-                        <span class="ml-3">Purchases</span>
-                    </a>
-
-                    <a href="{{ route('admin.purchase-returns.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.purchase-returns.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-undo-alt w-5 text-lg text-purple-700"></i>
-                        <span class="ml-3">Purchase Returns</span>
-                    </a>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- SALES -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales</p>
-
-                    <a href="{{ route('admin.customers.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.customers.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-users w-5 text-lg text-emerald-600"></i>
-                        <span class="ml-3">Customers</span>
-                    </a>
-
-                    <a href="{{ route('admin.sales.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.sales.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-shopping-bag w-5 text-lg text-emerald-600"></i>
-                        <span class="ml-3">Sales</span>
-                    </a>
-
-                    <a href="{{ route('admin.sales-returns.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.sales-returns.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-undo-alt w-5 text-lg text-emerald-600"></i>
-                        <span class="ml-3">Sales Returns</span>
-                    </a>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- AGENTS -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Agents</p>
-
-                    <a href="{{ route('admin.agents.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.agents.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-user-tie w-5 text-lg text-teal-500"></i>
-                        <span class="ml-3">Agents</span>
-                        @php $pending = App\Models\User::where('role', 'sales_agent')->where('is_active', false)->whereNull('approved_at')->count(); @endphp
-                        @if($pending > 0)
-                        <span class="ml-auto bg-yellow-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                            {{ $pending }}
-                        </span>
-                        @endif
-                    </a>
-
-                    <a href="{{ route('admin.agents.pending') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.agents.pending') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-clock w-5 text-lg text-teal-500"></i>
-                        <span class="ml-3">Pending Approvals</span>
-                        @if($pending > 0)
-                        <span class="ml-auto bg-yellow-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                            {{ $pending }}
-                        </span>
-                        @endif
-                    </a>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- FINANCE -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance</p>
-
-                    <a href="{{ route('admin.incomes.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.incomes.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-arrow-up w-5 text-lg text-green-600"></i>
-                        <span class="ml-3">Income</span>
-                    </a>
-                    <a href="{{ route('admin.incomes.create') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.incomes.create') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-plus-circle w-5 text-lg text-green-500"></i>
-                        <span class="ml-3">Add Income</span>
-                    </a>
-                    <a href="{{ route('admin.income-categories.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.income-categories.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-tags w-5 text-lg text-green-600"></i>
-                        <span class="ml-3">Income Categories</span>
-                    </a>
-                    <a href="{{ route('admin.expenses.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.expenses.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-arrow-down w-5 text-lg text-red-600"></i>
-                        <span class="ml-3">Expenses</span>
-                    </a>
-                    <a href="{{ route('admin.expenses.create') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.expenses.create') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-plus-circle w-5 text-lg text-red-500"></i>
-                        <span class="ml-3">Add Expense</span>
-                    </a>
-
-                    <a href="{{ route('admin.expense-categories.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.expense-categories.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-tags w-5 text-lg text-red-600"></i>
-                        <span class="ml-3">Expense Categories</span>
-                    </a>
-                    <a href="{{ route('admin.money-transfers.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.money-transfers.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-exchange-alt w-5 text-lg text-blue-600"></i>
-                        <span class="ml-3">Money Transfer</span>
-                    </a>
-                </div>
-                <!-- ========================================== -->
-                <!-- ACCOUNTING -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Accounting</p>
-
-                    <a href="{{ route('admin.accounts.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-                      {{ request()->routeIs('admin.accounts.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-book w-5 text-lg text-cyan-500"></i>
-                        <span class="ml-3">Chart of Accounts</span>
-                    </a>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- REPORTS -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Reports</p>
-
-                    <!-- Financial Reports -->
-                    <a href="{{ route('admin.reports.profit-loss') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.profit-loss') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-chart-bar w-5 text-lg"></i>
-                        <span class="ml-3">Profit & Loss</span>
-                    </a>
-
-                    <a href="{{ route('admin.reports.trial-balance') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.trial-balance') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-balance-scale w-5 text-lg"></i>
-                        <span class="ml-3">Trial Balance</span>
-                    </a>
-
-                    <!-- Customer Reports -->
-                    <a href="{{ route('admin.reports.customers') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.customers') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-users w-5 text-lg"></i>
-                        <span class="ml-3">Customers</span>
-                    </a>
-
-                    <a href="{{ route('admin.reports.receivable') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.receivable') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-hand-holding-usd w-5 text-lg"></i>
-                        <span class="ml-3">Receivable</span>
-                    </a>
-
-                    <!-- Supplier Reports -->
-                    <a href="{{ route('admin.reports.suppliers') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.suppliers') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-truck w-5 text-lg"></i>
-                        <span class="ml-3">Suppliers</span>
-                    </a>
-
-                    <!-- Expense & Income -->
-                    <a href="{{ route('admin.reports.expenses') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.expenses') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-arrow-down w-5 text-lg text-red-500"></i>
-                        <span class="ml-3">Expenses</span>
-                    </a>
-
-                    <a href="{{ route('admin.reports.incomes') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.incomes') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-arrow-up w-5 text-lg text-green-500"></i>
-                        <span class="ml-3">Income</span>
-                    </a>
-
-                    <!-- Agent Reports -->
-                    <a href="{{ route('admin.reports.agents') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.agents') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-user-tie w-5 text-lg"></i>
-                        <span class="ml-3">Agents</span>
-                    </a>
-
-                    <!-- Daily Summary -->
-                    <a href="{{ route('admin.reports.daily-summary') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.daily-summary') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-calendar-day w-5 text-lg"></i>
-                        <span class="ml-3">Daily Summary</span>
-                    </a>
-
-                    <!-- Tax Report -->
-                    <a href="{{ route('admin.reports.tax') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.reports.tax') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-percentage w-5 text-lg"></i>
-                        <span class="ml-3">Tax Report</span>
-                    </a>
-                </div>
-                <!-- ========================================== -->
-                <!-- SYSTEM -->
-                <!-- ========================================== -->
-                <div class="space-y-1 mt-4">
-                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">System</p>
-
-                    <a href="{{ route('admin.activity-logs.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.activity-logs.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-history w-5 text-lg"></i>
-                        <span class="ml-3">Activity Logs</span>
-                    </a>
-
-                    <a href="{{ route('admin.backups.index') }}"
-                        class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
-              {{ request()->routeIs('admin.backups.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                        <i class="fas fa-cloud-upload-alt w-5 text-lg"></i>
-                        <span class="ml-3">Backup & Restore</span>
-                    </a>
-                </div>
+                @endforeach
             </nav>
         </div>
 
@@ -473,6 +317,15 @@
                         <h1 class="ml-2 text-xl font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h1>
                     </div>
 
+                    <div class="flex items-center gap-1 sm:gap-3">
+                    @if($darkModeEnabled ?? true)
+                    <button type="button" onclick="wserpToggleTheme()" title="Toggle dark mode"
+                        class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:inline"></i>
+                    </button>
+                    @endif
+
                     <!-- Profile Dropdown -->
                     <div x-data="{ open: false }" @click.outside="open = false" class="relative">
                         <button @click="open = !open" class="flex items-center space-x-2 focus:outline-none">
@@ -487,6 +340,7 @@
                             <hr class="my-1 border-gray-100">
                             <form method="POST" action="{{ route('logout') }}" class="block">@csrf<button type="submit" class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"><i class="fas fa-sign-out-alt w-5 text-red-400"></i><span class="ml-3">Logout</span></button></form>
                         </div>
+                    </div>
                     </div>
                 </div>
             </header>
@@ -541,6 +395,11 @@
         });
     </script>
     @yield('scripts')
+    {{-- @push('scripts') on 36+ pages (DataTable init, charts, etc.) needs a
+    matching @stack to actually render - it was building up in Blade's stack
+    registry and being silently discarded with no @stack anywhere in this
+    layout. --}}
+    @stack('scripts')
 </body>
 
 </html>

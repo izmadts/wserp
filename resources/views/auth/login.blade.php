@@ -6,11 +6,15 @@
         <div class="max-w-md w-full space-y-8">
             <!-- Logo -->
             <div class="text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
-                    <span class="text-white text-3xl font-bold">W</span>
-                </div>
+                @if($siteLogo)
+                    <img src="{{ asset($siteLogo) }}" alt="{{ $siteName }}" class="inline-block h-16 w-auto max-w-[12rem] object-contain">
+                @else
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+                        <span class="text-white text-3xl font-bold">{{ substr($siteName, 0, 1) }}</span>
+                    </div>
+                @endif
                 <h2 class="mt-2 text-3xl font-extrabold text-gray-900">
-                    WSERP
+                    {{ $siteName }}
                 </h2>
                 <p class="mt-2 text-sm text-gray-600">
                     Wholesale Management System
@@ -77,20 +81,15 @@
                     </button>
                 </form>
 
-                <!-- Register Link -->
+                <!-- Register Link - points at the gated sales-agent application
+                     flow (approval required before the account can log in),
+                     not open self-registration - see routes/auth.php for why
+                     that no longer exists. -->
                 <div class="mt-6 text-center">
                     <p class="text-sm text-gray-600">
-                        Don't have an account?
-                        <a href="{{ route('register') }}" class="text-blue-600 hover:text-blue-800 font-medium">
-                            Register here
-                        </a>
-                    </p>
-                </div>
-                <div class="mt-6 text-center">
-                    <p class="text-sm text-gray-600">
-                        Want to join as a Sales Agent?
+                        Want to become a sales agent?
                         <a href="{{ route('agent.register') }}" class="text-blue-600 hover:text-blue-800 font-medium">
-                            Apply Now
+                            Apply here
                         </a>
                     </p>
                 </div>

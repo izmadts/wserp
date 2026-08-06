@@ -12,12 +12,14 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Sales</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($totalSales ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900 truncate" title="Rs. {{ number_format($totalSales ?? 0, 2) }}">
+                        Rs. {{ \App\Helpers\NumberHelper::compact($totalSales ?? 0) }}
+                    </p>
                     <p class="text-xs text-gray-500 mt-1">{{ $sales->count() ?? 0 }} transactions</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-shopping-bag text-blue-600 text-xl"></i>
                 </div>
             </div>
@@ -25,12 +27,14 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Commission Earned</p>
-                    <p class="text-2xl font-bold text-purple-600">Rs. {{ number_format($totalCommission ?? 0, 2) }}</p>
-                    <p class="text-xs text-gray-500 mt-1">This month: Rs. {{ number_format($currentMonthCommission ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-purple-600 truncate" title="Rs. {{ number_format($totalCommission ?? 0, 2) }}">
+                        Rs. {{ \App\Helpers\NumberHelper::compact($totalCommission ?? 0) }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1 truncate">This month: Rs. {{ \App\Helpers\NumberHelper::compact($currentMonthCommission ?? 0) }}</p>
                 </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-coins text-purple-600 text-xl"></i>
                 </div>
             </div>
@@ -38,14 +42,14 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Recovery Rate</p>
                     <p class="text-2xl font-bold {{ ($recoveryRate ?? 0) >= 95 ? 'text-green-600' : 'text-yellow-600' }}">
                         {{ number_format($recoveryRate ?? 0, 2) }}%
                     </p>
                     <p class="text-xs text-gray-500 mt-1">Target: 95%</p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-percentage text-green-600 text-xl"></i>
                 </div>
             </div>
@@ -53,12 +57,14 @@
 
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6 hover:shadow-card-hover transition-shadow duration-200">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">New Customers</p>
-                    <p class="text-2xl font-bold text-orange-600">{{ $newCustomers ?? 0 }}</p>
-                    <p class="text-xs text-gray-500 mt-1">Total: {{ $customers->count() ?? 0 }}</p>
+                    <p class="text-2xl font-bold text-orange-600 truncate" title="{{ number_format($newCustomers ?? 0) }}">
+                        {{ \App\Helpers\NumberHelper::compact($newCustomers ?? 0) }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Total: {{ \App\Helpers\NumberHelper::compact($customers->count() ?? 0) }}</p>
                 </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-user-plus text-orange-600 text-xl"></i>
                 </div>
             </div>
@@ -150,24 +156,32 @@
             </h4>
         </div>
         <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-200 min-w-0">
                 <p class="text-sm text-gray-500">Sale Commission</p>
-                <p class="text-xl font-bold text-blue-600">Rs. {{ number_format($saleCommission ?? 0, 2) }}</p>
+                <p class="text-xl font-bold text-blue-600 truncate" title="Rs. {{ number_format($saleCommission ?? 0, 2) }}">
+                    Rs. {{ \App\Helpers\NumberHelper::compact($saleCommission ?? 0) }}
+                </p>
                 <p class="text-xs text-gray-500">{{ $sales->count() ?? 0 }} sales</p>
             </div>
-            <div class="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+            <div class="text-center p-4 bg-green-50 rounded-lg border border-green-200 min-w-0">
                 <p class="text-sm text-gray-500">New Customer Bonus</p>
-                <p class="text-xl font-bold text-green-600">Rs. {{ number_format($newCustomerBonus ?? 0, 2) }}</p>
+                <p class="text-xl font-bold text-green-600 truncate" title="Rs. {{ number_format($newCustomerBonus ?? 0, 2) }}">
+                    Rs. {{ \App\Helpers\NumberHelper::compact($newCustomerBonus ?? 0) }}
+                </p>
                 <p class="text-xs text-gray-500">{{ $newCustomers ?? 0 }} new customers</p>
             </div>
-            <div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-200 min-w-0">
                 <p class="text-sm text-gray-500">Recovery Bonus</p>
-                <p class="text-xl font-bold text-purple-600">Rs. {{ number_format($recoveryBonus ?? 0, 2) }}</p>
+                <p class="text-xl font-bold text-purple-600 truncate" title="Rs. {{ number_format($recoveryBonus ?? 0, 2) }}">
+                    Rs. {{ \App\Helpers\NumberHelper::compact($recoveryBonus ?? 0) }}
+                </p>
                 <p class="text-xs text-gray-500">{{ number_format($recoveryRate ?? 0, 2) }}% recovery</p>
             </div>
-            <div class="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div class="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200 min-w-0">
                 <p class="text-sm text-gray-500">Target Bonus</p>
-                <p class="text-xl font-bold text-yellow-600">Rs. {{ number_format($targetBonus ?? 0, 2) }}</p>
+                <p class="text-xl font-bold text-yellow-600 truncate" title="Rs. {{ number_format($targetBonus ?? 0, 2) }}">
+                    Rs. {{ \App\Helpers\NumberHelper::compact($targetBonus ?? 0) }}
+                </p>
                 <p class="text-xs text-gray-500">Monthly achievement</p>
             </div>
         </div>
