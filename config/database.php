@@ -58,7 +58,19 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // Explicit, not left to the server's default_storage_engine -
+            // this whole app relies on real transactions and row locking
+            // (DB::transaction(), lockForUpdate() for stock/accounting
+            // integrity throughout SaleService/PurchaseService/etc.), which
+            // MyISAM does not support at all. Also fixes a composite index
+            // (products_code_name_index): without this, a shared host whose
+            // MySQL default engine is MyISAM creates tables with a flat
+            // 1000-byte key length cap, which a two-column VARCHAR(191)
+            // utf8mb4 index (764 + 764 = 1528 bytes) exceeds - confirmed
+            // live via "Specified key was too long; max key length is 1000
+            // bytes". InnoDB's modern (Barracuda/dynamic row format) limit
+            // is 3072 bytes, comfortably enough.
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -78,7 +90,19 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // Explicit, not left to the server's default_storage_engine -
+            // this whole app relies on real transactions and row locking
+            // (DB::transaction(), lockForUpdate() for stock/accounting
+            // integrity throughout SaleService/PurchaseService/etc.), which
+            // MyISAM does not support at all. Also fixes a composite index
+            // (products_code_name_index): without this, a shared host whose
+            // MySQL default engine is MyISAM creates tables with a flat
+            // 1000-byte key length cap, which a two-column VARCHAR(191)
+            // utf8mb4 index (764 + 764 = 1528 bytes) exceeds - confirmed
+            // live via "Specified key was too long; max key length is 1000
+            // bytes". InnoDB's modern (Barracuda/dynamic row format) limit
+            // is 3072 bytes, comfortably enough.
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
