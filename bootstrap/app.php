@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsureAgentActive;
 use App\Http\Middleware\EnsureCustomerActive;
 use App\Http\Middleware\VerifyIntegrationKey;
 use App\Http\Middleware\EnsureNotInstalled;
+use App\Http\Middleware\PreventSearchIndexing;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+
+        // Internal business app, not a public site - X-Robots-Tag on every
+        // response (web pages and API alike), on top of robots.txt, so
+        // compliant crawlers stay out even where robots.txt itself isn't
+        // consulted (some crawlers cache it, or skip it for API responses).
+        $middleware->append(PreventSearchIndexing::class);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

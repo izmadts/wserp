@@ -30,6 +30,18 @@
                         @endif
                         @error('logo')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Favicon
+                            <x-help-tooltip>The small icon shown in the browser tab. Accepts .ico, .png, .jpg, or .svg - a square image (e.g. 32x32 or 64x64) works best. Separate from the Logo above, which is the larger image shown inside the app itself.</x-help-tooltip>
+                        </label>
+                        <input type="file" name="favicon" accept=".ico,image/*"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        @if($settings['favicon'])
+                        <img src="{{ asset($settings['favicon']) }}" alt="Current favicon" class="mt-2 h-8 w-8 object-contain">
+                        @endif
+                        @error('favicon')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

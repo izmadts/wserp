@@ -124,12 +124,13 @@ class AppServiceProvider extends ServiceProvider
         // would otherwise run this query again for every partial/component
         // include on the page, not just once per request.
         View::composer(
-            ['layouts.admin', 'layouts.agent', 'auth.login', 'auth.register'],
+            ['layouts.admin', 'layouts.agent', 'layouts.guest', 'auth.login', 'auth.register'],
             function ($view) {
-                $settings = Setting::whereIn('key', ['app_name', 'logo', 'theme_color', 'dark_mode_enabled'])
+                $settings = Setting::whereIn('key', ['app_name', 'logo', 'favicon', 'theme_color', 'dark_mode_enabled'])
                     ->pluck('value', 'key');
                 $view->with('siteName', $settings['app_name'] ?? config('app.name'));
                 $view->with('siteLogo', $settings['logo'] ?? null);
+                $view->with('siteFavicon', $settings['favicon'] ?? null);
                 $view->with('themeColor', $settings['theme_color'] ?? config('themes.default'));
                 // Setting::set() stores everything as a raw string - booleans
                 // round-trip as the literal strings "1"/"" rather than PHP

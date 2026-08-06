@@ -17,6 +17,7 @@ class SettingsController extends Controller
             'currency_code' => Setting::get('currency_code', 'PKR'),
             'currency_symbol' => Setting::get('currency_symbol', 'Rs.'),
             'logo' => Setting::get('logo'),
+            'favicon' => Setting::get('favicon'),
             'timezone' => Setting::get('timezone', config('app.timezone')),
             'date_format' => Setting::get('date_format', 'd-m-Y'),
             'theme_color' => Setting::get('theme_color', config('themes.default')),
@@ -44,6 +45,10 @@ class SettingsController extends Controller
             'timezone' => 'required|string|max:100|timezone',
             'date_format' => 'required|string|max:20',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:1024',
+            // No 'image' rule here - PHP's getimagesize() (which that rule
+            // relies on) doesn't reliably recognize .ico files, which would
+            // wrongly reject the single most common real favicon format.
+            'favicon' => 'nullable|mimes:ico,png,jpg,jpeg,svg|max:512',
             'theme_color' => 'required|string|in:' . implode(',', array_keys(config('themes.presets'))),
             'dark_mode_enabled' => 'nullable|boolean',
         ]);
@@ -60,6 +65,15 @@ class SettingsController extends Controller
             }
             $path = $request->file('logo')->store('uploads/settings', 'public');
             Setting::set('logo', 'storage/' . $path);
+        }
+
+        if ($request->hasFile('favicon')) {
+            $oldFavicon = Setting::get('favicon');
+            if ($oldFavicon && file_exists(public_path($oldFavicon))) {
+                unlink(public_path($oldFavicon));
+            }
+            $path = $request->file('favicon')->store('uploads/settings', 'public');
+            Setting::set('favicon', 'storage/' . $path);
         }
 
         return back()->with('success', 'General settings updated successfully!');

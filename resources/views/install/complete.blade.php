@@ -38,7 +38,7 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4 mt-6">
-                <a href="{{ url('/admin/login') }}" 
+                <a href="{{ route('login') }}"
                    class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200">
                     <i class="fas fa-sign-in-alt mr-2"></i> Login to Admin
                 </a>

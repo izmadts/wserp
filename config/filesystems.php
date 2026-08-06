@@ -43,6 +43,19 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            // Uploaded files (Settings > General logo, expense/income
+            // receipts, etc.) are only reachable at all if EITHER the
+            // public/storage symlink works (php artisan storage:link,
+            // called from InstallController) OR this framework-native
+            // "serve" route is on - some shared hosts restrict/disable
+            // PHP's symlink() for jailed accounts, silently leaving the
+            // symlink non-functional even though storage:link reports
+            // success. Confirmed live: a freshly re-uploaded logo still
+            // showed broken on a Namecheap shared-hosting deploy. This is
+            // the same mechanism the 'local' disk below already uses -
+            // not a custom route, so no risk of it drifting out of sync
+            // with how Laravel itself serves files.
+            'serve' => true,
             'throw' => false,
             'report' => false,
         ],
