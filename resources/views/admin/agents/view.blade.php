@@ -228,7 +228,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @foreach(json_decode($user->commission_slabs, true) as $slab)
+                            @foreach($user->commission_slabs as $slab)
                             <tr>
                                 <td class="py-2 px-2">Rs. {{ number_format($slab['from']) }}</td>
                                 <td class="py-2 px-2">{{ $slab['to'] ? 'Rs. '.number_format($slab['to']) : '∞ (Unlimited)' }}</td>
