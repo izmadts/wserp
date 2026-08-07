@@ -185,7 +185,11 @@ class AgentManagementController extends Controller
             return back()->with('error', 'User is not a sales agent!');
         }
 
-        return view('admin.agents.edit', compact('user'));
+        // Same org-wide policy the Approve Agent page uses, so "Load
+        // Default" here reflects Settings > Commission & Bonus Policy too.
+        $defaultCashTiers = CommissionService::getSetting('commission.cash_tiers');
+
+        return view('admin.agents.edit', compact('user', 'defaultCashTiers'));
     }
 
     /**
@@ -211,6 +215,11 @@ class AgentManagementController extends Controller
             'admin_note' => 'nullable|string',
             'channel' => 'nullable|in:wholesale,retail,both',
             'is_active' => 'boolean',
+            // Slabs validation - same shape as the Approve Agent form.
+            'slabs' => 'nullable|array',
+            'slabs.*.from' => 'required_with:slabs|numeric|min:0',
+            'slabs.*.to' => 'nullable|numeric|gt:slabs.*.from',
+            'slabs.*.rate' => 'required_with:slabs|numeric|min:0|max:100',
         ]);
 
         // A checkbox rule of 'boolean' only validates the key if present -
@@ -225,6 +234,15 @@ class AgentManagementController extends Controller
             ]);
             $validated['password'] = Hash::make($request->password);
         }
+
+        if (!empty($validated['slabs'])) {
+            $validated['commission_slabs'] = collect($validated['slabs'])->map(fn ($s) => [
+                'from' => (float) $s['from'],
+                'to' => $s['to'] ? (float) $s['to'] : null,
+                'rate' => (float) $s['rate'],
+            ])->toArray();
+        }
+        unset($validated['slabs']);
 
         $user->update($validated);
 
