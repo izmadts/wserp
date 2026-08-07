@@ -57,7 +57,12 @@ class AgentManagementController extends Controller
             return back()->with('error', 'User is not a sales agent!');
         }
 
-        return view('admin.agents.approve', compact('user'));
+        // The per-agent slabs captured below start as a copy of the
+        // org-wide policy (Settings > Commission & Bonus Policy) so a new
+        // agent's defaults never drift from what's actually configured.
+        $defaultCashTiers = CommissionService::getSetting('commission.cash_tiers');
+
+        return view('admin.agents.approve', compact('user', 'defaultCashTiers'));
     }
 
     /**

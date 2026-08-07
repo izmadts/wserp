@@ -113,7 +113,10 @@
                 <!-- Default Slabs Hint -->
                 <div class="mt-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
                     <i class="fas fa-info-circle mr-1"></i>
-                    <strong>Default Slabs:</strong> 0-300,000 → 1% | 300,001-700,000 → 1.5% | 700,001-1,500,000 → 2% | 1,500,000+ → 2.5%
+                    <strong>Default Slabs</strong> (from <a href="{{ route('admin.settings.commission') }}" class="underline" target="_blank">Settings &gt; Commission &amp; Bonus Policy</a>):
+                    <template x-for="(slab, index) in defaultSlabs" :key="index">
+                        <span> <span x-text="formatSlabRange(slab)"></span> → <span x-text="slab.rate"></span>%<span x-show="index < defaultSlabs.length - 1"> |</span></span>
+                    </template>
                     <button type="button" @click="loadDefaultSlabs()" class="ml-2 text-blue-600 hover:underline">Load Default</button>
                 </div>
             </div>
@@ -141,8 +144,11 @@
 function slabForm() {
     return {
         slabs: [],
+        // Sourced from the real, admin-editable Commission & Bonus Policy
+        // (Settings > Commission & Bonus Policy) - not a hardcoded copy, so
+        // it never drifts from what the org has actually configured.
+        defaultSlabs: @json($defaultCashTiers ?? []),
         init() {
-            // Load default slabs
             this.loadDefaultSlabs();
         },
         addSlab() {
@@ -154,12 +160,11 @@ function slabForm() {
             }
         },
         loadDefaultSlabs() {
-            this.slabs = [
-                { from: 0, to: 300000, rate: 1 },
-                { from: 300001, to: 700000, rate: 1.5 },
-                { from: 700001, to: 1500000, rate: 2 },
-                { from: 1500001, to: null, rate: 2.5 },
-            ];
+            this.slabs = this.defaultSlabs.map(s => ({ from: s.from, to: s.to, rate: s.rate }));
+        },
+        formatSlabRange(slab) {
+            const from = Number(slab.from).toLocaleString();
+            return slab.to ? `${from}-${Number(slab.to).toLocaleString()}` : `${from}+`;
         }
     }
 }

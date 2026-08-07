@@ -40,6 +40,8 @@ class CustomerResource extends JsonResource
             'loyalty_points' => (float) $this->loyalty_points,
             'otp_verified' => (bool) $this->otp_verified,
             'created_at' => optional($this->created_at)->toIso8601String(),
+            // Only populated on show() - index() doesn't load this relation.
+            'recent_sales' => SaleResource::collection($this->whenLoaded('sales')),
         ];
     }
 }
