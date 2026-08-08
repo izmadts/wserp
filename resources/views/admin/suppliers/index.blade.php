@@ -57,9 +57,6 @@
                                 {{ $supplier->is_active ? 'Active' : 'Inactive' }}
                             </span>
                         </td>
-                        <td class="py-3 px-2 text-right font-medium {{ $supplier->balance > 0 ? 'text-red-600' : 'text-green-600' }}">
-                            {{ $supplier->formatted_balance }}
-                        </td>
                         <td class="py-3 px-2 text-center">
                             <div class="flex items-center justify-center space-x-1">
                                 <a href="{{ route('admin.suppliers.show', $supplier) }}"
