@@ -264,8 +264,9 @@
                         ],
                         [
                             'key' => 'system', 'label' => 'System', 'icon' => 'fa-cogs', 'color' => 'text-gray-600',
-                            'active' => request()->routeIs('admin.activity-logs.*', 'admin.backups.*', 'admin.system.api.*', 'admin.system.golden-guide'),
+                            'active' => request()->routeIs('admin.activity-logs.*', 'admin.backups.*', 'admin.system.api.*', 'admin.system.golden-guide', 'admin.guide.index'),
                             'links' => [
+                                ['route' => 'admin.guide.index', 'is' => 'admin.guide.index', 'icon' => 'fa-book-open', 'label' => 'Guide Book (SOPs)'],
                                 ['route' => 'admin.activity-logs.index', 'is' => 'admin.activity-logs.*', 'icon' => 'fa-history', 'label' => 'Activity Logs', 'module' => 'activity-logs'],
                                 ['route' => 'admin.backups.index', 'is' => 'admin.backups.*', 'icon' => 'fa-cloud-upload-alt', 'label' => 'Backup & Restore', 'module' => 'backups'],
                                 // These three routes are hard role:admin-gated in routes/web.php

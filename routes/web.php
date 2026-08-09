@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\MyLeaveController;
 use App\Http\Controllers\Admin\SalaryComponentController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\MyPayslipController;
+use App\Http\Controllers\Admin\GuideController;
 
 // Agent Controllers
 use App\Http\Controllers\Agent\DashboardController as AgentDashboardController;
@@ -534,6 +535,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     Route::prefix('system')->name('system.')->middleware('role:admin')->group(function () {
         Route::get('/golden-guide', [ApiSystemController::class, 'goldenGuide'])->name('golden-guide');
     });
+
+    // Software Management Guide Book - the full module-by-module SOP
+    // manual. Not admin-only (unlike the two routes above): the whole
+    // point is for manager/accountant users to be able to read it too.
+    Route::get('/guide-book', [GuideController::class, 'index'])->name('guide.index');
 
     // ==========================================
     // 22. GOLDEN CLUB - Admin
