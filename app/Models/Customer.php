@@ -6,7 +6,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\GoldenClubTrait;
+use App\Traits\AccountingTrait;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Extends Authenticatable (not the plain Model) so a Customer can hold
@@ -18,7 +20,7 @@ use Illuminate\Support\Str;
  */
 class Customer extends Authenticatable
 {
-    use SoftDeletes, HasApiTokens, GoldenClubTrait;
+    use SoftDeletes, HasApiTokens, GoldenClubTrait, AccountingTrait;
 
     protected $fillable = [
         'code',
@@ -126,6 +128,13 @@ class Customer extends Authenticatable
         return $this->hasMany(SalePayment::class);
     }
 
+    // Payments received from this customer that aren't tied to any
+    // specific Sale (opening-balance/advance settlements) - see makePayment().
+    public function payments()
+    {
+        return $this->hasMany(CustomerPayment::class);
+    }
+
     public function createdByAgent()
     {
         return $this->belongsTo(User::class, 'created_by_agent_id');
@@ -180,9 +189,16 @@ class Customer extends Authenticatable
         return $this->sales()->whereIn('status', self::BALANCE_SALE_STATUSES)->sum('refunded_amount');
     }
 
+    // Direct payments (not against any Sale) - the opening-balance /
+    // advance settlements recorded via makePayment().
+    public function getTotalDirectPaidAttribute()
+    {
+        return $this->payments()->sum('amount') ?? 0;
+    }
+
     public function getBalanceAttribute()
     {
-        return $this->opening_balance + $this->total_sales - $this->total_paid - $this->total_returned;
+        return $this->opening_balance + $this->total_sales - $this->total_paid - $this->total_returned - $this->total_direct_paid;
     }
 
     public function getFormattedBalanceAttribute()
@@ -257,5 +273,118 @@ class Customer extends Authenticatable
     public function unreadNotifications()
     {
         return $this->hasMany(CustomerNotification::class)->where('is_read', false);
+    }
+
+    /**
+     * Post this customer's opening_balance to the general ledger as a real
+     * receivable (Dr Accounts Receivable 1040 / Cr Opening Balance Equity
+     * 3020), mirroring Supplier::postOpeningBalance() /
+     * Product::postOpeningStock(). Idempotent: re-posts only if the amount
+     * changed, and removes the entry entirely if opening_balance is
+     * reduced to zero.
+     */
+    public function postOpeningBalance()
+    {
+        $amount = round((float) $this->opening_balance, 2);
+
+        $existing = JournalEntry::where('reference_type', 'customer_opening')
+            ->where('reference_id', $this->id)
+            ->where('type', 'debit')
+            ->first();
+
+        if ($existing && (float) $existing->amount === $amount) {
+            return;
+        }
+
+        JournalEntry::where('reference_type', 'customer_opening')
+            ->where('reference_id', $this->id)
+            ->delete();
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        $receivableAccount = Account::where('code', '1040')->first();
+        $equityAccount = Account::where('code', '3020')->first();
+
+        if (!$receivableAccount || !$equityAccount) {
+            return;
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $receivableAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Opening balance - {$this->name}",
+            ],
+            [
+                'account_id' => $equityAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Opening balance - {$this->name}",
+            ],
+        ], 'customer_opening', $this->id, $this->created_at);
+    }
+
+    /**
+     * Record a payment received from this customer that isn't tied to any
+     * specific Sale - e.g. settling opening_balance or an advance. Posts
+     * Dr Cash-or-Bank / Cr Accounts Receivable (1040).
+     */
+    public function makePayment($amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    {
+        $payment = null;
+
+        DB::transaction(function () use (&$payment, $amount, $method, $date, $referenceNo, $notes) {
+            $payment = $this->payments()->create([
+                'payment_date' => $date ?? now(),
+                'amount' => $amount,
+                'payment_method' => $method,
+                'reference_no' => $referenceNo,
+                'notes' => $notes,
+            ]);
+
+            $receivableAccount = Account::where('code', '1040')->first();
+            $debitAccount = $method === 'cash'
+                ? Account::where('code', '1010')->first()
+                : Account::where('code', '1020')->first();
+
+            if (!$receivableAccount || !$debitAccount) {
+                throw new \Exception('Cannot post customer payment: required chart-of-accounts entries (1040/1010/1020) not found.');
+            }
+
+            $this->postDoubleEntry([
+                [
+                    'account_id' => $debitAccount->id,
+                    'type' => 'debit',
+                    'amount' => $amount,
+                    'description' => "Payment from Customer: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
+                ],
+                [
+                    'account_id' => $receivableAccount->id,
+                    'type' => 'credit',
+                    'amount' => $amount,
+                    'description' => "Payment from Customer: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
+                ],
+            ], 'customer_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
+        });
+
+        return $payment;
+    }
+
+    /**
+     * Undo a direct customer payment: removes its journal entries, then the
+     * payment row itself.
+     */
+    public function reversePayment(CustomerPayment $payment)
+    {
+        DB::transaction(function () use ($payment) {
+            JournalEntry::where('reference_type', 'customer_payment')
+                ->where('reference_id', $payment->id)
+                ->delete();
+
+            $payment->delete();
+        });
     }
 }

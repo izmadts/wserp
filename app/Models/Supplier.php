@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use App\Traits\AccountingTrait;
 
 class Supplier extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, AccountingTrait;
 
     protected $fillable = [
         'code', 'name', 'email', 'phone', 'mobile', 'address',
@@ -53,6 +55,13 @@ class Supplier extends Model
     public function purchaseReturns()
     {
         return $this->hasMany(PurchaseReturn::class);
+    }
+
+    // Payments made to this supplier that aren't tied to any specific
+    // Purchase (opening-balance/advance settlements) - see makePayment().
+    public function payments()
+    {
+        return $this->hasMany(SupplierPayment::class);
     }
 
     // Scopes
@@ -103,9 +112,16 @@ class Supplier extends Model
         return $this->total_purchases - $this->total_paid - $this->total_returned;
     }
 
+    // Direct payments (not against any Purchase) - the opening-balance /
+    // advance settlements recorded via makePayment().
+    public function getTotalDirectPaidAttribute()
+    {
+        return $this->payments()->sum('amount') ?? 0;
+    }
+
     public function getBalanceAttribute()
     {
-        return ($this->opening_balance ?? 0) + $this->total_due;
+        return ($this->opening_balance ?? 0) + $this->total_due - $this->total_direct_paid;
     }
 
     public function getFormattedBalanceAttribute()
@@ -121,5 +137,122 @@ class Supplier extends Model
     public function getFormattedCreditLimitAttribute()
     {
         return 'Rs. ' . number_format($this->credit_limit, 2);
+    }
+
+    /**
+     * Post this supplier's opening_balance to the general ledger as a real
+     * payable (Dr Opening Balance Equity 3020 / Cr Accounts Payable 2010),
+     * mirroring Product::postOpeningStock(). Without this, opening_balance
+     * only ever lived in this column - account 2010's journal balance never
+     * reflected it, so a supplier payment against it had nothing real to
+     * draw down. Idempotent and safe to call from both store() and
+     * update(): re-posts only if the amount actually changed, and removes
+     * the entry entirely if opening_balance is reduced to zero.
+     */
+    public function postOpeningBalance()
+    {
+        $amount = round((float) $this->opening_balance, 2);
+
+        $existing = JournalEntry::where('reference_type', 'supplier_opening')
+            ->where('reference_id', $this->id)
+            ->where('type', 'credit')
+            ->first();
+
+        if ($existing && (float) $existing->amount === $amount) {
+            return;
+        }
+
+        JournalEntry::where('reference_type', 'supplier_opening')
+            ->where('reference_id', $this->id)
+            ->delete();
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        $equityAccount = Account::where('code', '3020')->first();
+        $payableAccount = Account::where('code', '2010')->first();
+
+        if (!$equityAccount || !$payableAccount) {
+            return;
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $equityAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Opening balance - {$this->name}",
+            ],
+            [
+                'account_id' => $payableAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Opening balance - {$this->name}",
+            ],
+        ], 'supplier_opening', $this->id, $this->created_at);
+    }
+
+    /**
+     * Record a payment to this supplier that isn't tied to any specific
+     * Purchase - e.g. settling opening_balance or an advance. Posts
+     * Dr Accounts Payable (2010) / Cr Cash-or-Bank, same account routing
+     * PurchaseService::postPaymentAccounting() uses for invoice payments.
+     */
+    public function makePayment($amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    {
+        $payment = null;
+
+        DB::transaction(function () use (&$payment, $amount, $method, $date, $referenceNo, $notes) {
+            $payment = $this->payments()->create([
+                'payment_date' => $date ?? now(),
+                'amount' => $amount,
+                'payment_method' => $method,
+                'reference_no' => $referenceNo,
+                'notes' => $notes,
+            ]);
+
+            $payableAccount = Account::where('code', '2010')->first();
+            $creditAccount = $method === 'cash'
+                ? Account::where('code', '1010')->first()
+                : Account::where('code', '1020')->first();
+
+            if (!$payableAccount || !$creditAccount) {
+                throw new \Exception('Cannot post supplier payment: required chart-of-accounts entries (2010/1010/1020) not found.');
+            }
+
+            $this->postDoubleEntry([
+                [
+                    'account_id' => $payableAccount->id,
+                    'type' => 'debit',
+                    'amount' => $amount,
+                    'description' => "Payment to Supplier: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
+                ],
+                [
+                    'account_id' => $creditAccount->id,
+                    'type' => 'credit',
+                    'amount' => $amount,
+                    'description' => "Payment to Supplier: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
+                ],
+            ], 'supplier_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
+        });
+
+        return $payment;
+    }
+
+    /**
+     * Undo a direct supplier payment: removes its journal entries, then the
+     * payment row itself. Only for payments not tied to a Purchase - see
+     * PurchaseService::reversePaymentsAndAccounting() for the invoice case.
+     */
+    public function reversePayment(SupplierPayment $payment)
+    {
+        DB::transaction(function () use ($payment) {
+            JournalEntry::where('reference_type', 'supplier_payment')
+                ->where('reference_id', $payment->id)
+                ->delete();
+
+            $payment->delete();
+        });
     }
 }

@@ -145,6 +145,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::put('/{supplier}', [SupplierController::class, 'update'])->name('update');
         Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
         Route::post('/{supplier}/toggle-status', [SupplierController::class, 'toggleStatus'])->name('toggle-status');
+        Route::post('/{supplier}/payments', [SupplierController::class, 'makePayment'])->name('payments.store');
+        Route::delete('/{supplier}/payments/{payment}', [SupplierController::class, 'deletePayment'])->name('payments.destroy');
     });
 
     // ==========================================
@@ -201,6 +203,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::put('/{customer}', [CustomerController::class, 'update'])->name('update');
         Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
         Route::post('/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('toggle-status');
+        Route::post('/{customer}/payments', [CustomerController::class, 'makePayment'])->name('payments.store');
+        Route::delete('/{customer}/payments/{payment}', [CustomerController::class, 'deletePayment'])->name('payments.destroy');
     });
 
     // ==========================================

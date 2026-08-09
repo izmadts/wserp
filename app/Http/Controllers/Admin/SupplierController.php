@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -52,7 +53,8 @@ class SupplierController extends Controller
         $validated['credit_limit'] = $validated['credit_limit'] ?? 0;
         $validated['credit_days'] = $validated['credit_days'] ?? 0;
 
-        Supplier::create($validated);
+        $supplier = Supplier::create($validated);
+        $supplier->postOpeningBalance();
 
         return redirect()->route('admin.suppliers.index')
             ->with('success', 'Supplier created successfully!');
@@ -62,8 +64,10 @@ class SupplierController extends Controller
     {
         $supplier->load(['purchases' => function($query) {
             $query->orderBy('created_at', 'desc')->limit(10);
-        }, 'purchasePayments']);
-        
+        }, 'purchasePayments', 'payments' => function ($query) {
+            $query->orderBy('payment_date', 'desc');
+        }]);
+
         return view('admin.suppliers.show', compact('supplier'));
     }
 
@@ -98,6 +102,7 @@ class SupplierController extends Controller
         $validated['is_active'] = $validated['is_active'] ?? false;
 
         $supplier->update($validated);
+        $supplier->postOpeningBalance();
 
         return redirect()->route('admin.suppliers.index')
             ->with('success', 'Supplier updated successfully!');
@@ -108,11 +113,15 @@ class SupplierController extends Controller
         if ($supplier->purchases()->count() > 0) {
             return back()->with('error', 'Cannot delete supplier with purchase records!');
         }
-        
+
         if ($supplier->purchasePayments()->count() > 0) {
             return back()->with('error', 'Cannot delete supplier with payment records!');
         }
-        
+
+        if ($supplier->payments()->count() > 0) {
+            return back()->with('error', 'Cannot delete supplier with payment records!');
+        }
+
         $supplier->delete();
         
         return redirect()->route('admin.suppliers.index')
@@ -139,8 +148,49 @@ class SupplierController extends Controller
             'opening_balance' => $supplier->opening_balance,
             'total_purchases' => $supplier->total_purchases,
             'total_paid' => $supplier->total_paid,
+            'total_direct_paid' => $supplier->total_direct_paid,
             'balance' => $supplier->balance,
             'formatted_balance' => $supplier->formatted_balance,
         ]);
+    }
+
+    /**
+     * Record a payment to this supplier that isn't against any specific
+     * Purchase - e.g. settling opening_balance or an advance.
+     */
+    public function makePayment(Request $request, Supplier $supplier)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01|max:' . max($supplier->balance, 0.01),
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
+            'reference_no' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
+        ]);
+
+        try {
+            $supplier->makePayment(
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['payment_date'],
+                $validated['reference_no'] ?? null,
+                $validated['notes'] ?? null
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Payment recorded successfully!');
+    }
+
+    public function deletePayment(Supplier $supplier, SupplierPayment $payment)
+    {
+        if ($payment->supplier_id !== $supplier->id) {
+            abort(404);
+        }
+
+        $supplier->reversePayment($payment);
+
+        return back()->with('success', 'Payment deleted and accounting reversed.');
     }
 }

@@ -783,6 +783,16 @@ class ReportController extends Controller
             ];
         }
 
+        foreach ($customer->payments as $payment) {
+            $rows[] = [
+                'date' => $payment->payment_date,
+                'particulars' => 'Direct Payment Received (' . ucfirst(str_replace('_', ' ', $payment->payment_method)) . ')',
+                'reference' => $payment->reference_no,
+                'debit' => 0,
+                'credit' => (float) $payment->amount,
+            ];
+        }
+
         foreach (SalesReturn::where('customer_id', $customer->id)->get() as $return) {
             $rows[] = [
                 'date' => $return->return_date,
@@ -837,6 +847,16 @@ class ReportController extends Controller
             $rows[] = [
                 'date' => $payment->payment_date,
                 'particulars' => 'Payment Made (' . ucfirst(str_replace('_', ' ', $payment->payment_method)) . ')',
+                'reference' => $payment->reference_no,
+                'debit' => (float) $payment->amount,
+                'credit' => 0,
+            ];
+        }
+
+        foreach ($supplier->payments as $payment) {
+            $rows[] = [
+                'date' => $payment->payment_date,
+                'particulars' => 'Direct Payment Made (' . ucfirst(str_replace('_', ' ', $payment->payment_method)) . ')',
                 'reference' => $payment->reference_no,
                 'debit' => (float) $payment->amount,
                 'credit' => 0,

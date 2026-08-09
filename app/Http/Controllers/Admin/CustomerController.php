@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerPayment;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -57,7 +58,8 @@ class CustomerController extends Controller
         } else {
             $validated['is_agent_customer'] = false;
         }
-        Customer::create($validated);
+        $customer = Customer::create($validated);
+        $customer->postOpeningBalance();
 
         return redirect()->route('admin.customers.index')
             ->with('success', 'Customer created successfully!');
@@ -67,7 +69,9 @@ class CustomerController extends Controller
     {
         $customer->load(['sales' => function ($query) {
             $query->orderBy('created_at', 'desc')->limit(10);
-        }, 'salePayments']);
+        }, 'salePayments', 'payments' => function ($query) {
+            $query->orderBy('payment_date', 'desc');
+        }]);
         return view('admin.customers.show', compact('customer'));
     }
 
@@ -110,6 +114,7 @@ class CustomerController extends Controller
         }
 
         $customer->update($validated);
+        $customer->postOpeningBalance();
 
         return redirect()->route('admin.customers.index')
             ->with('success', 'Customer updated successfully!');
@@ -119,6 +124,10 @@ class CustomerController extends Controller
     {
         if ($customer->sales()->count() > 0) {
             return back()->with('error', 'Cannot delete customer with sales records!');
+        }
+
+        if ($customer->payments()->count() > 0) {
+            return back()->with('error', 'Cannot delete customer with payment records!');
         }
 
         $customer->delete();
@@ -131,5 +140,45 @@ class CustomerController extends Controller
         $customer->is_active = !$customer->is_active;
         $customer->save();
         return back()->with('success', 'Customer status updated!');
+    }
+
+    /**
+     * Record a payment received from this customer that isn't against any
+     * specific Sale - e.g. settling opening_balance or an advance.
+     */
+    public function makePayment(Request $request, Customer $customer)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01|max:' . max($customer->balance, 0.01),
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
+            'reference_no' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
+        ]);
+
+        try {
+            $customer->makePayment(
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['payment_date'],
+                $validated['reference_no'] ?? null,
+                $validated['notes'] ?? null
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Payment recorded successfully!');
+    }
+
+    public function deletePayment(Customer $customer, CustomerPayment $payment)
+    {
+        if ($payment->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        $customer->reversePayment($payment);
+
+        return back()->with('success', 'Payment deleted and accounting reversed.');
     }
 }
