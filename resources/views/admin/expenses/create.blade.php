@@ -11,8 +11,17 @@
         </h3>
     </div>
 
-    <div class="p-4 sm:p-6">
-        <form action="{{ route('admin.expenses.store') }}" method="POST" enctype="multipart/form-data">
+    <div class="p-4 sm:p-6"
+        x-data="{
+            method: '{{ old('payment_method', 'cash') }}',
+            amount: {{ (float) old('amount', 0) }},
+            cashBalance: {{ (float) $cashBalance }},
+            bankBalance: {{ (float) $bankBalance }},
+            get available() { return this.method === 'cash' ? this.cashBalance : this.bankBalance },
+            get short() { return (parseFloat(this.amount) || 0) > this.available },
+        }">
+        <form action="{{ route('admin.expenses.store') }}" method="POST" enctype="multipart/form-data"
+            @submit="if (short && !confirm('This account only has Rs. ' + available.toFixed(2) + ' available - recording this expense will take it negative. Submit anyway?')) $event.preventDefault()">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -41,10 +50,14 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
-                    <input type="number" step="0.01" name="amount" value="{{ old('amount', 0) }}" required
+                    <input type="number" step="0.01" name="amount" value="{{ old('amount', 0) }}" x-model="amount" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                            min="0.01" step="0.01">
                     @error('amount')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                    <p class="text-xs mt-1" :class="short ? 'text-orange-600 font-medium' : 'text-gray-400'">
+                        Available in <span x-text="method === 'cash' ? 'Cash' : 'Bank'"></span>: Rs. <span x-text="available.toFixed(2)"></span>
+                        <template x-if="short"> - insufficient, will go negative</template>
+                    </p>
                 </div>
 
                 <div>
@@ -59,7 +72,7 @@
                         Payment Method <span class="text-red-500">*</span>
                         <x-help-tooltip>Decides which account is credited when this posts to the ledger - Cash credits the Cash account, anything else (Bank Transfer/Cheque/Credit Card) credits the Bank account.</x-help-tooltip>
                     </label>
-                    <select name="payment_method" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select name="payment_method" x-model="method" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="cash" {{ old('payment_method') == 'cash' ? 'selected' : '' }}>Cash</option>
                         <option value="bank_transfer" {{ old('payment_method') == 'bank_transfer' ? 'selected' : '' }}>Bank Transfer</option>
                         <option value="cheque" {{ old('payment_method') == 'cheque' ? 'selected' : '' }}>Cheque</option>

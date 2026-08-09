@@ -217,17 +217,30 @@
                     <i class="fas fa-plus-circle text-green-600 mr-2"></i> Add Payment
                 </h4>
             </div>
-            <div class="p-6">
-                <form action="{{ route('admin.purchases.add-payment', $purchase) }}" method="POST">
+            <div class="p-6"
+                x-data="{
+                    method: 'cash',
+                    amount: 0,
+                    cashBalance: {{ (float) $cashBalance }},
+                    bankBalance: {{ (float) $bankBalance }},
+                    get available() { return this.method === 'cash' ? this.cashBalance : this.bankBalance },
+                    get short() { return (parseFloat(this.amount) || 0) > this.available },
+                }">
+                <form action="{{ route('admin.purchases.add-payment', $purchase) }}" method="POST"
+                    @submit="if (short && !confirm('This account only has Rs. ' + available.toFixed(2) + ' available - recording this payment will take it negative. Submit anyway?')) $event.preventDefault()">
                     @csrf
 
                     <div class="space-y-3">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
-                            <input type="number" step="0.01" name="amount"
+                            <input type="number" step="0.01" name="amount" x-model="amount"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 min="0.01" max="{{ $purchase->due_amount }}" required>
                             <p class="text-xs text-gray-500 mt-1">Max: Rs. {{ number_format($purchase->due_amount, 2) }}</p>
+                            <p class="text-xs mt-1" :class="short ? 'text-orange-600 font-medium' : 'text-gray-400'">
+                                Available in <span x-text="method === 'cash' ? 'Cash' : 'Bank'"></span>: Rs. <span x-text="available.toFixed(2)"></span>
+                                <template x-if="short"> - insufficient, will go negative</template>
+                            </p>
                         </div>
 
                         <div>
@@ -238,7 +251,7 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label>
-                            <select name="payment_method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                            <select name="payment_method" x-model="method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                                 <option value="cash">Cash</option>
                                 <option value="bank_transfer">Bank Transfer</option>
                                 <option value="cheque">Cheque</option>

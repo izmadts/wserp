@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -68,7 +69,12 @@ class SupplierController extends Controller
             $query->orderBy('payment_date', 'desc');
         }]);
 
-        return view('admin.suppliers.show', compact('supplier'));
+        // Available cash/bank - used to warn (not block) if a payment would
+        // take the paying account negative. See Account::getBalanceAttribute().
+        $cashBalance = Account::where('code', '1010')->first()->balance ?? 0;
+        $bankBalance = Account::where('code', '1020')->first()->balance ?? 0;
+
+        return view('admin.suppliers.show', compact('supplier', 'cashBalance', 'bankBalance'));
     }
 
     public function edit(Supplier $supplier)

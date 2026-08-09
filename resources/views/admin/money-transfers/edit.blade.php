@@ -11,15 +11,23 @@
         </h3>
     </div>
 
-    <div class="p-4 sm:p-6">
-        <form action="{{ route('admin.money-transfers.update', $moneyTransfer) }}" method="POST">
+    <div class="p-4 sm:p-6"
+        x-data="{
+            fromAccountId: '{{ old('from_account_id', $moneyTransfer->from_account_id) }}',
+            amount: {{ (float) old('amount', $moneyTransfer->amount) }},
+            balances: { {{ $accounts->map(fn($a) => "'{$a->id}': " . (float) $a->balance)->implode(', ') }} },
+            get available() { return this.balances[this.fromAccountId] ?? null },
+            get short() { return this.available !== null && (parseFloat(this.amount) || 0) > this.available },
+        }">
+        <form action="{{ route('admin.money-transfers.update', $moneyTransfer) }}" method="POST"
+            @submit="if (short && !confirm('This account only has Rs. ' + available.toFixed(2) + ' available - this transfer will take it negative. Submit anyway?')) $event.preventDefault()">
             @csrf
             @method('PUT')
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">From Account <span class="text-red-500">*</span></label>
-                    <select name="from_account_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                    <select name="from_account_id" x-model="fromAccountId" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="">Select Account</option>
                         @foreach($accounts as $account)
                         <option value="{{ $account->id }}" {{ old('from_account_id', $moneyTransfer->from_account_id) == $account->id ? 'selected' : '' }}>
@@ -27,6 +35,10 @@
                         </option>
                         @endforeach
                     </select>
+                    <p class="text-xs mt-1" x-show="available !== null" :class="short ? 'text-orange-600 font-medium' : 'text-gray-400'">
+                        Available: Rs. <span x-text="(available ?? 0).toFixed(2)"></span>
+                        <template x-if="short"> - insufficient, will go negative</template>
+                    </p>
                 </div>
 
                 <div>
@@ -43,7 +55,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
-                    <input type="number" step="0.01" name="amount" value="{{ old('amount', $moneyTransfer->amount) }}" required
+                    <input type="number" step="0.01" name="amount" value="{{ old('amount', $moneyTransfer->amount) }}" x-model="amount" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                            min="0.01" step="0.01">
                 </div>

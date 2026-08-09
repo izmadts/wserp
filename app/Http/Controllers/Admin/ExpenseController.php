@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +39,9 @@ class ExpenseController extends Controller
     public function create()
     {
         $categories = ExpenseCategory::active()->orderBy('name')->get();
-        return view('admin.expenses.create', compact('categories'));
+        $cashBalance = Account::where('code', '1010')->first()->balance ?? 0;
+        $bankBalance = Account::where('code', '1020')->first()->balance ?? 0;
+        return view('admin.expenses.create', compact('categories', 'cashBalance', 'bankBalance'));
     }
 
     public function store(Request $request)
@@ -92,7 +95,9 @@ class ExpenseController extends Controller
     public function edit(Expense $expense)
     {
         $categories = ExpenseCategory::active()->orderBy('name')->get();
-        return view('admin.expenses.edit', compact('expense', 'categories'));
+        $cashBalance = Account::where('code', '1010')->first()->balance ?? 0;
+        $bankBalance = Account::where('code', '1020')->first()->balance ?? 0;
+        return view('admin.expenses.edit', compact('expense', 'categories', 'cashBalance', 'bankBalance'));
     }
 
     public function update(Request $request, Expense $expense)

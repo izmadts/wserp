@@ -7,6 +7,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use App\Models\Product;
+use App\Models\Account;
 use App\Services\PurchaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -142,7 +143,13 @@ class PurchaseController extends Controller
     public function show(Purchase $purchase)
     {
         $purchase->load('supplier', 'items.product', 'payments', 'createdBy');
-        return view('admin.purchases.show', compact('purchase'));
+
+        // Available cash/bank - used to warn (not block) if a payment would
+        // take the paying account negative. See Account::getBalanceAttribute().
+        $cashBalance = Account::where('code', '1010')->first()->balance ?? 0;
+        $bankBalance = Account::where('code', '1020')->first()->balance ?? 0;
+
+        return view('admin.purchases.show', compact('purchase', 'cashBalance', 'bankBalance'));
     }
 
     public function edit(Purchase $purchase)
