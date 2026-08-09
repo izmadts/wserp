@@ -256,7 +256,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->middleware('permission:employees,edit')->name('edit');
         Route::put('/{employee}', [EmployeeController::class, 'update'])->middleware('permission:employees,edit')->name('update');
         Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:employees,delete')->name('destroy');
-        Route::post('/{employee}/grant-access', [EmployeeController::class, 'grantAccess'])->middleware('permission:employees,edit')->name('grant-access');
+        // role:admin, not permission:employees,edit - granting a login (with
+        // a choice of admin/manager/accountant role) is exactly as sensitive
+        // as creating one via Settings -> Users, which is hard admin-only.
+        // The default seeded permissions give Manager employees:edit=true,
+        // which would otherwise let a Manager mint themselves/anyone a new
+        // admin-role login straight from HR.
+        Route::post('/{employee}/grant-access', [EmployeeController::class, 'grantAccess'])->middleware('role:admin')->name('grant-access');
     });
 
     Route::prefix('departments')->name('departments.')->middleware('permission:employees,view')->group(function () {

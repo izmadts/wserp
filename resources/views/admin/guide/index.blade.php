@@ -399,7 +399,7 @@
             <p class="text-gray-700 leading-7 mb-3">The HR employee register. Two ways an Employee record can exist:</p>
             <ul class="list-disc pl-6 space-y-1.5 text-gray-700 text-sm leading-6 mb-3">
                 <li><strong>Auto-linked</strong> - the instant anyone gets a system login (admin/manager/accountant/sales agent), an Employee record is created for them automatically. Nothing to do here.</li>
-                <li><strong>Standalone</strong> - added manually here, for staff who never log into the software at all (warehouse, delivery, other operational/supply-chain roles). Can later be given a login via "Grant System Access" on their profile, without creating a duplicate.</li>
+                <li><strong>Standalone</strong> - added manually here, for staff who never log into the software at all (warehouse, delivery, other operational/supply-chain roles). Can later be given a login via "Grant System Access" on their profile, without creating a duplicate. <strong>Admin-only</strong> - deliberately not covered by the Employees permission, since it can create an admin/manager/accountant login, the same sensitivity as adding one under Settings &rarr; Users.</li>
             </ul>
             <p class="font-semibold text-gray-800 text-sm mb-1">Fields</p>
             <p class="text-gray-600 text-sm mb-3">Employee Code (auto, e.g. EMP-0001), Name, Contact & Emergency Contact, CNIC, Department, Designation, Employment Type (Full-time/Part-time/Contract/Intern), Date of Joining/Leaving, Employment Status (Active/On Leave/Suspended/Terminated/Resigned), Reporting Manager.</p>

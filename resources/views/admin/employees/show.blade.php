@@ -57,7 +57,7 @@
                 </a>
             </div>
 
-            @if(!$employee->is_linked && auth()->user()->hasPermission('employees', 'edit'))
+            @if(!$employee->is_linked && auth()->user()->isAdmin())
             <div class="px-6 pb-6">
                 <button type="button" @click="showAccessModal = true"
                     class="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
@@ -125,7 +125,7 @@
     </div>
 </div>
 
-@if(!$employee->is_linked)
+@if(!$employee->is_linked && auth()->user()->isAdmin())
 <!-- Grant System Access Modal -->
 <div x-show="showAccessModal" x-cloak
      class="fixed inset-0 z-50 overflow-y-auto"
