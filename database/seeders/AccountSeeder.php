@@ -19,6 +19,7 @@ class AccountSeeder extends Seeder
             // 2. Liabilities (Credit normal balance)
             ['code' => '2010', 'name' => 'Accounts Payable (Suppliers)', 'type' => 'Liability', 'normal_balance' => 'Credit'],
             ['code' => '2020', 'name' => 'Agent Commission Payable', 'type' => 'Liability', 'normal_balance' => 'Credit'],
+            ['code' => '2030', 'name' => 'Salary Payable', 'type' => 'Liability', 'normal_balance' => 'Credit'],
 
             // 3. Equity (Credit normal balance)
             ['code' => '3010', 'name' => 'Owner\'s Capital', 'type' => 'Equity', 'normal_balance' => 'Credit'],
@@ -33,6 +34,7 @@ class AccountSeeder extends Seeder
             ['code' => '5020', 'name' => 'Agent Commission Expense', 'type' => 'Expense', 'normal_balance' => 'Debit'],
             ['code' => '5030', 'name' => 'General Expenses', 'type' => 'Expense', 'normal_balance' => 'Debit'],
             ['code' => '5040', 'name' => 'Inventory Shrinkage & Adjustments', 'type' => 'Expense', 'normal_balance' => 'Debit'],
+            ['code' => '5050', 'name' => 'Salary Expense', 'type' => 'Expense', 'normal_balance' => 'Debit'],
         ];
 
         foreach ($accounts as $account) {

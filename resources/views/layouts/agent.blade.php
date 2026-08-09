@@ -65,6 +65,12 @@
                     <a href="{{ route('agent.reports.index') }}" class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 {{ request()->routeIs('agent.reports.*') ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-100' }}">
                         <i class="fas fa-chart-bar w-5 text-lg"></i><span class="ml-3">Reports</span>
                     </a>
+                    <a href="{{ route('agent.leave.index') }}" class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 {{ request()->routeIs('agent.leave.*') ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                        <i class="fas fa-calendar-day w-5 text-lg"></i><span class="ml-3">Leave</span>
+                    </a>
+                    <a href="{{ route('agent.payslips.index') }}" class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 {{ request()->routeIs('agent.payslips.*') ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                        <i class="fas fa-file-invoice-dollar w-5 text-lg"></i><span class="ml-3">Payslips</span>
+                    </a>
                     <a href="{{ route('agent.profile.index') }}" class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 {{ request()->routeIs('agent.profile.*') ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-100' }}">
                         <i class="fas fa-user w-5 text-lg"></i><span class="ml-3">My Profile</span>
                     </a>

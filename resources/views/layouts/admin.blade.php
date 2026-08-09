@@ -202,6 +202,20 @@
                             ],
                         ],
                         [
+                            'key' => 'hr', 'label' => 'HR', 'icon' => 'fa-id-badge', 'color' => 'text-indigo-500',
+                            'active' => request()->routeIs('admin.employees.*', 'admin.departments.*', 'admin.leave-types.*', 'admin.leave-requests.*', 'admin.my-leave.*', 'admin.salary-components.*', 'admin.payroll-runs.*', 'admin.my-payslips.*'),
+                            'links' => [
+                                ['route' => 'admin.employees.index', 'is' => 'admin.employees.*', 'icon' => 'fa-users', 'label' => 'Employees', 'module' => 'employees'],
+                                ['route' => 'admin.departments.index', 'is' => 'admin.departments.*', 'icon' => 'fa-sitemap', 'label' => 'Departments', 'module' => 'employees'],
+                                ['route' => 'admin.leave-requests.index', 'is' => 'admin.leave-requests.*', 'icon' => 'fa-calendar-check', 'label' => 'Leave Requests', 'module' => 'leaves'],
+                                ['route' => 'admin.leave-types.index', 'is' => 'admin.leave-types.*', 'icon' => 'fa-list', 'label' => 'Leave Types', 'module' => 'leaves'],
+                                ['route' => 'admin.my-leave.index', 'is' => 'admin.my-leave.*', 'icon' => 'fa-calendar-day', 'label' => 'My Leave'],
+                                ['route' => 'admin.salary-components.index', 'is' => 'admin.salary-components.*', 'icon' => 'fa-money-check-alt', 'label' => 'Salary Structures', 'module' => 'payroll'],
+                                ['route' => 'admin.payroll-runs.index', 'is' => 'admin.payroll-runs.*', 'icon' => 'fa-money-bill-wave', 'label' => 'Payroll Runs', 'module' => 'payroll'],
+                                ['route' => 'admin.my-payslips.index', 'is' => 'admin.my-payslips.*', 'icon' => 'fa-file-invoice-dollar', 'label' => 'My Payslips'],
+                            ],
+                        ],
+                        [
                             'key' => 'finance', 'label' => 'Finance', 'icon' => 'fa-wallet', 'color' => 'text-green-600',
                             'active' => request()->routeIs('admin.incomes.*', 'admin.income-categories.*', 'admin.expenses.*', 'admin.expense-categories.*', 'admin.money-transfers.*'),
                             'links' => [

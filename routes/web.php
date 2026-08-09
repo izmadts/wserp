@@ -33,6 +33,14 @@ use App\Http\Controllers\Admin\ApiSystemController;
 use App\Http\Controllers\Admin\CustomerGroupController;
 use App\Http\Controllers\Admin\StaffUserController;
 use App\Http\Controllers\Admin\RolePermissionController;
+use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\LeaveTypeController;
+use App\Http\Controllers\Admin\LeaveRequestController;
+use App\Http\Controllers\Admin\MyLeaveController;
+use App\Http\Controllers\Admin\SalaryComponentController;
+use App\Http\Controllers\Admin\PayrollController;
+use App\Http\Controllers\Admin\MyPayslipController;
 
 // Agent Controllers
 use App\Http\Controllers\Agent\DashboardController as AgentDashboardController;
@@ -42,6 +50,8 @@ use App\Http\Controllers\Agent\CommissionController as AgentCommissionController
 use App\Http\Controllers\Agent\ReportController as AgentReportController;
 use App\Http\Controllers\Agent\ProfileController as AgentProfileController;
 use App\Http\Controllers\Agent\GoldenClubController as AgentGoldenClubController;
+use App\Http\Controllers\Agent\LeaveController as AgentLeaveController;
+use App\Http\Controllers\Agent\PayslipController as AgentPayslipController;
 
 // Admin Agent Management
 use App\Http\Controllers\Admin\AgentManagementController;
@@ -231,6 +241,75 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::post('/{user}/sales/{sale}/hold-commission', [AgentManagementController::class, 'holdCommission'])->middleware('permission:agents,edit')->name('hold-commission');
         Route::post('/{user}/sales/{sale}/release-commission', [AgentManagementController::class, 'releaseCommission'])->middleware('permission:agents,edit')->name('release-commission');
         Route::post('/close-month', [AgentManagementController::class, 'closeMonth'])->middleware('permission:agents,edit')->name('close-month');
+    });
+
+    // ==========================================
+    // 10b. HR - EMPLOYEES (Admin) - Leave/Payroll land here in later
+    // phases; this is Phase 1 (employee records only).
+    // ==========================================
+    Route::prefix('employees')->name('employees.')->middleware('permission:employees,view')->group(function () {
+        Route::get('/', [EmployeeController::class, 'index'])->name('index');
+        Route::get('/create', [EmployeeController::class, 'create'])->middleware('permission:employees,create')->name('create');
+        Route::post('/', [EmployeeController::class, 'store'])->middleware('permission:employees,create')->name('store');
+        Route::get('/{employee}', [EmployeeController::class, 'show'])->name('show');
+        Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->middleware('permission:employees,edit')->name('edit');
+        Route::put('/{employee}', [EmployeeController::class, 'update'])->middleware('permission:employees,edit')->name('update');
+        Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:employees,delete')->name('destroy');
+        Route::post('/{employee}/grant-access', [EmployeeController::class, 'grantAccess'])->middleware('permission:employees,edit')->name('grant-access');
+    });
+
+    Route::prefix('departments')->name('departments.')->middleware('permission:employees,view')->group(function () {
+        Route::get('/', [DepartmentController::class, 'index'])->name('index');
+        Route::post('/', [DepartmentController::class, 'store'])->middleware('permission:employees,create')->name('store');
+        Route::put('/{department}', [DepartmentController::class, 'update'])->middleware('permission:employees,edit')->name('update');
+        Route::delete('/{department}', [DepartmentController::class, 'destroy'])->middleware('permission:employees,delete')->name('destroy');
+    });
+
+    // ==========================================
+    // 10c. HR - LEAVE (Admin) - Phase 2. Payroll (Phase 3) not built yet.
+    // ==========================================
+    Route::prefix('leave-types')->name('leave-types.')->middleware('permission:leaves,view')->group(function () {
+        Route::get('/', [LeaveTypeController::class, 'index'])->name('index');
+        Route::post('/', [LeaveTypeController::class, 'store'])->middleware('permission:leaves,create')->name('store');
+        Route::put('/{leaveType}', [LeaveTypeController::class, 'update'])->middleware('permission:leaves,edit')->name('update');
+        Route::delete('/{leaveType}', [LeaveTypeController::class, 'destroy'])->middleware('permission:leaves,delete')->name('destroy');
+    });
+
+    Route::prefix('leave-requests')->name('leave-requests.')->middleware('permission:leaves,view')->group(function () {
+        Route::get('/', [LeaveRequestController::class, 'index'])->name('index');
+        Route::post('/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])->middleware('permission:leaves,edit')->name('approve');
+        Route::post('/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])->middleware('permission:leaves,edit')->name('reject');
+    });
+
+    // Self-service - intentionally not permission-gated, only ever touches
+    // the logged-in user's own Employee record.
+    Route::prefix('my-leave')->name('my-leave.')->group(function () {
+        Route::get('/', [MyLeaveController::class, 'index'])->name('index');
+        Route::post('/', [MyLeaveController::class, 'store'])->name('store');
+        Route::post('/{leaveRequest}/cancel', [MyLeaveController::class, 'cancel'])->name('cancel');
+    });
+
+    // ==========================================
+    // 10d. HR - PAYROLL (Admin) - Phase 3
+    // ==========================================
+    Route::prefix('salary-components')->name('salary-components.')->middleware('permission:payroll,view')->group(function () {
+        Route::get('/', [SalaryComponentController::class, 'index'])->name('index');
+        Route::get('/{employee}', [SalaryComponentController::class, 'show'])->name('show');
+        Route::post('/{employee}', [SalaryComponentController::class, 'store'])->middleware('permission:payroll,create')->name('store');
+    });
+
+    Route::prefix('payroll-runs')->name('payroll-runs.')->middleware('permission:payroll,view')->group(function () {
+        Route::get('/', [PayrollController::class, 'index'])->name('index');
+        Route::get('/create', [PayrollController::class, 'create'])->middleware('permission:payroll,create')->name('create');
+        Route::post('/', [PayrollController::class, 'store'])->middleware('permission:payroll,create')->name('store');
+        Route::get('/{payrollRun}', [PayrollController::class, 'show'])->name('show');
+        Route::post('/payslips/{payslip}/pay', [PayrollController::class, 'payPayslip'])->middleware('permission:payroll,edit')->name('payslips.pay');
+    });
+
+    // Self-service - not permission-gated, only ever shows the logged-in
+    // user's own payslips.
+    Route::prefix('my-payslips')->name('my-payslips.')->group(function () {
+        Route::get('/', [MyPayslipController::class, 'index'])->name('index');
     });
 
     // ==========================================
@@ -613,6 +692,18 @@ Route::prefix('agent')->name('agent.')->middleware(['auth'])->group(function () 
         Route::prefix('profile')->name('profile.')->group(function () {
             Route::get('/', [AgentProfileController::class, 'index'])->name('index');
             Route::put('/', [AgentProfileController::class, 'update'])->name('update');
+        });
+
+        // Leave (self-service - same leave_requests table/approval queue as the admin panel)
+        Route::prefix('leave')->name('leave.')->group(function () {
+            Route::get('/', [AgentLeaveController::class, 'index'])->name('index');
+            Route::post('/', [AgentLeaveController::class, 'store'])->name('store');
+            Route::post('/{leaveRequest}/cancel', [AgentLeaveController::class, 'cancel'])->name('cancel');
+        });
+
+        // Payslips (self-service view only)
+        Route::prefix('payslips')->name('payslips.')->group(function () {
+            Route::get('/', [AgentPayslipController::class, 'index'])->name('index');
         });
 
         // ==========================================

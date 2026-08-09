@@ -59,6 +59,31 @@ class User extends Authenticatable
         'last_login_at' => 'datetime',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Every User-creation path (StaffUserController::store(),
+        // AgentRegistrationController::register()) funnels through
+        // User::create(), so this one hook is what makes "the system
+        // automatically adds anyone who uses this software" true, without
+        // touching either controller. See Employee::createFromUser().
+        static::created(function ($user) {
+            Employee::createFromUser($user);
+        });
+
+        // Keep the linked Employee's active/approval state in step - most
+        // importantly an agent's pending -> approved transition
+        // (AgentManagementController::doApprove()), which only updates
+        // this User row, not a new one.
+        static::updated(function ($user) {
+            if ($user->isDirty(['is_active', 'approved_at', 'approved_by'])) {
+                $employee = Employee::where('user_id', $user->id)->first();
+                $employee?->syncFromUser($user);
+            }
+        });
+    }
+
     // =============================================
     // ROLE CHECKS
     // =============================================
@@ -155,6 +180,11 @@ class User extends Authenticatable
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function employee()
+    {
+        return $this->hasOne(Employee::class);
     }
 
     // =============================================

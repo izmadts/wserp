@@ -47,7 +47,7 @@ trait AccountingTrait
                     'description' => $entry['description'],
                     'reference_type' => $referenceType,
                     'reference_id' => $referenceId,
-                    'entry_date' => ($entryDate ?? now())->toDateString(),
+                    'entry_date' => $entryDate ? \Carbon\Carbon::parse($entryDate)->toDateString() : now()->toDateString(),
                 ]);
             }
 

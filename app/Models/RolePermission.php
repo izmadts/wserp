@@ -32,7 +32,7 @@ class RolePermission extends Model
         'purchases', 'purchase-returns', 'inventory', 'customers', 'agents',
         'sales', 'sales-returns', 'expenses', 'incomes', 'money-transfers',
         'reports', 'bank-reconciliations', 'exports', 'activity-logs',
-        'backups', 'settings', 'golden-club',
+        'backups', 'settings', 'golden-club', 'employees', 'leaves', 'payroll',
     ];
 
     public const ROLES = ['manager', 'accountant', 'sales_agent'];
