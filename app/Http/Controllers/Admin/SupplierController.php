@@ -203,7 +203,7 @@ class SupplierController extends Controller
 
     public function updatePayment(Request $request, Supplier $supplier, SupplierPayment $payment)
     {
-        if ($payment->supplier_id !== $supplier->id) {
+        if ((int) $payment->supplier_id !== (int) $supplier->id) {
             abort(404);
         }
 
@@ -233,7 +233,7 @@ class SupplierController extends Controller
 
     public function deletePayment(Supplier $supplier, SupplierPayment $payment)
     {
-        if ($payment->supplier_id !== $supplier->id) {
+        if ((int) $payment->supplier_id !== (int) $supplier->id) {
             abort(404);
         }
 

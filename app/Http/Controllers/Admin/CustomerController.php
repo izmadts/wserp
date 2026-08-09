@@ -186,7 +186,7 @@ class CustomerController extends Controller
 
     public function updatePayment(Request $request, Customer $customer, CustomerPayment $payment)
     {
-        if ($payment->customer_id !== $customer->id) {
+        if ((int) $payment->customer_id !== (int) $customer->id) {
             abort(404);
         }
 
@@ -216,7 +216,7 @@ class CustomerController extends Controller
 
     public function deletePayment(Customer $customer, CustomerPayment $payment)
     {
-        if ($payment->customer_id !== $customer->id) {
+        if ((int) $payment->customer_id !== (int) $customer->id) {
             abort(404);
         }
 
