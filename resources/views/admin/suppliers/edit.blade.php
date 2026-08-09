@@ -123,7 +123,7 @@
                 <!-- Financial Fields -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance</label>
-                    <input type="number" step="0.01" name="opening_balance" value="{{ old('opening_balance', $supplier->opening_balance) }}"
+                    <type="number" name="opening_balance" value="{{ old('opening_balance', $supplier->opening_balance) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('opening_balance') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('opening_balance')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -131,7 +131,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Credit Limit</label>
-                    <input type="number" step="0.01" name="credit_limit" value="{{ old('credit_limit', $supplier->credit_limit) }}"
+                    <type="number" name="credit_limit" value="{{ old('credit_limit', $supplier->credit_limit) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('credit_limit') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('credit_limit')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror

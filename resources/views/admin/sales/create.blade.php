@@ -96,10 +96,10 @@
                                                 <span x-show="belowCost(item)" class="text-red-600 block"><i class="fas fa-exclamation-circle mr-1"></i>Below cost (Rs. <span x-text="item.cost"></span>)</span>
                                             </p>
                                         </td>
-                                        <td class="py-1.5 px-1.5"><input type="number" step="0.01" :name="'items['+index+'][quantity]'" x-model="item.quantity" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" :class="stockWarning(item) ? 'border-orange-400 bg-orange-50' : ''" min="0.01" step="0.01"></td>
-                                        <td class="py-1.5 px-1.5"><input type="number" step="0.01" :name="'items['+index+'][unit_price]'" x-model="item.unit_price" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" :class="belowCost(item) ? 'border-red-400 bg-red-50' : ''" min="0" step="0.01"></td>
-                                        <td class="py-1.5 px-1.5"><input type="number" step="0.01" :name="'items['+index+'][discount]'" x-model="item.discount" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" step="0.01"></td>
-                                        <td class="py-1.5 px-1.5"><input type="number" step="0.01" :name="'items['+index+'][tax]'" x-model="item.tax" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" step="0.01"></td>
+                                        <td class="py-1.5 px-1.5"><type="number" :name="'items['+index+'][quantity]'" x-model="item.quantity" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" :class="stockWarning(item) ? 'border-orange-400 bg-orange-50' : ''" min="0.01" step="0.01"></td>
+                                        <td class="py-1.5 px-1.5"><type="number" :name="'items['+index+'][unit_price]'" x-model="item.unit_price" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" :class="belowCost(item) ? 'border-red-400 bg-red-50' : ''" min="0" step="0.01"></td>
+                                        <td class="py-1.5 px-1.5"><type="number" :name="'items['+index+'][discount]'" x-model="item.discount" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" step="0.01"></td>
+                                        <td class="py-1.5 px-1.5"><type="number" :name="'items['+index+'][tax]'" x-model="item.tax" @input="calculateRow(index)" class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" step="0.01"></td>
                                         <td class="py-1.5 px-1.5 text-right"><span class="text-sm font-medium text-blue-600" x-text="'Rs. ' + item.total.toFixed(2)"></span></td>
                                         <td class="py-1.5 px-1.5 text-center"><button type="button" @click="removeRow(index)" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded-lg"><i class="fas fa-times"></i></button></td>
                                     </tr>
@@ -122,7 +122,7 @@
                                     <span x-show="stockWarning(item)" class="text-orange-600"><i class="fas fa-exclamation-triangle mr-1"></i>Only <span x-text="item.stock"></span> in stock</span>
                                     <span x-show="belowCost(item)" class="text-red-600 block"><i class="fas fa-exclamation-circle mr-1"></i>Below cost (Rs. <span x-text="item.cost"></span>)</span>
                                 </p>
-                                <div class="grid grid-cols-3 gap-2"><div><label class="text-xs text-gray-500">Qty</label><input type="number" step="0.01" :name="'items['+index+'][quantity]'" x-model="item.quantity" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded-lg" min="0.01" step="0.01"></div><div><label class="text-xs text-gray-500">Price</label><input type="number" step="0.01" :name="'items['+index+'][unit_price]'" x-model="item.unit_price" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01"></div><div><label class="text-xs text-gray-500">Total</label><p class="text-sm font-semibold text-blue-600 text-right pt-1" x-text="'Rs. ' + item.total.toFixed(2)"></p></div></div>
+                                <div class="grid grid-cols-3 gap-2"><div><label class="text-xs text-gray-500">Qty</label><type="number" :name="'items['+index+'][quantity]'" x-model="item.quantity" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded-lg" min="0.01" step="0.01"></div><div><label class="text-xs text-gray-500">Price</label><type="number" :name="'items['+index+'][unit_price]'" x-model="item.unit_price" @input="calculateRow(index)" class="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01"></div><div><label class="text-xs text-gray-500">Total</label><p class="text-sm font-semibold text-blue-600 text-right pt-1" x-text="'Rs. ' + item.total.toFixed(2)"></p></div></div>
                                 <button type="button" @click="removeRow(index)" class="w-full text-center text-red-500 hover:text-red-700 text-sm py-1 border border-red-200 rounded-lg hover:bg-red-50">Remove</button>
                             </div>
                         </template>
@@ -153,18 +153,18 @@
                             </div>
                             <div class="flex items-center gap-2 justify-end">
                                 <span class="text-sm text-gray-600">Discount:</span>
-                                <input type="number" step="0.01" name="discount" x-model="discount" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                                <type="number" name="discount" x-model="discount" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
                                 <select name="discount_type" x-model="discountType" @change="calculateTotals()" class="w-16 px-1 py-1 text-xs border border-gray-300 rounded-lg"><option value="fixed">Rs</option><option value="percentage">%</option></select>
                                 <span class="text-sm text-red-600" x-text="'- Rs. ' + discountAmount.toFixed(2)"></span>
                             </div>
                             <div class="flex items-center gap-2 justify-end">
                                 <span class="text-sm text-gray-600">Tax:</span>
-                                <input type="number" step="0.01" name="tax" x-model="tax" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                                <type="number" name="tax" x-model="tax" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
                                 <span class="text-sm" x-text="'Rs. ' + tax.toFixed(2)"></span>
                             </div>
                             <div class="flex items-center gap-2 justify-end">
                                 <span class="text-sm text-gray-600">Shipping:</span>
-                                <input type="number" step="0.01" name="shipping_cost" x-model="shipping" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                                <type="number" name="shipping_cost" x-model="shipping" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
                                 <span class="text-sm" x-text="'Rs. ' + shipping.toFixed(2)"></span>
                             </div>
                             <div class="flex items-center gap-2 justify-end border-t border-gray-200 pt-2" x-show="agent_id">
@@ -181,7 +181,7 @@
                                     Amount Received Now:
                                     <x-help-tooltip>For a Cash sale, this must equal the Grand Total exactly - Cash sales can't be confirmed with a partial amount. On Credit, enter less than the total (or leave blank) to record it as Partial or unpaid; the rest goes to the customer's account balance.</x-help-tooltip>
                                 </span>
-                                <input type="number" step="0.01" name="amount_received" x-model="amountReceived" min="0" :max="grandTotal" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" placeholder="0.00">
+                                <type="number" name="amount_received" x-model="amountReceived" min="0" :max="grandTotal" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" placeholder="0.00">
                                 <button type="button" @click="amountReceived = grandTotal.toFixed(2)" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 whitespace-nowrap">Pay in Full</button>
                             </div>
                             <p class="text-xs text-gray-500 text-right">Leave blank for no payment yet - status becomes Paid/Partial automatically based on what's entered here.</p>

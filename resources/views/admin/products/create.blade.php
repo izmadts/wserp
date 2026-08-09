@@ -72,7 +72,7 @@
                         Purchase Price <span class="text-red-500">*</span>
                         <x-help-tooltip>Your cost to acquire one unit. Selling below this on a Sale shows a "below cost" warning there, so keep this current when your buying price changes.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="purchase_price" value="{{ old('purchase_price', 0) }}" required
+                    <input type="number" name="purchase_price" value="{{ old('purchase_price', 0) }}" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('purchase_price') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('purchase_price')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -84,7 +84,7 @@
                         Sale Price <span class="text-red-500">*</span>
                         <x-help-tooltip>The retail price charged to customers whose group prices off "Retail" (see Available For below). Only applies if "Retail" is checked.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="sale_price" value="{{ old('sale_price', 0) }}" required
+                    <input type="number" name="sale_price" value="{{ old('sale_price', 0) }}" required
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('sale_price') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('sale_price')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -96,7 +96,7 @@
                         Wholesale Price
                         <x-help-tooltip>Charged to customers whose group prices off "Wholesale" instead of Retail. Leave blank to just use your Sale Price for wholesale customers too.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="wholesale_price" value="{{ old('wholesale_price', 0) }}"
+                    <input type="number" name="wholesale_price" value="{{ old('wholesale_price', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('wholesale_price') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('wholesale_price')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -108,7 +108,7 @@
                         Current Stock
                         <x-help-tooltip>Your opening quantity on hand for this product - this is the only place you can set it directly. From here on, stock only changes through actual sales, purchases, returns, or stock adjustments, each leaving its own audit trail; you won't be able to edit this number directly once the product exists.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="current_stock" value="{{ old('current_stock', 0) }}"
+                    <input type="number" name="current_stock" value="{{ old('current_stock', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('current_stock') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('current_stock')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -120,7 +120,7 @@
                         Min Stock Level
                         <x-help-tooltip>Once Current Stock falls to or below this, the product is flagged as low stock wherever that's shown (e.g. a low-stock list/report) - it doesn't block any sale by itself.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="min_stock_level" value="{{ old('min_stock_level', 0) }}"
+                    <input type="number" name="min_stock_level" value="{{ old('min_stock_level', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('min_stock_level') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('min_stock_level')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -132,7 +132,7 @@
                         Max Stock Level
                         <x-help-tooltip>Your ceiling for how much of this to keep on hand. Once Current Stock goes above it, the product shows an "Overstocked" flag on this list and its detail page - a visual warning only, it doesn't block a purchase or stock adjustment from pushing stock higher. Leave at 0 for no ceiling.</x-help-tooltip>
                     </label>
-                    <input type="number" step="0.01" name="max_stock_level" value="{{ old('max_stock_level', 0) }}"
+                    <input type="number" name="max_stock_level" value="{{ old('max_stock_level', 0) }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('max_stock_level') border-red-500 @enderror"
                         min="0" step="0.01">
                     @error('max_stock_level')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror

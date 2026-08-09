@@ -145,7 +145,7 @@
                                             </p>
                                         </td>
                                         <td class="py-1.5 px-1.5">
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][quantity]'"
                                                 x-model="item.quantity"
                                                 @input="calculateRow(index)"
@@ -153,7 +153,7 @@
                                                 min="0.01" step="0.01">
                                         </td>
                                         <td class="py-1.5 px-1.5">
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][unit_price]'"
                                                 x-model="item.unit_price"
                                                 @input="calculateRow(index)"
@@ -162,7 +162,7 @@
                                                 min="0" step="0.01">
                                         </td>
                                         <td class="py-1.5 px-1.5">
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][discount]'"
                                                 x-model="item.discount"
                                                 @input="calculateRow(index)"
@@ -170,7 +170,7 @@
                                                 min="0" step="0.01">
                                         </td>
                                         <td class="py-1.5 px-1.5">
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][tax]'"
                                                 x-model="item.tax"
                                                 @input="calculateRow(index)"
@@ -200,7 +200,7 @@
                                     <td class="text-right py-1.5 px-2 text-xs text-gray-600">Discount:</td>
                                     <td class="py-1.5 px-1.5">
                                         <div class="flex gap-1">
-                                            <input type="number" step="0.01" name="discount" x-model="discount" @input="calculateTotals()"
+                                            <type="number" name="discount" x-model="discount" @input="calculateTotals()"
                                                 class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                 min="0" step="0.01">
                                             <select name="discount_type" class="w-24 px-1 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -216,7 +216,7 @@
                                     <td colspan="3"></td>
                                     <td class="text-right py-1.5 px-2 text-xs text-gray-600">Tax:</td>
                                     <td class="py-1.5 px-1.5">
-                                        <input type="number" step="0.01" name="tax" x-model="tax" @input="calculateTotals()"
+                                        <type="number" name="tax" x-model="tax" @input="calculateTotals()"
                                             class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             min="0" step="0.01">
                                     </td>
@@ -227,7 +227,7 @@
                                     <td colspan="3"></td>
                                     <td class="text-right py-1.5 px-2 text-xs text-gray-600">Shipping:</td>
                                     <td class="py-1.5 px-1.5">
-                                        <input type="number" step="0.01" name="shipping_cost" x-model="shipping" @input="calculateTotals()"
+                                        <type="number" name="shipping_cost" x-model="shipping" @input="calculateTotals()"
                                             class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             min="0" step="0.01">
                                     </td>
@@ -271,7 +271,7 @@
                                     <div class="grid grid-cols-3 gap-2">
                                         <div>
                                             <label class="text-xs text-gray-500">Qty</label>
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][quantity]'"
                                                 x-model="item.quantity"
                                                 @input="calculateRow(index)"
@@ -280,7 +280,7 @@
                                         </div>
                                         <div>
                                             <label class="text-xs text-gray-500">Price</label>
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][unit_price]'"
                                                 x-model="item.unit_price"
                                                 @input="calculateRow(index)"
@@ -297,7 +297,7 @@
                                     <div class="grid grid-cols-2 gap-2">
                                         <div>
                                             <label class="text-xs text-gray-500">Discount</label>
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][discount]'"
                                                 x-model="item.discount"
                                                 @input="calculateRow(index)"
@@ -306,7 +306,7 @@
                                         </div>
                                         <div>
                                             <label class="text-xs text-gray-500">Tax</label>
-                                            <input type="number" step="0.01"
+                                            <type="number"
                                                 :name="'items['+index+'][tax]'"
                                                 x-model="item.tax"
                                                 @input="calculateRow(index)"
