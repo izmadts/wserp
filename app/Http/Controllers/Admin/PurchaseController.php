@@ -8,6 +8,7 @@ use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\Account;
+use App\Models\Expense;
 use App\Services\PurchaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -264,6 +265,7 @@ class PurchaseController extends Controller
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+            'bank_service_charge' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -276,6 +278,13 @@ class PurchaseController extends Controller
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
                 $validated['notes'] ?? null
+            );
+
+            Expense::recordBankServiceCharge(
+                $validated['bank_service_charge'] ?? 0,
+                $validated['payment_date'],
+                $validated['payment_method'],
+                "Bank charge for payment on Purchase #{$purchase->invoice_no}"
             );
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());

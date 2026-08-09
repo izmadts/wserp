@@ -221,29 +221,36 @@ class Supplier extends Model
                 'notes' => $notes,
             ]);
 
-            $payableAccount = Account::where('code', '2010')->first();
-            $creditAccount = $method === 'cash'
-                ? Account::where('code', '1010')->first()
-                : Account::where('code', '1020')->first();
+            $this->postPaymentJournal($payment, $amount, $method, $date, $referenceNo);
+        });
 
-            if (!$payableAccount || !$creditAccount) {
-                throw new \Exception('Cannot post supplier payment: required chart-of-accounts entries (2010/1010/1020) not found.');
-            }
+        return $payment;
+    }
 
-            $this->postDoubleEntry([
-                [
-                    'account_id' => $payableAccount->id,
-                    'type' => 'debit',
-                    'amount' => $amount,
-                    'description' => "Payment to Supplier: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
-                ],
-                [
-                    'account_id' => $creditAccount->id,
-                    'type' => 'credit',
-                    'amount' => $amount,
-                    'description' => "Payment to Supplier: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
-                ],
-            ], 'supplier_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
+    /**
+     * Change an existing direct payment's amount/method/date/etc. Reverses
+     * its old journal entries and reposts fresh ones under the same
+     * reference_id, mirroring Expense's update-triggered reverse+repost
+     * (Expense.php boot():updated). Does NOT touch any bank-service-charge
+     * Expense created alongside the original payment - that's now its own
+     * independent record, edited via the Expenses module if needed.
+     */
+    public function updatePayment(SupplierPayment $payment, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    {
+        DB::transaction(function () use ($payment, $amount, $method, $date, $referenceNo, $notes) {
+            JournalEntry::where('reference_type', 'supplier_payment')
+                ->where('reference_id', $payment->id)
+                ->delete();
+
+            $payment->update([
+                'payment_date' => $date ?? now(),
+                'amount' => $amount,
+                'payment_method' => $method,
+                'reference_no' => $referenceNo,
+                'notes' => $notes,
+            ]);
+
+            $this->postPaymentJournal($payment, $amount, $method, $date, $referenceNo);
         });
 
         return $payment;
@@ -263,5 +270,32 @@ class Supplier extends Model
 
             $payment->delete();
         });
+    }
+
+    private function postPaymentJournal(SupplierPayment $payment, $amount, $method, $date, $referenceNo)
+    {
+        $payableAccount = Account::where('code', '2010')->first();
+        $creditAccount = $method === 'cash'
+            ? Account::where('code', '1010')->first()
+            : Account::where('code', '1020')->first();
+
+        if (!$payableAccount || !$creditAccount) {
+            throw new \Exception('Cannot post supplier payment: required chart-of-accounts entries (2010/1010/1020) not found.');
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $payableAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Payment to Supplier: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
+            ],
+            [
+                'account_id' => $creditAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Payment to Supplier: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
+            ],
+        ], 'supplier_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
     }
 }

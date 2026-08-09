@@ -8,6 +8,7 @@
     showPaymentModal: false,
     method: 'cash',
     amount: 0,
+    bankServiceCharge: '',
     cashBalance: {{ (float) $cashBalance }},
     bankBalance: {{ (float) $bankBalance }},
     outstandingBalance: {{ (float) $supplier->balance }},
@@ -15,6 +16,23 @@
     get short() { return (parseFloat(this.amount) || 0) > this.available },
     get overBalance() { return (parseFloat(this.amount) || 0) > this.outstandingBalance },
     get extraAmount() { return (parseFloat(this.amount) || 0) - this.outstandingBalance },
+
+    showEditModal: false,
+    editPaymentId: null,
+    editAmount: 0,
+    editDate: '',
+    editMethod: 'cash',
+    editReference: '',
+    editNotes: '',
+    openEditModal(p) {
+        this.editPaymentId = p.id;
+        this.editAmount = p.amount;
+        this.editDate = p.payment_date;
+        this.editMethod = p.payment_method;
+        this.editReference = p.reference_no || '';
+        this.editNotes = p.notes || '';
+        this.showEditModal = true;
+    },
 }">
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Left Column - Supplier Info -->
@@ -247,12 +265,26 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($supplier->payments as $payment)
+                        @php
+                            $paymentEditData = [
+                                'id' => $payment->id,
+                                'amount' => $payment->amount,
+                                'payment_date' => $payment->payment_date->format('Y-m-d'),
+                                'payment_method' => $payment->payment_method,
+                                'reference_no' => $payment->reference_no,
+                                'notes' => $payment->notes,
+                            ];
+                        @endphp
                         <tr class="hover:bg-gray-50">
                             <td class="py-2 px-2">{{ $payment->payment_date->format('d-m-Y') }}</td>
                             <td class="py-2 px-2">{{ $payment->reference_no ?? '-' }}</td>
                             <td class="py-2 px-2 text-right font-medium text-green-600">Rs. {{ number_format($payment->amount, 2) }}</td>
                             <td class="py-2 px-2">{{ $payment->method_label }}</td>
                             <td class="py-2 px-2 text-center">
+                                <button type="button" @click="openEditModal(@json($paymentEditData))"
+                                    class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200">
+                                    <i class="fas fa-edit text-sm"></i>
+                                </button>
                                 <form action="{{ route('admin.suppliers.payments.destroy', [$supplier, $payment]) }}" method="POST" class="inline">
                                     @csrf
                                     @method('DELETE')
@@ -333,6 +365,15 @@
                             <option value="credit_card">Credit Card</option>
                         </select>
                     </div>
+                    <div x-show="method !== 'cash'" x-cloak>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Bank Service Charge (Optional)
+                            <x-help-tooltip>If the bank deducted a service charge for this transfer/cheque/card payment, enter it here - it'll be auto-recorded as a separate paid Expense (category "Bank Charges") dated the same day, so it shows up in the Expense list without any extra data entry.</x-help-tooltip>
+                        </label>
+                        <input type="number" step="0.01" name="bank_service_charge" x-model="bankServiceCharge" min="0"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="0.00">
+                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Reference No (Optional)</label>
                         <input type="text" name="reference_no"
@@ -350,6 +391,73 @@
                             <i class="fas fa-check mr-1"></i> Record Payment
                         </button>
                         <button type="button" @click="showPaymentModal = false"
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Payment Modal -->
+<div x-show="showEditModal" x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     style="display: none;">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black bg-opacity-50" @click="showEditModal = false"></div>
+
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-edit text-yellow-600 mr-2"></i> Edit Payment
+                </h3>
+                <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form :action="'{{ url('admin/suppliers/' . $supplier->id . '/payments') }}/' + editPaymentId" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
+                        <input type="number" step="0.01" name="amount" x-model="editAmount"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            min="0.01" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment Date <span class="text-red-500">*</span></label>
+                        <input type="date" name="payment_date" x-model="editDate"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label>
+                        <select name="payment_method" x-model="editMethod" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
+                            <option value="cash">Cash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="credit_card">Credit Card</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reference No (Optional)</label>
+                        <input type="text" name="reference_no" x-model="editReference"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            placeholder="Cheque no / Transaction ID">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                        <textarea name="notes" rows="2" x-model="editNotes"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"></textarea>
+                    </div>
+                    <div class="flex items-center gap-3 pt-2">
+                        <button type="submit" class="px-4 py-2 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 transition-colors duration-200">
+                            <i class="fas fa-save mr-1"></i> Update Payment
+                        </button>
+                        <button type="button" @click="showEditModal = false"
                             class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200">
                             Cancel
                         </button>

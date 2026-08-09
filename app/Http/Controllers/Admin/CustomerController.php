@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\CustomerPayment;
+use App\Models\Expense;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -158,6 +159,7 @@ class CustomerController extends Controller
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+            'bank_service_charge' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -168,11 +170,48 @@ class CustomerController extends Controller
                 $validated['reference_no'] ?? null,
                 $validated['notes'] ?? null
             );
+
+            Expense::recordBankServiceCharge(
+                $validated['bank_service_charge'] ?? 0,
+                $validated['payment_date'],
+                $validated['payment_method'],
+                "Bank charge for payment from customer: {$customer->name}"
+            );
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return back()->with('success', 'Payment recorded successfully!');
+    }
+
+    public function updatePayment(Request $request, Customer $customer, CustomerPayment $payment)
+    {
+        if ($payment->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
+            'reference_no' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
+        ]);
+
+        try {
+            $customer->updatePayment(
+                $payment,
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['payment_date'],
+                $validated['reference_no'] ?? null,
+                $validated['notes'] ?? null
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Payment updated successfully!');
     }
 
     public function deletePayment(Customer $customer, CustomerPayment $payment)

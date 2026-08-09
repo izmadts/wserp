@@ -353,29 +353,36 @@ class Customer extends Authenticatable
                 'notes' => $notes,
             ]);
 
-            $receivableAccount = Account::where('code', '1040')->first();
-            $debitAccount = $method === 'cash'
-                ? Account::where('code', '1010')->first()
-                : Account::where('code', '1020')->first();
+            $this->postPaymentJournal($payment, $amount, $method, $date, $referenceNo);
+        });
 
-            if (!$receivableAccount || !$debitAccount) {
-                throw new \Exception('Cannot post customer payment: required chart-of-accounts entries (1040/1010/1020) not found.');
-            }
+        return $payment;
+    }
 
-            $this->postDoubleEntry([
-                [
-                    'account_id' => $debitAccount->id,
-                    'type' => 'debit',
-                    'amount' => $amount,
-                    'description' => "Payment from Customer: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
-                ],
-                [
-                    'account_id' => $receivableAccount->id,
-                    'type' => 'credit',
-                    'amount' => $amount,
-                    'description' => "Payment from Customer: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
-                ],
-            ], 'customer_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
+    /**
+     * Change an existing direct payment's amount/method/date/etc. Reverses
+     * its old journal entries and reposts fresh ones under the same
+     * reference_id, mirroring Expense's update-triggered reverse+repost
+     * (Expense.php boot():updated). Does NOT touch any bank-service-charge
+     * Expense created alongside the original payment - that's now its own
+     * independent record, edited via the Expenses module if needed.
+     */
+    public function updatePayment(CustomerPayment $payment, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    {
+        DB::transaction(function () use ($payment, $amount, $method, $date, $referenceNo, $notes) {
+            JournalEntry::where('reference_type', 'customer_payment')
+                ->where('reference_id', $payment->id)
+                ->delete();
+
+            $payment->update([
+                'payment_date' => $date ?? now(),
+                'amount' => $amount,
+                'payment_method' => $method,
+                'reference_no' => $referenceNo,
+                'notes' => $notes,
+            ]);
+
+            $this->postPaymentJournal($payment, $amount, $method, $date, $referenceNo);
         });
 
         return $payment;
@@ -394,5 +401,32 @@ class Customer extends Authenticatable
 
             $payment->delete();
         });
+    }
+
+    private function postPaymentJournal(CustomerPayment $payment, $amount, $method, $date, $referenceNo)
+    {
+        $receivableAccount = Account::where('code', '1040')->first();
+        $debitAccount = $method === 'cash'
+            ? Account::where('code', '1010')->first()
+            : Account::where('code', '1020')->first();
+
+        if (!$receivableAccount || !$debitAccount) {
+            throw new \Exception('Cannot post customer payment: required chart-of-accounts entries (1040/1010/1020) not found.');
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $debitAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Payment from Customer: {$this->name} (" . ucfirst(str_replace('_', ' ', $method)) . ")",
+            ],
+            [
+                'account_id' => $receivableAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Payment from Customer: {$this->name}" . ($referenceNo ? " (Ref: {$referenceNo})" : ''),
+            ],
+        ], 'customer_payment', $payment->id, $date ? \Carbon\Carbon::parse($date) : null);
     }
 }

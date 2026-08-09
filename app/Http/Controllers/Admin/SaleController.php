@@ -8,6 +8,7 @@ use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\Product;
+use App\Models\Expense;
 use App\Services\SaleService;
 use App\Services\CommissionService;
 use Illuminate\Http\Request;
@@ -460,6 +461,7 @@ class SaleController extends Controller
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+            'bank_service_charge' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -475,6 +477,13 @@ class SaleController extends Controller
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
                 $validated['notes'] ?? null
+            );
+
+            Expense::recordBankServiceCharge(
+                $validated['bank_service_charge'] ?? 0,
+                $validated['payment_date'],
+                $validated['payment_method'],
+                "Bank charge for payment on Sale #{$sale->invoice_no}"
             );
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());

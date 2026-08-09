@@ -216,4 +216,37 @@ class Expense extends Model
         ];
         return $labels[$this->payment_method] ?? ucfirst($this->payment_method);
     }
+
+    /**
+     * Auto-create a "Bank Charges" expense when a non-cash payment (a
+     * purchase/sale/supplier/customer payment) also incurred a bank
+     * service charge - keeps that charge out of the payment's own
+     * accounting and instead posts it through the normal Expense flow
+     * (status 'paid' so it's posted to the ledger immediately, same as
+     * any other paid expense). No-op for a zero/blank amount or a cash
+     * payment - service charges don't apply to cash.
+     */
+    public static function recordBankServiceCharge($amount, $date, $method, $description)
+    {
+        $amount = (float) $amount;
+        if ($amount <= 0 || $method === 'cash') {
+            return null;
+        }
+
+        $category = ExpenseCategory::firstOrCreate(
+            ['name' => 'Bank Charges'],
+            ['description' => 'Service charges deducted by the bank on transfers, cheques, or card payments', 'is_active' => true]
+        );
+
+        return static::create([
+            'title' => 'Bank Service Charge',
+            'category_id' => $category->id,
+            'amount' => $amount,
+            'expense_date' => $date,
+            'payment_method' => $method,
+            'status' => 'paid',
+            'description' => $description,
+            'created_by' => auth()->id(),
+        ]);
+    }
 }

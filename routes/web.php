@@ -146,6 +146,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->middleware('permission:suppliers,delete')->name('destroy');
         Route::post('/{supplier}/toggle-status', [SupplierController::class, 'toggleStatus'])->middleware('permission:suppliers,edit')->name('toggle-status');
         Route::post('/{supplier}/payments', [SupplierController::class, 'makePayment'])->middleware('permission:suppliers,edit')->name('payments.store');
+        Route::put('/{supplier}/payments/{payment}', [SupplierController::class, 'updatePayment'])->middleware('permission:suppliers,edit')->name('payments.update');
         Route::delete('/{supplier}/payments/{payment}', [SupplierController::class, 'deletePayment'])->middleware('permission:suppliers,delete')->name('payments.destroy');
     });
 
@@ -204,6 +205,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::delete('/{customer}', [CustomerController::class, 'destroy'])->middleware('permission:customers,delete')->name('destroy');
         Route::post('/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->middleware('permission:customers,edit')->name('toggle-status');
         Route::post('/{customer}/payments', [CustomerController::class, 'makePayment'])->middleware('permission:customers,edit')->name('payments.store');
+        Route::put('/{customer}/payments/{payment}', [CustomerController::class, 'updatePayment'])->middleware('permission:customers,edit')->name('payments.update');
         Route::delete('/{customer}/payments/{payment}', [CustomerController::class, 'deletePayment'])->middleware('permission:customers,delete')->name('payments.destroy');
     });
 

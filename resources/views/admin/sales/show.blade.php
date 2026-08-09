@@ -88,13 +88,20 @@
         @if($sale->due_amount > 0 && $sale->status != 'cancelled' && $sale->status != 'draft')
         <div class="bg-white rounded-xl shadow-card overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-plus-circle text-green-600 mr-2"></i> Add Payment</h4></div>
-            <div class="p-6">
+            <div class="p-6" x-data="{ method: 'cash' }">
                 <form action="{{ route('admin.sales.add-payment', $sale) }}" method="POST">
                     @csrf
                     <div class="space-y-3">
                         <div><label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label><input type="number" step="0.01" name="amount" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0.01" max="{{ $sale->due_amount }}" required><p class="text-xs text-gray-500 mt-1">Max: Rs. {{ number_format($sale->due_amount, 2) }}</p></div>
                         <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Date <span class="text-red-500">*</span></label><input type="date" name="payment_date" value="{{ date('Y-m-d') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required></div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label><select name="payment_method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option><option value="credit_card">Credit Card</option></select></div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label><select name="payment_method" x-model="method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option><option value="credit_card">Credit Card</option></select></div>
+                        <div x-show="method !== 'cash'" x-cloak>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Bank Service Charge (Optional)
+                                <x-help-tooltip>If the bank deducted a service charge for this transfer/cheque/card payment, enter it here - it'll be auto-recorded as a separate paid Expense (category "Bank Charges") dated the same day, so it shows up in the Expense list without any extra data entry.</x-help-tooltip>
+                            </label>
+                            <input type="number" step="0.01" name="bank_service_charge" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+                        </div>
                         <div><label class="block text-sm font-medium text-gray-700 mb-1">Reference No</label><input type="text" name="reference_no" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cheque no / Transaction ID"></div>
                         <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200"><i class="fas fa-check mr-1"></i> Record Payment</button>
                     </div>
