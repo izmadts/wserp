@@ -151,7 +151,7 @@
                             <td class="py-2 px-2 text-right font-medium text-green-600">Rs. {{ number_format($payment->amount, 2) }}</td>
                             <td class="py-2 px-2">{{ $payment->method_label }}</td>
                             <td class="py-2 px-2 text-center">
-                                <button type="button" @click="openEditModal(@json($paymentEditData))"
+                                <button type="button" @click='openEditModal(@json($paymentEditData))'
                                     class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200">
                                     <i class="fas fa-edit text-sm"></i>
                                 </button>
