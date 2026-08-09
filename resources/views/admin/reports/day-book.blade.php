@@ -31,7 +31,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="bg-white rounded-xl shadow-card p-4">
             <p class="text-sm text-gray-500">Total Debits</p>
-            <p class="text-2xl font-bold text-blue-600">Rs. {{ number_format($total_debit, 2) }}</p>
+            <p class="text-2xl font-bold text-red-600">Rs. {{ number_format($total_debit, 2) }}</p>
         </div>
         <div class="bg-white rounded-xl shadow-card p-4">
             <p class="text-sm text-gray-500">Total Credits</p>
@@ -65,8 +65,8 @@
                             <td class="py-2 px-2 text-gray-500">{{ ucfirst(str_replace('_', ' ', $entry->reference_type)) }} #{{ $entry->reference_id }}</td>
                             <td class="py-2 px-2">{{ $entry->account->code }} - {{ $entry->account->name }}</td>
                             <td class="py-2 px-2">{{ $entry->description }}</td>
-                            <td class="py-2 px-2 text-right">{{ $entry->type === 'debit' ? 'Rs. ' . number_format($entry->amount, 2) : '' }}</td>
-                            <td class="py-2 px-2 text-right">{{ $entry->type === 'credit' ? 'Rs. ' . number_format($entry->amount, 2) : '' }}</td>
+                            <td class="py-2 px-2 text-right text-red-600 font-medium">{{ $entry->type === 'debit' ? 'Rs. ' . number_format($entry->amount, 2) : '' }}</td>
+                            <td class="py-2 px-2 text-right text-green-600 font-medium">{{ $entry->type === 'credit' ? 'Rs. ' . number_format($entry->amount, 2) : '' }}</td>
                         </tr>
                         @empty
                         <tr><td colspan="6" class="py-6 text-center text-gray-400">No transactions posted in this period.</td></tr>
@@ -75,8 +75,8 @@
                     <tfoot class="bg-gray-50 font-bold">
                         <tr>
                             <td colspan="4" class="text-right py-2 px-2">Totals:</td>
-                            <td class="text-right py-2 px-2">Rs. {{ number_format($total_debit, 2) }}</td>
-                            <td class="text-right py-2 px-2">Rs. {{ number_format($total_credit, 2) }}</td>
+                            <td class="text-right py-2 px-2 text-red-600">Rs. {{ number_format($total_debit, 2) }}</td>
+                            <td class="text-right py-2 px-2 text-green-600">Rs. {{ number_format($total_credit, 2) }}</td>
                         </tr>
                     </tfoot>
                 </table>

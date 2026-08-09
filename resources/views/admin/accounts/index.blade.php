@@ -53,7 +53,7 @@
                             </span>
                         </td>
                         <td class="py-3 px-2">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $account->normal_balance == 'Debit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' }}">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $account->normal_balance == 'Debit' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
                                 {{ $account->normal_balance }}
                             </span>
                         </td>

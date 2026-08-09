@@ -54,10 +54,10 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Total Debit</p>
-                    <p class="text-2xl font-bold text-blue-600">Rs. {{ number_format($totalDebitBalance, 2) }}</p>
+                    <p class="text-2xl font-bold text-red-600">Rs. {{ number_format($totalDebitBalance, 2) }}</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <i class="fas fa-arrow-right text-blue-600 text-xl"></i>
+                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                    <i class="fas fa-arrow-right text-red-600 text-xl"></i>
                 </div>
             </div>
         </div>
@@ -141,7 +141,7 @@
                             </td>
                             <td class="py-3 px-2 text-right font-mono">
                                 @if($item['balance_type'] == 'debit')
-                                <span class="text-blue-600 font-semibold">Rs. {{ number_format($item['balance'], 2) }}</span>
+                                <span class="text-red-600 font-semibold">Rs. {{ number_format($item['balance'], 2) }}</span>
                                 @else
                                 <span class="text-gray-400">-</span>
                                 @endif
@@ -154,8 +154,8 @@
                                 @endif
                             </td>
                             <td class="py-3 px-2 text-center">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                        {{ $item['normal_balance'] == 'Debit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' }}">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        {{ $item['normal_balance'] == 'Debit' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
                                     {{ $item['normal_balance'] }}
                                 </span>
                             </td>
@@ -165,7 +165,7 @@
                     <tfoot>
                         <tr class="bg-gray-100 font-bold border-t-2 border-gray-300">
                             <td colspan="3" class="text-right py-3 px-2 text-gray-700">Total:</td>
-                            <td class="text-right py-3 px-2 text-blue-600 text-lg">
+                            <td class="text-right py-3 px-2 text-red-600 text-lg">
                                 Rs. {{ number_format($totalDebitBalance, 2) }}
                             </td>
                             <td class="text-right py-3 px-2 text-green-600 text-lg">
@@ -213,7 +213,7 @@
                             <span class="text-sm text-gray-500">{{ $data['count'] }} accounts</span>
                         </div>
                         <div class="flex justify-between text-sm mt-1">
-                            <span class="text-blue-600">Debit: Rs. {{ number_format($data['debit'], 2) }}</span>
+                            <span class="text-red-600">Debit: Rs. {{ number_format($data['debit'], 2) }}</span>
                             <span class="text-green-600">Credit: Rs. {{ number_format($data['credit'], 2) }}</span>
                         </div>
                     </div>

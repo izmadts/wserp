@@ -18,7 +18,7 @@
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                         {{ $account->type }}
                     </span>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $account->normal_balance == 'Debit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' }}">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $account->normal_balance == 'Debit' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
                         {{ $account->normal_balance }}
                     </span>
                 </div>
@@ -127,7 +127,7 @@
                                             #{{ $transaction->reference_id }}
                                         </span>
                                     </td>
-                                    <td class="py-2 px-2 text-right font-medium text-blue-600">
+                                    <td class="py-2 px-2 text-right font-medium text-red-600">
                                         @if($transaction->type == 'debit')
                                             Rs. {{ number_format($transaction->amount, 2) }}
                                         @else

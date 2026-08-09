@@ -350,7 +350,7 @@ class SaleService
         Log::info("Accounting entries posted for sale: {$sale->invoice_no}");
     }
 
-    private function postPaymentAccounting(Sale $sale, $amount, $method = 'cash')
+    private function postPaymentAccounting(Sale $sale, $amount, $method = 'cash', $date = null)
     {
         // Cash sales already debited Cash directly at creation - a payment
         // against a cash sale would double count it, so only credit sales
@@ -401,7 +401,7 @@ class SaleService
                 'amount' => $amount,
                 'description' => "Payment received for Sale #{$sale->invoice_no}",
             ],
-        ], 'sale_payment', $sale->id);
+        ], 'sale_payment', $sale->id, $date ? \Carbon\Carbon::parse($date) : null);
     }
 
     private function deleteJournalEntries(Sale $sale, $referenceType = 'sale')
@@ -409,5 +409,49 @@ class SaleService
         JournalEntry::where('reference_type', $referenceType)
             ->where('reference_id', $sale->id)
             ->delete();
+    }
+
+    /**
+     * Repost ONLY the 'sale' journal entries, without touching stock or
+     * commission. See PurchaseService::repostAccountingOnly() for why this
+     * exists - applyStockAndAccounting()'s idempotency guard checks
+     * StockMovement, not JournalEntry, so it can't repair a sale whose
+     * StockMovement rows exist but whose journal entries were lost. Caller
+     * is responsible for confirming the sale's status still warrants
+     * posting (see applyStockAndAccounting()'s own status check).
+     */
+    public function repostAccountingOnly(Sale $sale): bool
+    {
+        if (JournalEntry::where('reference_type', 'sale')->where('reference_id', $sale->id)->exists()) {
+            return false;
+        }
+
+        $sale->load('items', 'customer');
+
+        DB::transaction(function () use ($sale) {
+            $this->postAccounting($sale);
+        });
+
+        return true;
+    }
+
+    /**
+     * Repost ALL 'sale_payment' journal entries for a sale from its real
+     * SalePayment rows - same "delete everything, replay from source" idea
+     * as PurchaseService::repostAllPaymentAccounting().
+     */
+    public function repostAllPaymentAccounting(Sale $sale): void
+    {
+        DB::transaction(function () use ($sale) {
+            $this->deleteJournalEntries($sale, 'sale_payment');
+
+            if ($sale->payment_term !== 'credit') {
+                return;
+            }
+
+            foreach ($sale->payments()->orderBy('payment_date')->get() as $payment) {
+                $this->postPaymentAccounting($sale, $payment->amount, $payment->payment_method, $payment->payment_date);
+            }
+        });
     }
 }

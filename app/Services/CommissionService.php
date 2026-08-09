@@ -576,6 +576,19 @@ class CommissionService
         $this->postDoubleEntry($entries, 'sale_commission', $logId, $date);
     }
 
+    /**
+     * For AccountReconciliationService: repost the 'sale_commission' ledger
+     * effect for one AgentCommissionLog row from its own stored amount -
+     * that amount is a durable, already-decided fact (unlike a Stock
+     * Adjustment's derived cost), so replaying it here is safe. Caller must
+     * confirm no journal entries already exist for this log first -
+     * postCommissionLedger() itself has no exists-guard.
+     */
+    public function repostCommissionLedger(AgentCommissionLog $log): void
+    {
+        $this->postCommissionLedger((float) $log->amount, $log->id, $log->description, $log->created_at);
+    }
+
     public function holdCommission(Sale $sale, $reason)
     {
         $sale->update(['is_commission_held' => true, 'commission_hold_reason' => $reason]);

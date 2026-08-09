@@ -27,8 +27,8 @@
                 <td class="py-2 px-2 whitespace-nowrap">{{ \Carbon\Carbon::parse($row['date'])->format('d-M-Y') }}</td>
                 <td class="py-2 px-2">{{ $row['particulars'] }}</td>
                 <td class="py-2 px-2 text-gray-500">{{ $row['reference'] }}</td>
-                <td class="py-2 px-2 text-right">{{ $row['debit'] > 0 ? 'Rs. ' . number_format($row['debit'], 2) : '' }}</td>
-                <td class="py-2 px-2 text-right">{{ $row['credit'] > 0 ? 'Rs. ' . number_format($row['credit'], 2) : '' }}</td>
+                <td class="py-2 px-2 text-right text-red-600 font-medium">{{ $row['debit'] > 0 ? 'Rs. ' . number_format($row['debit'], 2) : '' }}</td>
+                <td class="py-2 px-2 text-right text-green-600 font-medium">{{ $row['credit'] > 0 ? 'Rs. ' . number_format($row['credit'], 2) : '' }}</td>
                 <td class="py-2 px-2 text-right font-medium">Rs. {{ number_format($row['balance_abs'], 2) }} {{ $row['balance_side'] }}</td>
             </tr>
             @empty
@@ -38,8 +38,8 @@
         <tfoot class="bg-gray-50 font-bold">
             <tr>
                 <td colspan="3" class="text-right py-2 px-2">Period Totals:</td>
-                <td class="text-right py-2 px-2">Rs. {{ number_format($total_debit, 2) }}</td>
-                <td class="text-right py-2 px-2">Rs. {{ number_format($total_credit, 2) }}</td>
+                <td class="text-right py-2 px-2 text-red-600">Rs. {{ number_format($total_debit, 2) }}</td>
+                <td class="text-right py-2 px-2 text-green-600">Rs. {{ number_format($total_credit, 2) }}</td>
                 <td></td>
             </tr>
             <tr class="border-t-2 border-gray-800">

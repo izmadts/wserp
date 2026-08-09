@@ -369,4 +369,53 @@ class PurchaseService
             ->where('reference_id', $purchase->id)
             ->delete();
     }
+
+    /**
+     * Repost ONLY the 'purchase' journal entries, without touching stock.
+     *
+     * For the AccountReconciliationService: applyStockAndAccounting()'s own
+     * idempotency guard checks StockMovement, not JournalEntry, so it can't
+     * repair a purchase whose StockMovement rows exist but whose journal
+     * entries were somehow lost - it would just see "already applied" and
+     * no-op. This method guards on JournalEntry directly instead. Caller is
+     * responsible for confirming the purchase's status still warrants
+     * posting (see applyStockAndAccounting()'s own status check).
+     */
+    public function repostAccountingOnly(Purchase $purchase): bool
+    {
+        if (JournalEntry::where('reference_type', 'purchase')->where('reference_id', $purchase->id)->exists()) {
+            return false;
+        }
+
+        $purchase->load('items', 'supplier');
+
+        DB::transaction(function () use ($purchase) {
+            $this->postAccounting($purchase);
+        });
+
+        return true;
+    }
+
+    /**
+     * Repost ALL 'purchase_payment' journal entries for a purchase from its
+     * real PurchasePayment rows - deletes whatever's there for this
+     * purchase and replays every payment through postPaymentAccounting().
+     * Fixes missing, duplicate, and wrong-amount payment entries in one
+     * call, the same "delete everything, replay from source" idea
+     * Supplier/Customer::updatePayment() already uses for direct payments.
+     */
+    public function repostAllPaymentAccounting(Purchase $purchase): void
+    {
+        DB::transaction(function () use ($purchase) {
+            $this->deleteJournalEntries($purchase, 'purchase_payment');
+
+            if ($purchase->payment_term !== 'credit') {
+                return;
+            }
+
+            foreach ($purchase->payments()->orderBy('payment_date')->get() as $payment) {
+                $this->postPaymentAccounting($purchase, $payment->amount, $payment->payment_date, $payment->payment_method);
+            }
+        });
+    }
 }

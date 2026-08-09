@@ -231,9 +231,11 @@ class SalesReturn extends Model
     /**
      * Post journal entries that reverse the effect of the original sale
      * (credit cash/receivable back, debit revenue, reverse COGS/inventory).
-     * Idempotent - skips if entries already exist for this return.
+     * Idempotent - skips if entries already exist for this return. Public
+     * (not private) so AccountReconciliationService can call it directly
+     * to repost missing entries after confirming none exist.
      */
-    private function reverseAccounting()
+    public function reverseAccounting()
     {
         if (JournalEntry::where('reference_type', 'sales_return')->where('reference_id', $this->id)->exists()) {
             return;

@@ -70,6 +70,7 @@ class ActivityLog extends Model
             'rejected' => 'Rejected',
             'paid' => 'Paid',
             'cancelled' => 'Cancelled',
+            'fixed' => 'Fixed',
         ];
         return $labels[$this->action] ?? ucfirst($this->action);
     }
@@ -89,6 +90,7 @@ class ActivityLog extends Model
             'rejected' => 'bg-red-100 text-red-800',
             'paid' => 'bg-green-100 text-green-800',
             'cancelled' => 'bg-red-100 text-red-800',
+            'fixed' => 'bg-green-100 text-green-800',
         ];
         return $colors[$this->action] ?? 'bg-gray-100 text-gray-800';
     }
@@ -112,6 +114,7 @@ class ActivityLog extends Model
             'agent' => 'Agents',
             'report' => 'Reports',
             'backup' => 'Backup',
+            'ledger_audit' => 'Reconcile All Accounts',
         ];
         return $labels[$this->module] ?? ucfirst($this->module);
     }
@@ -135,6 +138,7 @@ class ActivityLog extends Model
             'agent' => 'fa-user-tie',
             'report' => 'fa-chart-bar',
             'backup' => 'fa-cloud-upload-alt',
+            'ledger_audit' => 'fa-heartbeat',
         ];
         return $icons[$this->module] ?? 'fa-circle';
     }

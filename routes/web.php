@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\MoneyTransferController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\PurchaseReturnController;
 use App\Http\Controllers\Admin\BankReconciliationController;
+use App\Http\Controllers\Admin\AccountReconciliationController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\ActivityLogController;
@@ -539,6 +540,21 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
 
         Route::get('/permissions', [RolePermissionController::class, 'index'])->name('permissions.index');
         Route::post('/permissions', [RolePermissionController::class, 'update'])->name('permissions.update');
+    });
+
+    // ==========================================
+    // 24. RECONCILE ALL ACCOUNTS (admin-only) - ledger integrity scan/fix
+    // across every transaction type. Not the same as Bank Reconciliation
+    // above (statement-vs-ledger matching for one account) - this checks
+    // the journal entries themselves for missing/duplicate/orphaned/
+    // unbalanced/mismatched rows. Deliberately not added to any sidebar
+    // menu group (especially not "accounting", where Bank Reconciliation
+    // lives) - reached only via the admin-only Dashboard quick-action card.
+    // ==========================================
+    Route::prefix('ledger-integrity')->name('ledger-integrity.')->middleware('role:admin')->group(function () {
+        Route::get('/', [AccountReconciliationController::class, 'index'])->name('index');
+        Route::post('/scan', [AccountReconciliationController::class, 'scan'])->name('scan');
+        Route::post('/fix', [AccountReconciliationController::class, 'fix'])->name('fix');
     });
 });
 

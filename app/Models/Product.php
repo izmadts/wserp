@@ -181,4 +181,47 @@ class Product extends Model
             ],
         ], 'opening', $this->id);
     }
+
+    /**
+     * For AccountReconciliationService: repost ONLY the 'opening' journal
+     * entries, without touching stock. postOpeningStock()'s own
+     * idempotency guard checks StockMovement, not JournalEntry, so it
+     * can't repair a product whose opening StockMovement exists but whose
+     * journal entries were lost - it would just see "already applied" and
+     * no-op. This method guards on JournalEntry directly instead.
+     */
+    public function repostOpeningLedgerOnly(): bool
+    {
+        if (JournalEntry::where('reference_type', 'opening')->where('reference_id', $this->id)->exists()) {
+            return false;
+        }
+
+        $amount = round((float) $this->current_stock * (float) $this->purchase_price, 2);
+        if ($amount <= 0) {
+            return false;
+        }
+
+        $inventoryAccount = Account::where('code', '1030')->first();
+        $openingEquityAccount = Account::where('code', '3020')->first();
+        if (!$inventoryAccount || !$openingEquityAccount) {
+            return false;
+        }
+
+        $this->postDoubleEntry([
+            [
+                'account_id' => $inventoryAccount->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'description' => "Opening stock - {$this->name}",
+            ],
+            [
+                'account_id' => $openingEquityAccount->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => "Opening stock - {$this->name}",
+            ],
+        ], 'opening', $this->id);
+
+        return true;
+    }
 }
