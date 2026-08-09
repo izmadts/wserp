@@ -88,7 +88,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 1. DASHBOARD
     // ==========================================
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('permission:dashboard,view')->name('dashboard');
 
     // ==========================================
     // 2. ACCOUNTS MANAGEMENT
@@ -107,104 +107,104 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 3. CATEGORIES MANAGEMENT
     // ==========================================
-    Route::prefix('categories')->name('categories.')->group(function () {
+    Route::prefix('categories')->name('categories.')->middleware('permission:categories,view')->group(function () {
         Route::get('/', [CategoryController::class, 'index'])->name('index');
-        Route::get('/create', [CategoryController::class, 'create'])->name('create');
-        Route::post('/', [CategoryController::class, 'store'])->name('store');
+        Route::get('/create', [CategoryController::class, 'create'])->middleware('permission:categories,create')->name('create');
+        Route::post('/', [CategoryController::class, 'store'])->middleware('permission:categories,create')->name('store');
         Route::get('/{category}', [CategoryController::class, 'show'])->name('show');
-        Route::get('/{category}/edit', [CategoryController::class, 'edit'])->name('edit');
-        Route::put('/{category}', [CategoryController::class, 'update'])->name('update');
-        Route::delete('/{category}', [CategoryController::class, 'destroy'])->name('destroy');
-        Route::post('/{category}/toggle-status', [CategoryController::class, 'toggleStatus'])->name('toggle-status');
+        Route::get('/{category}/edit', [CategoryController::class, 'edit'])->middleware('permission:categories,edit')->name('edit');
+        Route::put('/{category}', [CategoryController::class, 'update'])->middleware('permission:categories,edit')->name('update');
+        Route::delete('/{category}', [CategoryController::class, 'destroy'])->middleware('permission:categories,delete')->name('destroy');
+        Route::post('/{category}/toggle-status', [CategoryController::class, 'toggleStatus'])->middleware('permission:categories,edit')->name('toggle-status');
     });
 
     // ==========================================
     // 4. PRODUCTS MANAGEMENT
     // ==========================================
-    Route::prefix('products')->name('products.')->group(function () {
+    Route::prefix('products')->name('products.')->middleware('permission:products,view')->group(function () {
         Route::get('/', [ProductController::class, 'index'])->name('index');
-        Route::get('/create', [ProductController::class, 'create'])->name('create');
-        Route::post('/', [ProductController::class, 'store'])->name('store');
+        Route::get('/create', [ProductController::class, 'create'])->middleware('permission:products,create')->name('create');
+        Route::post('/', [ProductController::class, 'store'])->middleware('permission:products,create')->name('store');
         Route::get('/low-stock', [ProductController::class, 'lowStock'])->name('low-stock');
         Route::get('/{product}', [ProductController::class, 'show'])->name('show');
-        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
-        Route::put('/{product}', [ProductController::class, 'update'])->name('update');
-        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
-        Route::post('/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('toggle-status');
+        Route::get('/{product}/edit', [ProductController::class, 'edit'])->middleware('permission:products,edit')->name('edit');
+        Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products,edit')->name('update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->middleware('permission:products,delete')->name('destroy');
+        Route::post('/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->middleware('permission:products,edit')->name('toggle-status');
     });
 
     // ==========================================
     // 5. SUPPLIERS MANAGEMENT
     // ==========================================
-    Route::prefix('suppliers')->name('suppliers.')->group(function () {
+    Route::prefix('suppliers')->name('suppliers.')->middleware('permission:suppliers,view')->group(function () {
         Route::get('/', [SupplierController::class, 'index'])->name('index');
-        Route::get('/create', [SupplierController::class, 'create'])->name('create');
-        Route::post('/', [SupplierController::class, 'store'])->name('store');
+        Route::get('/create', [SupplierController::class, 'create'])->middleware('permission:suppliers,create')->name('create');
+        Route::post('/', [SupplierController::class, 'store'])->middleware('permission:suppliers,create')->name('store');
         Route::get('/{supplier}', [SupplierController::class, 'show'])->name('show');
-        Route::get('/{supplier}/edit', [SupplierController::class, 'edit'])->name('edit');
-        Route::put('/{supplier}', [SupplierController::class, 'update'])->name('update');
-        Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
-        Route::post('/{supplier}/toggle-status', [SupplierController::class, 'toggleStatus'])->name('toggle-status');
-        Route::post('/{supplier}/payments', [SupplierController::class, 'makePayment'])->name('payments.store');
-        Route::delete('/{supplier}/payments/{payment}', [SupplierController::class, 'deletePayment'])->name('payments.destroy');
+        Route::get('/{supplier}/edit', [SupplierController::class, 'edit'])->middleware('permission:suppliers,edit')->name('edit');
+        Route::put('/{supplier}', [SupplierController::class, 'update'])->middleware('permission:suppliers,edit')->name('update');
+        Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->middleware('permission:suppliers,delete')->name('destroy');
+        Route::post('/{supplier}/toggle-status', [SupplierController::class, 'toggleStatus'])->middleware('permission:suppliers,edit')->name('toggle-status');
+        Route::post('/{supplier}/payments', [SupplierController::class, 'makePayment'])->middleware('permission:suppliers,edit')->name('payments.store');
+        Route::delete('/{supplier}/payments/{payment}', [SupplierController::class, 'deletePayment'])->middleware('permission:suppliers,delete')->name('payments.destroy');
     });
 
     // ==========================================
     // 6. PURCHASES MANAGEMENT
     // ==========================================
-    Route::prefix('purchases')->name('purchases.')->group(function () {
+    Route::prefix('purchases')->name('purchases.')->middleware('permission:purchases,view')->group(function () {
         Route::get('/', [PurchaseController::class, 'index'])->name('index');
-        Route::get('/create', [PurchaseController::class, 'create'])->name('create');
-        Route::post('/', [PurchaseController::class, 'store'])->name('store');
+        Route::get('/create', [PurchaseController::class, 'create'])->middleware('permission:purchases,create')->name('create');
+        Route::post('/', [PurchaseController::class, 'store'])->middleware('permission:purchases,create')->name('store');
         Route::get('/{purchase}', [PurchaseController::class, 'show'])->name('show');
-        Route::get('/{purchase}/edit', [PurchaseController::class, 'edit'])->name('edit');
-        Route::put('/{purchase}', [PurchaseController::class, 'update'])->name('update');
-        Route::delete('/{purchase}', [PurchaseController::class, 'destroy'])->name('destroy');
-        Route::post('/{purchase}/add-payment', [PurchaseController::class, 'addPayment'])->name('add-payment');
+        Route::get('/{purchase}/edit', [PurchaseController::class, 'edit'])->middleware('permission:purchases,edit')->name('edit');
+        Route::put('/{purchase}', [PurchaseController::class, 'update'])->middleware('permission:purchases,edit')->name('update');
+        Route::delete('/{purchase}', [PurchaseController::class, 'destroy'])->middleware('permission:purchases,delete')->name('destroy');
+        Route::post('/{purchase}/add-payment', [PurchaseController::class, 'addPayment'])->middleware('permission:purchases,edit')->name('add-payment');
         Route::get('/{purchase}/return', [PurchaseController::class, 'returnCreate'])->name('return-create');
     });
 
     // ==========================================
     // 7. PURCHASE RETURNS
     // ==========================================
-    Route::prefix('purchase-returns')->name('purchase-returns.')->group(function () {
+    Route::prefix('purchase-returns')->name('purchase-returns.')->middleware('permission:purchase-returns,view')->group(function () {
         Route::get('/', [PurchaseReturnController::class, 'index'])->name('index');
-        Route::get('/create', [PurchaseReturnController::class, 'create'])->name('create');
-        Route::post('/', [PurchaseReturnController::class, 'store'])->name('store');
+        Route::get('/create', [PurchaseReturnController::class, 'create'])->middleware('permission:purchase-returns,create')->name('create');
+        Route::post('/', [PurchaseReturnController::class, 'store'])->middleware('permission:purchase-returns,create')->name('store');
         Route::get('/{purchaseReturn}', [PurchaseReturnController::class, 'show'])->name('show');
-        Route::delete('/{purchaseReturn}', [PurchaseReturnController::class, 'destroy'])->name('destroy');
+        Route::delete('/{purchaseReturn}', [PurchaseReturnController::class, 'destroy'])->middleware('permission:purchase-returns,delete')->name('destroy');
         Route::get('/get-purchase-details/{purchaseId}', [PurchaseReturnController::class, 'getPurchaseDetails'])->name('get-purchase-details');
     });
 
     // ==========================================
     // 8. INVENTORY MANAGEMENT
     // ==========================================
-    Route::prefix('inventory')->name('inventory.')->group(function () {
+    Route::prefix('inventory')->name('inventory.')->middleware('permission:inventory,view')->group(function () {
         Route::get('/dashboard', [InventoryController::class, 'dashboard'])->name('dashboard');
         Route::get('/history', [InventoryController::class, 'history'])->name('history');
 
         Route::prefix('adjustments')->name('adjustments.')->group(function () {
             Route::get('/', [StockAdjustmentController::class, 'index'])->name('index');
-            Route::get('/create', [StockAdjustmentController::class, 'create'])->name('create');
-            Route::post('/', [StockAdjustmentController::class, 'store'])->name('store');
-            Route::delete('/{adjustment}', [StockAdjustmentController::class, 'destroy'])->name('destroy');
+            Route::get('/create', [StockAdjustmentController::class, 'create'])->middleware('permission:inventory,create')->name('create');
+            Route::post('/', [StockAdjustmentController::class, 'store'])->middleware('permission:inventory,create')->name('store');
+            Route::delete('/{adjustment}', [StockAdjustmentController::class, 'destroy'])->middleware('permission:inventory,delete')->name('destroy');
         });
     });
 
     // ==========================================
     // 9. CUSTOMER MANAGEMENT
     // ==========================================
-    Route::prefix('customers')->name('customers.')->group(function () {
+    Route::prefix('customers')->name('customers.')->middleware('permission:customers,view')->group(function () {
         Route::get('/', [CustomerController::class, 'index'])->name('index');
-        Route::get('/create', [CustomerController::class, 'create'])->name('create');
-        Route::post('/', [CustomerController::class, 'store'])->name('store');
+        Route::get('/create', [CustomerController::class, 'create'])->middleware('permission:customers,create')->name('create');
+        Route::post('/', [CustomerController::class, 'store'])->middleware('permission:customers,create')->name('store');
         Route::get('/{customer}', [CustomerController::class, 'show'])->name('show');
-        Route::get('/{customer}/edit', [CustomerController::class, 'edit'])->name('edit');
-        Route::put('/{customer}', [CustomerController::class, 'update'])->name('update');
-        Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
-        Route::post('/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('toggle-status');
-        Route::post('/{customer}/payments', [CustomerController::class, 'makePayment'])->name('payments.store');
-        Route::delete('/{customer}/payments/{payment}', [CustomerController::class, 'deletePayment'])->name('payments.destroy');
+        Route::get('/{customer}/edit', [CustomerController::class, 'edit'])->middleware('permission:customers,edit')->name('edit');
+        Route::put('/{customer}', [CustomerController::class, 'update'])->middleware('permission:customers,edit')->name('update');
+        Route::delete('/{customer}', [CustomerController::class, 'destroy'])->middleware('permission:customers,delete')->name('destroy');
+        Route::post('/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->middleware('permission:customers,edit')->name('toggle-status');
+        Route::post('/{customer}/payments', [CustomerController::class, 'makePayment'])->middleware('permission:customers,edit')->name('payments.store');
+        Route::delete('/{customer}/payments/{payment}', [CustomerController::class, 'deletePayment'])->middleware('permission:customers,delete')->name('payments.destroy');
     });
 
     // ==========================================
@@ -233,31 +233,31 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 11. SALES MANAGEMENT (Admin)
     // ==========================================
-    Route::prefix('sales')->name('sales.')->group(function () {
+    Route::prefix('sales')->name('sales.')->middleware('permission:sales,view')->group(function () {
         Route::get('/', [SaleController::class, 'index'])->name('index');
-        Route::get('/create', [SaleController::class, 'create'])->name('create');
-        Route::post('/', [SaleController::class, 'store'])->name('store');
+        Route::get('/create', [SaleController::class, 'create'])->middleware('permission:sales,create')->name('create');
+        Route::post('/', [SaleController::class, 'store'])->middleware('permission:sales,create')->name('store');
         Route::get('/{sale}', [SaleController::class, 'show'])->name('show');
-        Route::get('/{sale}/edit', [SaleController::class, 'edit'])->name('edit');
-        Route::put('/{sale}', [SaleController::class, 'update'])->name('update');
-        Route::delete('/{sale}', [SaleController::class, 'destroy'])->name('destroy');
-        Route::post('/{sale}/add-payment', [SaleController::class, 'addPayment'])->name('add-payment');
+        Route::get('/{sale}/edit', [SaleController::class, 'edit'])->middleware('permission:sales,edit')->name('edit');
+        Route::put('/{sale}', [SaleController::class, 'update'])->middleware('permission:sales,edit')->name('update');
+        Route::delete('/{sale}', [SaleController::class, 'destroy'])->middleware('permission:sales,delete')->name('destroy');
+        Route::post('/{sale}/add-payment', [SaleController::class, 'addPayment'])->middleware('permission:sales,edit')->name('add-payment');
         // Confirms/rejects a still-draft sale - how a customer-placed order
         // (source=customer_app, particularly a "direct"/no-agent one, which
         // only an admin can act on) becomes a real, ledger-posted sale.
-        Route::post('/{sale}/confirm', [SaleController::class, 'confirm'])->name('confirm');
-        Route::post('/{sale}/reject', [SaleController::class, 'reject'])->name('reject');
+        Route::post('/{sale}/confirm', [SaleController::class, 'confirm'])->middleware('permission:sales,edit')->name('confirm');
+        Route::post('/{sale}/reject', [SaleController::class, 'reject'])->middleware('permission:sales,edit')->name('reject');
     });
 
     // ==========================================
     // 12. SALES RETURNS (Admin)
     // ==========================================
-    Route::prefix('sales-returns')->name('sales-returns.')->group(function () {
+    Route::prefix('sales-returns')->name('sales-returns.')->middleware('permission:sales-returns,view')->group(function () {
         Route::get('/', [SalesReturnController::class, 'index'])->name('index');
-        Route::get('/create', [SalesReturnController::class, 'create'])->name('create');
-        Route::post('/', [SalesReturnController::class, 'store'])->name('store');
+        Route::get('/create', [SalesReturnController::class, 'create'])->middleware('permission:sales-returns,create')->name('create');
+        Route::post('/', [SalesReturnController::class, 'store'])->middleware('permission:sales-returns,create')->name('store');
         Route::get('/{salesReturn}', [SalesReturnController::class, 'show'])->name('show');
-        Route::delete('/{salesReturn}', [SalesReturnController::class, 'destroy'])->name('destroy');
+        Route::delete('/{salesReturn}', [SalesReturnController::class, 'destroy'])->middleware('permission:sales-returns,delete')->name('destroy');
         Route::get('/get-sale-details/{saleId}', [SalesReturnController::class, 'getSaleDetails'])->name('get-sale-details');
     });
 
@@ -270,55 +270,56 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 14. EXPENSES MANAGEMENT
     // ==========================================
-    Route::prefix('expenses')->name('expenses.')->group(function () {
+    Route::prefix('expenses')->name('expenses.')->middleware('permission:expenses,view')->group(function () {
         Route::get('/', [ExpenseController::class, 'index'])->name('index');
-        Route::get('/create', [ExpenseController::class, 'create'])->name('create');
-        Route::post('/', [ExpenseController::class, 'store'])->name('store');
+        Route::get('/create', [ExpenseController::class, 'create'])->middleware('permission:expenses,create')->name('create');
+        Route::post('/', [ExpenseController::class, 'store'])->middleware('permission:expenses,create')->name('store');
         Route::get('/{expense}', [ExpenseController::class, 'show'])->name('show');
-        Route::get('/{expense}/edit', [ExpenseController::class, 'edit'])->name('edit');
-        Route::put('/{expense}', [ExpenseController::class, 'update'])->name('update');
-        Route::delete('/{expense}', [ExpenseController::class, 'destroy'])->name('destroy');
-        Route::post('/{expense}/approve', [ExpenseController::class, 'approve'])->name('approve');
-        Route::post('/{expense}/mark-paid', [ExpenseController::class, 'markAsPaid'])->name('mark-paid');
-        Route::post('/{expense}/cancel', [ExpenseController::class, 'cancel'])->name('cancel');
+        Route::get('/{expense}/edit', [ExpenseController::class, 'edit'])->middleware('permission:expenses,edit')->name('edit');
+        Route::put('/{expense}', [ExpenseController::class, 'update'])->middleware('permission:expenses,edit')->name('update');
+        Route::delete('/{expense}', [ExpenseController::class, 'destroy'])->middleware('permission:expenses,delete')->name('destroy');
+        Route::post('/{expense}/approve', [ExpenseController::class, 'approve'])->middleware('permission:expenses,edit')->name('approve');
+        Route::post('/{expense}/mark-paid', [ExpenseController::class, 'markAsPaid'])->middleware('permission:expenses,edit')->name('mark-paid');
+        Route::post('/{expense}/cancel', [ExpenseController::class, 'cancel'])->middleware('permission:expenses,edit')->name('cancel');
     });
 
-    // Expense Categories
-    Route::prefix('expense-categories')->name('expense-categories.')->group(function () {
+    // Expense Categories - folded into the 'expenses' permission module,
+    // same as the route prefix being a sub-resource of expense management.
+    Route::prefix('expense-categories')->name('expense-categories.')->middleware('permission:expenses,view')->group(function () {
         Route::get('/', [ExpenseCategoryController::class, 'index'])->name('index');
-        Route::post('/', [ExpenseCategoryController::class, 'store'])->name('store');
-        Route::put('/{category}', [ExpenseCategoryController::class, 'update'])->name('update');
-        Route::delete('/{category}', [ExpenseCategoryController::class, 'destroy'])->name('destroy');
+        Route::post('/', [ExpenseCategoryController::class, 'store'])->middleware('permission:expenses,create')->name('store');
+        Route::put('/{category}', [ExpenseCategoryController::class, 'update'])->middleware('permission:expenses,edit')->name('update');
+        Route::delete('/{category}', [ExpenseCategoryController::class, 'destroy'])->middleware('permission:expenses,delete')->name('destroy');
     });
 
     // ==========================================
     // 15. INCOME MANAGEMENT
     // ==========================================
-    Route::prefix('incomes')->name('incomes.')->group(function () {
+    Route::prefix('incomes')->name('incomes.')->middleware('permission:incomes,view')->group(function () {
         Route::get('/', [IncomeController::class, 'index'])->name('index');
-        Route::get('/create', [IncomeController::class, 'create'])->name('create');
-        Route::post('/', [IncomeController::class, 'store'])->name('store');
+        Route::get('/create', [IncomeController::class, 'create'])->middleware('permission:incomes,create')->name('create');
+        Route::post('/', [IncomeController::class, 'store'])->middleware('permission:incomes,create')->name('store');
         Route::get('/{income}', [IncomeController::class, 'show'])->name('show');
-        Route::get('/{income}/edit', [IncomeController::class, 'edit'])->name('edit');
-        Route::put('/{income}', [IncomeController::class, 'update'])->name('update');
-        Route::delete('/{income}', [IncomeController::class, 'destroy'])->name('destroy');
+        Route::get('/{income}/edit', [IncomeController::class, 'edit'])->middleware('permission:incomes,edit')->name('edit');
+        Route::put('/{income}', [IncomeController::class, 'update'])->middleware('permission:incomes,edit')->name('update');
+        Route::delete('/{income}', [IncomeController::class, 'destroy'])->middleware('permission:incomes,delete')->name('destroy');
     });
 
-    // Income Categories
-    Route::prefix('income-categories')->name('income-categories.')->group(function () {
+    // Income Categories - folded into the 'incomes' permission module.
+    Route::prefix('income-categories')->name('income-categories.')->middleware('permission:incomes,view')->group(function () {
         Route::get('/', [IncomeCategoryController::class, 'index'])->name('index');
-        Route::post('/', [IncomeCategoryController::class, 'store'])->name('store');
-        Route::put('/{category}', [IncomeCategoryController::class, 'update'])->name('update');
-        Route::delete('/{category}', [IncomeCategoryController::class, 'destroy'])->name('destroy');
+        Route::post('/', [IncomeCategoryController::class, 'store'])->middleware('permission:incomes,create')->name('store');
+        Route::put('/{category}', [IncomeCategoryController::class, 'update'])->middleware('permission:incomes,edit')->name('update');
+        Route::delete('/{category}', [IncomeCategoryController::class, 'destroy'])->middleware('permission:incomes,delete')->name('destroy');
     });
 
     // ==========================================
     // 16. MONEY TRANSFER MANAGEMENT
     // ==========================================
-    Route::prefix('money-transfers')->name('money-transfers.')->group(function () {
+    Route::prefix('money-transfers')->name('money-transfers.')->middleware('permission:money-transfers,view')->group(function () {
         Route::get('/', [MoneyTransferController::class, 'index'])->name('index');
-        Route::get('/create', [MoneyTransferController::class, 'create'])->name('create');
-        Route::post('/', [MoneyTransferController::class, 'store'])->name('store');
+        Route::get('/create', [MoneyTransferController::class, 'create'])->middleware('permission:money-transfers,create')->name('create');
+        Route::post('/', [MoneyTransferController::class, 'store'])->middleware('permission:money-transfers,create')->name('store');
         // Bound as {moneyTransfer}, not {transfer} - every controller method
         // below type-hints `MoneyTransfer $moneyTransfer`, and implicit
         // route-model-binding only works when the URI segment name matches
@@ -331,17 +332,17 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         // cancel would all have silently operated on that same empty
         // instance instead of the real one.
         Route::get('/{moneyTransfer}', [MoneyTransferController::class, 'show'])->name('show');
-        Route::get('/{moneyTransfer}/edit', [MoneyTransferController::class, 'edit'])->name('edit');
-        Route::put('/{moneyTransfer}', [MoneyTransferController::class, 'update'])->name('update');
-        Route::delete('/{moneyTransfer}', [MoneyTransferController::class, 'destroy'])->name('destroy');
-        Route::post('/{moneyTransfer}/complete', [MoneyTransferController::class, 'complete'])->name('complete');
-        Route::post('/{moneyTransfer}/cancel', [MoneyTransferController::class, 'cancel'])->name('cancel');
+        Route::get('/{moneyTransfer}/edit', [MoneyTransferController::class, 'edit'])->middleware('permission:money-transfers,edit')->name('edit');
+        Route::put('/{moneyTransfer}', [MoneyTransferController::class, 'update'])->middleware('permission:money-transfers,edit')->name('update');
+        Route::delete('/{moneyTransfer}', [MoneyTransferController::class, 'destroy'])->middleware('permission:money-transfers,delete')->name('destroy');
+        Route::post('/{moneyTransfer}/complete', [MoneyTransferController::class, 'complete'])->middleware('permission:money-transfers,edit')->name('complete');
+        Route::post('/{moneyTransfer}/cancel', [MoneyTransferController::class, 'cancel'])->middleware('permission:money-transfers,edit')->name('cancel');
     });
 
     // ==========================================
     // 17. BUSINESS REPORTS
     // ==========================================
-    Route::prefix('reports')->name('reports.')->group(function () {
+    Route::prefix('reports')->name('reports.')->middleware('permission:reports,view')->group(function () {
         // Financial Reports
         Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/profit-loss/pdf', [ReportController::class, 'profitLossPdf'])->name('profit-loss-pdf');
@@ -393,21 +394,21 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 18. BANK RECONCILIATION
     // ==========================================
-    Route::prefix('bank-reconciliations')->name('bank-reconciliations.')->group(function () {
+    Route::prefix('bank-reconciliations')->name('bank-reconciliations.')->middleware('permission:bank-reconciliations,view')->group(function () {
         Route::get('/', [BankReconciliationController::class, 'index'])->name('index');
-        Route::get('/create', [BankReconciliationController::class, 'create'])->name('create');
-        Route::post('/', [BankReconciliationController::class, 'store'])->name('store');
+        Route::get('/create', [BankReconciliationController::class, 'create'])->middleware('permission:bank-reconciliations,create')->name('create');
+        Route::post('/', [BankReconciliationController::class, 'store'])->middleware('permission:bank-reconciliations,create')->name('store');
         Route::get('/{bankReconciliation}', [BankReconciliationController::class, 'show'])->name('show');
-        Route::get('/{bankReconciliation}/edit', [BankReconciliationController::class, 'edit'])->name('edit');
-        Route::put('/{bankReconciliation}', [BankReconciliationController::class, 'update'])->name('update');
-        Route::delete('/{bankReconciliation}', [BankReconciliationController::class, 'destroy'])->name('destroy');
-        Route::post('/{bankReconciliation}/reconcile', [BankReconciliationController::class, 'reconcile'])->name('reconcile');
+        Route::get('/{bankReconciliation}/edit', [BankReconciliationController::class, 'edit'])->middleware('permission:bank-reconciliations,edit')->name('edit');
+        Route::put('/{bankReconciliation}', [BankReconciliationController::class, 'update'])->middleware('permission:bank-reconciliations,edit')->name('update');
+        Route::delete('/{bankReconciliation}', [BankReconciliationController::class, 'destroy'])->middleware('permission:bank-reconciliations,delete')->name('destroy');
+        Route::post('/{bankReconciliation}/reconcile', [BankReconciliationController::class, 'reconcile'])->middleware('permission:bank-reconciliations,edit')->name('reconcile');
     });
 
     // ==========================================
     // 19. EXPORTS
     // ==========================================
-    Route::prefix('exports')->name('exports.')->group(function () {
+    Route::prefix('exports')->name('exports.')->middleware('permission:exports,view')->group(function () {
         Route::get('/csv', [ExportController::class, 'exportCSV'])->name('csv');
         Route::get('/excel', [ExportController::class, 'exportExcel'])->name('excel');
         Route::get('/pdf', [ExportController::class, 'exportPDF'])->name('pdf');
@@ -455,7 +456,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     // 22. GOLDEN CLUB - Admin
     // ==========================================
-    Route::prefix('golden-club')->name('golden-club.')->group(function () {
+    Route::prefix('golden-club')->name('golden-club.')->middleware('permission:golden-club,view')->group(function () {
 
         // Dashboard
         Route::get('/dashboard', [GoldenClubController::class, 'dashboard'])->name('dashboard');
@@ -469,25 +470,34 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
             // earlier in the backups routes).
             Route::get('/pending', [GoldenClubController::class, 'pendingVerification'])->name('pending-verification');
             Route::get('/{customer}', [GoldenClubController::class, 'customerShow'])->name('show');
-            Route::post('/{customer}/verify', [GoldenClubController::class, 'verifyCustomer'])->name('verify');
+            Route::post('/{customer}/verify', [GoldenClubController::class, 'verifyCustomer'])->middleware('permission:golden-club,edit')->name('verify');
         });
 
-        // Rewards
-        Route::resource('rewards', GoldenClubRewardController::class)->except(['show']);
+        // Rewards - spelled out (not Route::resource) so create/store/
+        // edit/update/destroy can each carry their own ability, matching
+        // every other module's granularity in this file.
+        Route::prefix('rewards')->name('rewards.')->group(function () {
+            Route::get('/', [GoldenClubRewardController::class, 'index'])->name('index');
+            Route::get('/create', [GoldenClubRewardController::class, 'create'])->middleware('permission:golden-club,create')->name('create');
+            Route::post('/', [GoldenClubRewardController::class, 'store'])->middleware('permission:golden-club,create')->name('store');
+            Route::get('/{reward}/edit', [GoldenClubRewardController::class, 'edit'])->middleware('permission:golden-club,edit')->name('edit');
+            Route::put('/{reward}', [GoldenClubRewardController::class, 'update'])->middleware('permission:golden-club,edit')->name('update');
+            Route::delete('/{reward}', [GoldenClubRewardController::class, 'destroy'])->middleware('permission:golden-club,delete')->name('destroy');
+        });
         Route::prefix('redemptions')->name('redemptions.')->group(function () {
-            Route::post('/{redeemedReward}/approve', [GoldenClubRewardController::class, 'approveRedemption'])->name('approve');
-            Route::post('/{redeemedReward}/deliver', [GoldenClubRewardController::class, 'deliverRedemption'])->name('deliver');
-            Route::post('/{redeemedReward}/cancel', [GoldenClubRewardController::class, 'cancelRedemption'])->name('cancel');
+            Route::post('/{redeemedReward}/approve', [GoldenClubRewardController::class, 'approveRedemption'])->middleware('permission:golden-club,edit')->name('approve');
+            Route::post('/{redeemedReward}/deliver', [GoldenClubRewardController::class, 'deliverRedemption'])->middleware('permission:golden-club,edit')->name('deliver');
+            Route::post('/{redeemedReward}/cancel', [GoldenClubRewardController::class, 'cancelRedemption'])->middleware('permission:golden-club,edit')->name('cancel');
         });
 
         // Lucky Draw
         Route::prefix('lucky-draw')->name('lucky-draw.')->group(function () {
             Route::get('/campaigns', [GoldenClubController::class, 'campaigns'])->name('campaigns');
-            Route::get('/campaigns/create', [GoldenClubController::class, 'campaignCreate'])->name('campaigns.create');
-            Route::post('/campaigns', [GoldenClubController::class, 'campaignStore'])->name('campaigns.store');
-            Route::get('/campaigns/{campaign}/edit', [GoldenClubController::class, 'campaignEdit'])->name('campaigns.edit');
-            Route::put('/campaigns/{campaign}', [GoldenClubController::class, 'campaignUpdate'])->name('campaigns.update');
-            Route::post('/campaigns/{campaign}/draw-winner', [GoldenClubController::class, 'drawWinner'])->name('campaigns.draw-winner');
+            Route::get('/campaigns/create', [GoldenClubController::class, 'campaignCreate'])->middleware('permission:golden-club,create')->name('campaigns.create');
+            Route::post('/campaigns', [GoldenClubController::class, 'campaignStore'])->middleware('permission:golden-club,create')->name('campaigns.store');
+            Route::get('/campaigns/{campaign}/edit', [GoldenClubController::class, 'campaignEdit'])->middleware('permission:golden-club,edit')->name('campaigns.edit');
+            Route::put('/campaigns/{campaign}', [GoldenClubController::class, 'campaignUpdate'])->middleware('permission:golden-club,edit')->name('campaigns.update');
+            Route::post('/campaigns/{campaign}/draw-winner', [GoldenClubController::class, 'drawWinner'])->middleware('permission:golden-club,edit')->name('campaigns.draw-winner');
             Route::get('/winners', [GoldenClubController::class, 'winners'])->name('winners');
         });
     });

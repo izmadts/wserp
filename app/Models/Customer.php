@@ -201,9 +201,17 @@ class Customer extends Authenticatable
         return $this->opening_balance + $this->total_sales - $this->total_paid - $this->total_returned - $this->total_direct_paid;
     }
 
+    // Balance is a receivable: positive = customer still owes us, negative
+    // = customer has paid more than they owed (an advance/credit in their
+    // favor). Labeled distinctly so "Rs. 0.00" and "overpaid" aren't
+    // visually indistinguishable (both currently render green).
     public function getFormattedBalanceAttribute()
     {
-        return 'Rs. ' . number_format($this->balance, 2);
+        $balance = (float) $this->balance;
+        if ($balance < 0) {
+            return '+Rs. ' . number_format(abs($balance), 2) . ' (Extra)';
+        }
+        return 'Rs. ' . number_format($balance, 2);
     }
 
     public function getFormattedOpeningBalanceAttribute()

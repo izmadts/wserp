@@ -10,8 +10,11 @@
     amount: 0,
     cashBalance: {{ (float) $cashBalance }},
     bankBalance: {{ (float) $bankBalance }},
+    outstandingBalance: {{ (float) $supplier->balance }},
     get available() { return this.method === 'cash' ? this.cashBalance : this.bankBalance },
     get short() { return (parseFloat(this.amount) || 0) > this.available },
+    get overBalance() { return (parseFloat(this.amount) || 0) > this.outstandingBalance },
+    get extraAmount() { return (parseFloat(this.amount) || 0) - this.outstandingBalance },
 }">
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Left Column - Supplier Info -->
@@ -93,14 +96,12 @@
                     <i class="fas fa-arrow-left mr-1"></i> Back
                 </a>
             </div>
-            @if($supplier->balance > 0)
             <div class="px-6 pb-6">
                 <button type="button" @click="showPaymentModal = true"
                     class="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
                     <i class="fas fa-money-bill-wave mr-1"></i> Make Payment
                 </button>
             </div>
-            @endif
         </div>
 
         <!-- Financial Summary -->
@@ -296,15 +297,23 @@
             </p>
 
             <form action="{{ route('admin.suppliers.payments.store', $supplier) }}" method="POST"
-                @submit="if (short && !confirm('This account only has Rs. ' + available.toFixed(2) + ' available - recording this payment will take it negative. Submit anyway?')) $event.preventDefault()">
+                @submit="
+                    let msgs = [];
+                    if (overBalance) msgs.push('This is Rs. ' + extraAmount.toFixed(2) + ' more than the outstanding balance - the supplier will show as overpaid (Extra).');
+                    if (short) msgs.push('This account only has Rs. ' + available.toFixed(2) + ' available - recording this payment will take it negative.');
+                    if (msgs.length && !confirm(msgs.join(' ') + ' Submit anyway?')) $event.preventDefault()
+                ">
                 @csrf
                 <div class="space-y-3">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
                         <input type="number" step="0.01" name="amount" x-model="amount"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                            min="0.01" max="{{ max($supplier->balance, 0.01) }}" required>
-                        <p class="text-xs text-gray-500 mt-1">Max: Rs. {{ number_format($supplier->balance, 2) }}</p>
+                            min="0.01" required>
+                        <p class="text-xs text-gray-500 mt-1">Outstanding: Rs. {{ number_format($supplier->balance, 2) }} - you may pay more than this (it will record as Extra/advance).</p>
+                        <p class="text-xs mt-1" :class="overBalance ? 'text-orange-600 font-medium' : 'text-gray-400'" x-show="overBalance">
+                            This is Rs. <span x-text="extraAmount.toFixed(2)"></span> more than the outstanding balance - will show as Extra (overpaid).
+                        </p>
                         <p class="text-xs mt-1" :class="short ? 'text-orange-600 font-medium' : 'text-gray-400'">
                             Available in <span x-text="method === 'cash' ? 'Cash' : 'Bank'"></span>: Rs. <span x-text="available.toFixed(2)"></span>
                             <template x-if="short"> - insufficient, will go negative</template>

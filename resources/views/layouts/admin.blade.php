@@ -167,96 +167,99 @@
                             'key' => 'inventory', 'label' => 'Inventory', 'icon' => 'fa-warehouse', 'color' => 'text-yellow-600',
                             'active' => request()->routeIs('admin.products.*', 'admin.categories.*', 'admin.inventory.*'),
                             'links' => [
-                                ['route' => 'admin.products.index', 'is' => 'admin.products.*', 'icon' => 'fa-box', 'label' => 'Products'],
-                                ['route' => 'admin.categories.index', 'is' => 'admin.categories.*', 'icon' => 'fa-tags', 'label' => 'Categories'],
-                                ['route' => 'admin.inventory.dashboard', 'is' => 'admin.inventory.dashboard', 'icon' => 'fa-warehouse', 'label' => 'Inventory'],
-                                ['route' => 'admin.inventory.adjustments.index', 'is' => 'admin.inventory.adjustments.*', 'icon' => 'fa-sliders-h', 'label' => 'Stock Adjustments'],
-                                ['route' => 'admin.inventory.history', 'is' => 'admin.inventory.history', 'icon' => 'fa-history', 'label' => 'Stock History'],
-                                ['route' => 'admin.products.low-stock', 'is' => 'admin.products.low-stock', 'icon' => 'fa-exclamation-triangle', 'label' => 'Low Stock Alert', 'badge' => App\Models\Product::lowStock()->count(), 'badgeColor' => 'bg-red-500'],
+                                ['route' => 'admin.products.index', 'is' => 'admin.products.*', 'icon' => 'fa-box', 'label' => 'Products', 'module' => 'products'],
+                                ['route' => 'admin.categories.index', 'is' => 'admin.categories.*', 'icon' => 'fa-tags', 'label' => 'Categories', 'module' => 'categories'],
+                                ['route' => 'admin.inventory.dashboard', 'is' => 'admin.inventory.dashboard', 'icon' => 'fa-warehouse', 'label' => 'Inventory', 'module' => 'inventory'],
+                                ['route' => 'admin.inventory.adjustments.index', 'is' => 'admin.inventory.adjustments.*', 'icon' => 'fa-sliders-h', 'label' => 'Stock Adjustments', 'module' => 'inventory'],
+                                ['route' => 'admin.inventory.history', 'is' => 'admin.inventory.history', 'icon' => 'fa-history', 'label' => 'Stock History', 'module' => 'inventory'],
+                                ['route' => 'admin.products.low-stock', 'is' => 'admin.products.low-stock', 'icon' => 'fa-exclamation-triangle', 'label' => 'Low Stock Alert', 'badge' => App\Models\Product::lowStock()->count(), 'badgeColor' => 'bg-red-500', 'module' => 'products'],
                             ],
                         ],
                         [
                             'key' => 'purchases', 'label' => 'Purchases', 'icon' => 'fa-shopping-cart', 'color' => 'text-purple-700',
                             'active' => request()->routeIs('admin.suppliers.*', 'admin.purchases.*', 'admin.purchase-returns.*'),
                             'links' => [
-                                ['route' => 'admin.suppliers.index', 'is' => 'admin.suppliers.*', 'icon' => 'fa-truck', 'label' => 'Suppliers'],
-                                ['route' => 'admin.purchases.index', 'is' => 'admin.purchases.*', 'icon' => 'fa-shopping-cart', 'label' => 'Purchases'],
-                                ['route' => 'admin.purchase-returns.index', 'is' => 'admin.purchase-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Purchase Returns'],
+                                ['route' => 'admin.suppliers.index', 'is' => 'admin.suppliers.*', 'icon' => 'fa-truck', 'label' => 'Suppliers', 'module' => 'suppliers'],
+                                ['route' => 'admin.purchases.index', 'is' => 'admin.purchases.*', 'icon' => 'fa-shopping-cart', 'label' => 'Purchases', 'module' => 'purchases'],
+                                ['route' => 'admin.purchase-returns.index', 'is' => 'admin.purchase-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Purchase Returns', 'module' => 'purchase-returns'],
                             ],
                         ],
                         [
                             'key' => 'sales', 'label' => 'Sales', 'icon' => 'fa-shopping-bag', 'color' => 'text-emerald-600',
                             'active' => request()->routeIs('admin.customers.*', 'admin.sales.*', 'admin.sales-returns.*'),
                             'links' => [
-                                ['route' => 'admin.customers.index', 'is' => 'admin.customers.*', 'icon' => 'fa-users', 'label' => 'Customers'],
-                                ['route' => 'admin.sales.index', 'is' => 'admin.sales.*', 'icon' => 'fa-shopping-bag', 'label' => 'Sales'],
-                                ['route' => 'admin.sales-returns.index', 'is' => 'admin.sales-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Sales Returns'],
+                                ['route' => 'admin.customers.index', 'is' => 'admin.customers.*', 'icon' => 'fa-users', 'label' => 'Customers', 'module' => 'customers'],
+                                ['route' => 'admin.sales.index', 'is' => 'admin.sales.*', 'icon' => 'fa-shopping-bag', 'label' => 'Sales', 'module' => 'sales'],
+                                ['route' => 'admin.sales-returns.index', 'is' => 'admin.sales-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Sales Returns', 'module' => 'sales-returns'],
                             ],
                         ],
                         [
                             'key' => 'agents', 'label' => 'Agents', 'icon' => 'fa-user-tie', 'color' => 'text-teal-500',
                             'active' => request()->routeIs('admin.agents.*'),
                             'links' => [
-                                ['route' => 'admin.agents.index', 'is' => 'admin.agents.*', 'icon' => 'fa-user-tie', 'label' => 'Agents', 'badge' => $pendingAgents = App\Models\User::where('role', 'sales_agent')->where('is_active', false)->whereNull('approved_at')->count(), 'badgeColor' => 'bg-yellow-500'],
-                                ['route' => 'admin.agents.pending', 'is' => 'admin.agents.pending', 'icon' => 'fa-clock', 'label' => 'Pending Approvals', 'badge' => $pendingAgents, 'badgeColor' => 'bg-yellow-500'],
+                                ['route' => 'admin.agents.index', 'is' => 'admin.agents.*', 'icon' => 'fa-user-tie', 'label' => 'Agents', 'badge' => $pendingAgents = App\Models\User::where('role', 'sales_agent')->where('is_active', false)->whereNull('approved_at')->count(), 'badgeColor' => 'bg-yellow-500', 'module' => 'agents'],
+                                ['route' => 'admin.agents.pending', 'is' => 'admin.agents.pending', 'icon' => 'fa-clock', 'label' => 'Pending Approvals', 'badge' => $pendingAgents, 'badgeColor' => 'bg-yellow-500', 'module' => 'agents'],
                             ],
                         ],
                         [
                             'key' => 'finance', 'label' => 'Finance', 'icon' => 'fa-wallet', 'color' => 'text-green-600',
                             'active' => request()->routeIs('admin.incomes.*', 'admin.income-categories.*', 'admin.expenses.*', 'admin.expense-categories.*', 'admin.money-transfers.*'),
                             'links' => [
-                                ['route' => 'admin.incomes.index', 'is' => 'admin.incomes.*', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-600'],
-                                ['route' => 'admin.income-categories.index', 'is' => 'admin.income-categories.*', 'icon' => 'fa-tags', 'label' => 'Income Categories', 'iconColor' => 'text-green-600'],
-                                ['route' => 'admin.expenses.index', 'is' => 'admin.expenses.*', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-600'],
-                                ['route' => 'admin.expense-categories.index', 'is' => 'admin.expense-categories.*', 'icon' => 'fa-tags', 'label' => 'Expense Categories', 'iconColor' => 'text-red-600'],
-                                ['route' => 'admin.money-transfers.index', 'is' => 'admin.money-transfers.*', 'icon' => 'fa-exchange-alt', 'label' => 'Money Transfer', 'iconColor' => 'text-blue-600'],
+                                ['route' => 'admin.incomes.index', 'is' => 'admin.incomes.*', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-600', 'module' => 'incomes'],
+                                ['route' => 'admin.income-categories.index', 'is' => 'admin.income-categories.*', 'icon' => 'fa-tags', 'label' => 'Income Categories', 'iconColor' => 'text-green-600', 'module' => 'incomes'],
+                                ['route' => 'admin.expenses.index', 'is' => 'admin.expenses.*', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-600', 'module' => 'expenses'],
+                                ['route' => 'admin.expense-categories.index', 'is' => 'admin.expense-categories.*', 'icon' => 'fa-tags', 'label' => 'Expense Categories', 'iconColor' => 'text-red-600', 'module' => 'expenses'],
+                                ['route' => 'admin.money-transfers.index', 'is' => 'admin.money-transfers.*', 'icon' => 'fa-exchange-alt', 'label' => 'Money Transfer', 'iconColor' => 'text-blue-600', 'module' => 'money-transfers'],
                             ],
                         ],
                         [
                             'key' => 'accounting', 'label' => 'Accounting', 'icon' => 'fa-book', 'color' => 'text-cyan-500',
                             'active' => request()->routeIs('admin.accounts.*', 'admin.bank-reconciliations.*'),
                             'links' => [
-                                ['route' => 'admin.accounts.index', 'is' => 'admin.accounts.*', 'icon' => 'fa-book', 'label' => 'Chart of Accounts'],
-                                ['route' => 'admin.bank-reconciliations.index', 'is' => 'admin.bank-reconciliations.*', 'icon' => 'fa-university', 'label' => 'Bank Reconciliation'],
+                                ['route' => 'admin.accounts.index', 'is' => 'admin.accounts.*', 'icon' => 'fa-book', 'label' => 'Chart of Accounts', 'module' => 'accounts'],
+                                ['route' => 'admin.bank-reconciliations.index', 'is' => 'admin.bank-reconciliations.*', 'icon' => 'fa-university', 'label' => 'Bank Reconciliation', 'module' => 'bank-reconciliations'],
                             ],
                         ],
                         [
                             'key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-bar', 'color' => 'text-gray-600',
                             'active' => request()->routeIs('admin.reports.*'),
                             'links' => [
-                                ['route' => 'admin.reports.profit-loss', 'is' => 'admin.reports.profit-loss', 'icon' => 'fa-chart-bar', 'label' => 'Profit & Loss'],
-                                ['route' => 'admin.reports.trial-balance', 'is' => 'admin.reports.trial-balance', 'icon' => 'fa-balance-scale', 'label' => 'Trial Balance'],
-                                ['route' => 'admin.reports.customers', 'is' => 'admin.reports.customers', 'icon' => 'fa-users', 'label' => 'Customers'],
-                                ['route' => 'admin.reports.receivable', 'is' => 'admin.reports.receivable', 'icon' => 'fa-hand-holding-usd', 'label' => 'Receivable'],
-                                ['route' => 'admin.reports.payable', 'is' => 'admin.reports.payable', 'icon' => 'fa-file-invoice-dollar', 'label' => 'Payable'],
-                                ['route' => 'admin.reports.suppliers', 'is' => 'admin.reports.suppliers', 'icon' => 'fa-truck', 'label' => 'Suppliers'],
-                                ['route' => 'admin.reports.day-book', 'is' => 'admin.reports.day-book', 'icon' => 'fa-book', 'label' => 'Day Book'],
-                                ['route' => 'admin.reports.expenses', 'is' => 'admin.reports.expenses', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-500'],
-                                ['route' => 'admin.reports.incomes', 'is' => 'admin.reports.incomes', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-500'],
-                                ['route' => 'admin.reports.agents', 'is' => 'admin.reports.agents', 'icon' => 'fa-user-tie', 'label' => 'Agents'],
-                                ['route' => 'admin.reports.daily-summary', 'is' => 'admin.reports.daily-summary', 'icon' => 'fa-calendar-day', 'label' => 'Daily Summary'],
-                                ['route' => 'admin.reports.tax', 'is' => 'admin.reports.tax', 'icon' => 'fa-percentage', 'label' => 'Tax Report'],
+                                ['route' => 'admin.reports.profit-loss', 'is' => 'admin.reports.profit-loss', 'icon' => 'fa-chart-bar', 'label' => 'Profit & Loss', 'module' => 'reports'],
+                                ['route' => 'admin.reports.trial-balance', 'is' => 'admin.reports.trial-balance', 'icon' => 'fa-balance-scale', 'label' => 'Trial Balance', 'module' => 'reports'],
+                                ['route' => 'admin.reports.customers', 'is' => 'admin.reports.customers', 'icon' => 'fa-users', 'label' => 'Customers', 'module' => 'reports'],
+                                ['route' => 'admin.reports.receivable', 'is' => 'admin.reports.receivable', 'icon' => 'fa-hand-holding-usd', 'label' => 'Receivable', 'module' => 'reports'],
+                                ['route' => 'admin.reports.payable', 'is' => 'admin.reports.payable', 'icon' => 'fa-file-invoice-dollar', 'label' => 'Payable', 'module' => 'reports'],
+                                ['route' => 'admin.reports.suppliers', 'is' => 'admin.reports.suppliers', 'icon' => 'fa-truck', 'label' => 'Suppliers', 'module' => 'reports'],
+                                ['route' => 'admin.reports.day-book', 'is' => 'admin.reports.day-book', 'icon' => 'fa-book', 'label' => 'Day Book', 'module' => 'reports'],
+                                ['route' => 'admin.reports.expenses', 'is' => 'admin.reports.expenses', 'icon' => 'fa-arrow-down', 'label' => 'Expenses', 'iconColor' => 'text-red-500', 'module' => 'reports'],
+                                ['route' => 'admin.reports.incomes', 'is' => 'admin.reports.incomes', 'icon' => 'fa-arrow-up', 'label' => 'Income', 'iconColor' => 'text-green-500', 'module' => 'reports'],
+                                ['route' => 'admin.reports.agents', 'is' => 'admin.reports.agents', 'icon' => 'fa-user-tie', 'label' => 'Agents', 'module' => 'reports'],
+                                ['route' => 'admin.reports.daily-summary', 'is' => 'admin.reports.daily-summary', 'icon' => 'fa-calendar-day', 'label' => 'Daily Summary', 'module' => 'reports'],
+                                ['route' => 'admin.reports.tax', 'is' => 'admin.reports.tax', 'icon' => 'fa-percentage', 'label' => 'Tax Report', 'module' => 'reports'],
                             ],
                         ],
                         [
                             'key' => 'golden-club', 'label' => 'Golden Club', 'icon' => 'fa-crown', 'color' => 'text-yellow-500',
                             'active' => request()->routeIs('admin.golden-club.*'),
                             'links' => [
-                                ['route' => 'admin.golden-club.dashboard', 'is' => 'admin.golden-club.dashboard', 'icon' => 'fa-chart-pie', 'label' => 'Dashboard'],
-                                ['route' => 'admin.golden-club.customers.index', 'is' => 'admin.golden-club.customers.*', 'icon' => 'fa-user-friends', 'label' => 'Customers'],
-                                ['route' => 'admin.golden-club.rewards.index', 'is' => 'admin.golden-club.rewards.*', 'icon' => 'fa-gift', 'label' => 'Rewards'],
-                                ['route' => 'admin.golden-club.lucky-draw.campaigns', 'is' => 'admin.golden-club.lucky-draw.*', 'icon' => 'fa-dice', 'label' => 'Lucky Draw'],
+                                ['route' => 'admin.golden-club.dashboard', 'is' => 'admin.golden-club.dashboard', 'icon' => 'fa-chart-pie', 'label' => 'Dashboard', 'module' => 'golden-club'],
+                                ['route' => 'admin.golden-club.customers.index', 'is' => 'admin.golden-club.customers.*', 'icon' => 'fa-user-friends', 'label' => 'Customers', 'module' => 'golden-club'],
+                                ['route' => 'admin.golden-club.rewards.index', 'is' => 'admin.golden-club.rewards.*', 'icon' => 'fa-gift', 'label' => 'Rewards', 'module' => 'golden-club'],
+                                ['route' => 'admin.golden-club.lucky-draw.campaigns', 'is' => 'admin.golden-club.lucky-draw.*', 'icon' => 'fa-dice', 'label' => 'Lucky Draw', 'module' => 'golden-club'],
                             ],
                         ],
                         [
                             'key' => 'system', 'label' => 'System', 'icon' => 'fa-cogs', 'color' => 'text-gray-600',
                             'active' => request()->routeIs('admin.activity-logs.*', 'admin.backups.*', 'admin.system.api.*', 'admin.system.golden-guide'),
                             'links' => [
-                                ['route' => 'admin.activity-logs.index', 'is' => 'admin.activity-logs.*', 'icon' => 'fa-history', 'label' => 'Activity Logs'],
-                                ['route' => 'admin.backups.index', 'is' => 'admin.backups.*', 'icon' => 'fa-cloud-upload-alt', 'label' => 'Backup & Restore'],
-                                ['route' => 'admin.system.api.docs', 'is' => 'admin.system.api.docs', 'icon' => 'fa-book', 'label' => 'API Documentation'],
-                                ['route' => 'admin.system.golden-guide', 'is' => 'admin.system.golden-guide', 'icon' => 'fa-crown', 'label' => 'Golden Customer Guide (Urdu)'],
-                                ['route' => 'admin.system.api.tester', 'is' => 'admin.system.api.tester', 'icon' => 'fa-flask', 'label' => 'API Testing'],
+                                ['route' => 'admin.activity-logs.index', 'is' => 'admin.activity-logs.*', 'icon' => 'fa-history', 'label' => 'Activity Logs', 'module' => 'activity-logs'],
+                                ['route' => 'admin.backups.index', 'is' => 'admin.backups.*', 'icon' => 'fa-cloud-upload-alt', 'label' => 'Backup & Restore', 'module' => 'backups'],
+                                // These three routes are hard role:admin-gated in routes/web.php
+                                // (not part of the role_permissions matrix), so they're filtered
+                                // by isAdmin() below, not hasPermission().
+                                ['route' => 'admin.system.api.docs', 'is' => 'admin.system.api.docs', 'icon' => 'fa-book', 'label' => 'API Documentation', 'adminOnly' => true],
+                                ['route' => 'admin.system.golden-guide', 'is' => 'admin.system.golden-guide', 'icon' => 'fa-crown', 'label' => 'Golden Customer Guide (Urdu)', 'adminOnly' => true],
+                                ['route' => 'admin.system.api.tester', 'is' => 'admin.system.api.tester', 'icon' => 'fa-flask', 'label' => 'API Testing', 'adminOnly' => true],
                             ],
                         ],
                     ];
@@ -275,6 +278,24 @@
                             ],
                         ];
                     }
+
+                    // Hide any link the current user can't actually reach (module
+                    // permission is view=false, or it's one of the hard
+                    // role:admin-only routes above), then drop any section left
+                    // with zero visible links. Without this, enabling real
+                    // permission:module,view enforcement on the routes below
+                    // would turn every hidden-but-linked page into a dead 403
+                    // click for manager/accountant.
+                    $user = auth()->user();
+                    $sidebarSections = array_values(array_filter(array_map(function ($section) use ($user) {
+                        $section['links'] = array_values(array_filter($section['links'], function ($link) use ($user) {
+                            if (!empty($link['adminOnly'])) {
+                                return $user && $user->isAdmin();
+                            }
+                            return !isset($link['module']) || ($user && $user->hasPermission($link['module']));
+                        }));
+                        return $section;
+                    }, $sidebarSections), fn ($section) => count($section['links']) > 0));
                 @endphp
 
                 @foreach($sidebarSections as $section)

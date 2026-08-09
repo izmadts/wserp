@@ -144,12 +144,16 @@ class CustomerController extends Controller
 
     /**
      * Record a payment received from this customer that isn't against any
-     * specific Sale - e.g. settling opening_balance or an advance.
+     * specific Sale - e.g. settling opening_balance or an advance. Not
+     * capped at the outstanding balance - overpaying is allowed (it just
+     * leaves the customer with a negative/"Extra" balance, i.e. an
+     * advance they can draw down later); the UI only soft-warns about
+     * this, doesn't block it.
      */
     public function makePayment(Request $request, Customer $customer)
     {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|max:' . max($customer->balance, 0.01),
+            'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',

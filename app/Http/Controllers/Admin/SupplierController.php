@@ -162,12 +162,15 @@ class SupplierController extends Controller
 
     /**
      * Record a payment to this supplier that isn't against any specific
-     * Purchase - e.g. settling opening_balance or an advance.
+     * Purchase - e.g. settling opening_balance or an advance. Not capped
+     * at the outstanding balance - overpaying is allowed (it just leaves
+     * the supplier with a negative/"Extra" balance, i.e. an advance owed
+     * back to us); the UI only soft-warns about this, doesn't block it.
      */
     public function makePayment(Request $request, Supplier $supplier)
     {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|max:' . max($supplier->balance, 0.01),
+            'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',

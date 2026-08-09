@@ -4,7 +4,13 @@
 @section('page-title', 'Customer: ' . $customer->name)
 
 @section('content')
-<div x-data="{ showPaymentModal: false }">
+<div x-data="{
+    showPaymentModal: false,
+    amount: 0,
+    outstandingBalance: {{ (float) $customer->balance }},
+    get overBalance() { return (parseFloat(this.amount) || 0) > this.outstandingBalance },
+    get extraAmount() { return (parseFloat(this.amount) || 0) - this.outstandingBalance },
+}">
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Left Column -->
     <div class="lg:col-span-1">
@@ -43,14 +49,12 @@
                 <a href="{{ route('admin.customers.edit', $customer) }}" class="flex-1 px-4 py-2 bg-yellow-600 text-white text-center rounded-lg font-medium hover:bg-yellow-700">Edit</a>
                 <a href="{{ route('admin.customers.index') }}" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 text-center rounded-lg font-medium hover:bg-gray-300">Back</a>
             </div>
-            @if($customer->balance > 0)
             <div class="px-6 pb-6">
                 <button type="button" @click="showPaymentModal = true"
                     class="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
                     <i class="fas fa-money-bill-wave mr-1"></i> Receive Payment
                 </button>
             </div>
-            @endif
         </div>
 
         <div class="bg-white rounded-xl shadow-card overflow-hidden mt-6">
@@ -161,15 +165,19 @@
                 — this payment isn't tied to any specific invoice; it reduces the customer's overall balance (e.g. opening balance or an advance).
             </p>
 
-            <form action="{{ route('admin.customers.payments.store', $customer) }}" method="POST">
+            <form action="{{ route('admin.customers.payments.store', $customer) }}" method="POST"
+                @submit="if (overBalance && !confirm('This is Rs. ' + extraAmount.toFixed(2) + ' more than the outstanding balance - the customer will show as overpaid (Extra). Submit anyway?')) $event.preventDefault()">
                 @csrf
                 <div class="space-y-3">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
-                        <input type="number" step="0.01" name="amount"
+                        <input type="number" step="0.01" name="amount" x-model="amount"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                            min="0.01" max="{{ max($customer->balance, 0.01) }}" required>
-                        <p class="text-xs text-gray-500 mt-1">Max: Rs. {{ number_format($customer->balance, 2) }}</p>
+                            min="0.01" required>
+                        <p class="text-xs text-gray-500 mt-1">Outstanding: Rs. {{ number_format($customer->balance, 2) }} - you may receive more than this (it will record as Extra/advance).</p>
+                        <p class="text-xs mt-1 text-orange-600 font-medium" x-show="overBalance">
+                            This is Rs. <span x-text="extraAmount.toFixed(2)"></span> more than the outstanding balance - will show as Extra (overpaid).
+                        </p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Payment Date <span class="text-red-500">*</span></label>

@@ -124,9 +124,18 @@ class Supplier extends Model
         return ($this->opening_balance ?? 0) + $this->total_due - $this->total_direct_paid;
     }
 
+    // Balance is a payable: positive = we still owe the supplier, negative
+    // = we've paid them more than we owed (an advance/credit in our favor),
+    // e.g. after a direct payment recorded larger than the outstanding
+    // balance. Labeled distinctly so "Rs. 0.00" and "overpaid" aren't
+    // visually indistinguishable (both currently render green).
     public function getFormattedBalanceAttribute()
     {
-        return 'Rs. ' . number_format($this->balance, 2);
+        $balance = (float) $this->balance;
+        if ($balance < 0) {
+            return '+Rs. ' . number_format(abs($balance), 2) . ' (Extra)';
+        }
+        return 'Rs. ' . number_format($balance, 2);
     }
 
     public function getFormattedOpeningBalanceAttribute()
