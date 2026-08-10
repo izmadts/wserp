@@ -107,6 +107,18 @@
                     <p class="mt-1 text-xs text-gray-500">When enabled, everyone gets a light/dark toggle in the top bar (their own choice, remembered on their own device). When disabled, the toggle is hidden and the panel stays light for everyone.</p>
                 </div>
 
+                <div class="border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="registration_enabled" value="1"
+                            {{ old('registration_enabled', $settings['registration_enabled']) ? 'checked' : '' }}
+                            class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm font-medium text-gray-700">Allow new sales agent registration</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500">
+                        When enabled, anyone can submit a new sales agent application (web form or the mobile app) - they still can't log in until you approve them from Agents. When disabled, the sign-up form/API refuses new applications entirely; existing agents and their logins are completely unaffected either way.
+                    </p>
+                </div>
+
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200">
                     <i class="fas fa-save mr-1"></i> Save Settings
                 </button>

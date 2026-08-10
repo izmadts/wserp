@@ -36,11 +36,25 @@ class Product extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($product) {
             $product->slug = Str::slug($product->name);
             if (empty($product->code)) {
-                $product->code = 'PROD-' . strtoupper(Str::random(4));
+                // Temporary placeholder, unique on its own - swapped for the
+                // real id-based code right after insert (see created()
+                // below), matching Sale::invoice_no's pattern. Two rows can
+                // never share an id, so this can never collide - unlike a
+                // pure random-suffix (the old scheme) or a timestamp-only
+                // code, neither of which is safe against two products being
+                // created in the same second/request.
+                $product->code = 'PROD-TMP-' . (string) Str::uuid();
+            }
+        });
+
+        static::created(function ($product) {
+            if (str_starts_with($product->code, 'PROD-TMP-')) {
+                $product->code = 'PROD-' . $product->created_at->format('ymd') . '-' . str_pad($product->id, 5, '0', STR_PAD_LEFT);
+                $product->saveQuietly();
             }
         });
 

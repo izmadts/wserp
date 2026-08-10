@@ -341,4 +341,142 @@
     .sidebar-overlay {
         @apply fixed inset-0 bg-[rgba(0,0,0,.5)] z-40 lg:hidden;
     }
+
+}
+
+/*
+ * DataTables' controls (length menu, search box, pagination) ship with
+ * `dataTables.bootstrap5.min.css` classes (`form-select`, `form-control`,
+ * `page-link`, ...) that only mean anything if real Bootstrap CSS is
+ * loaded - it isn't here (Tailwind only, see layouts/admin.blade.php's
+ * <head>). With no Bootstrap rules to match them AND the @tailwindcss/forms
+ * reset stripping every bare select/input down to a borderless, near-0-width
+ * box, the "Show _ entries" select and the search input rendered as an
+ * unusably tiny, hard-to-click sliver. These target DataTables' own wrapper
+ * class names directly (not a class this app controls the markup of) to
+ * give them real padding/border/size independent of whatever theme CSS is
+ * or isn't loaded. Written as plain CSS (not Tailwind's `at`-apply directive
+ * inside `at`-layer components) referencing this file's own --color-*
+ * custom properties directly, so dark mode and the admin's Theme Color
+ * picker still reach these controls exactly like everywhere else.
+ */
+.dataTables_wrapper .dataTables_length select {
+    margin: 0 0.375rem;
+    min-width: 4.5rem;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: 0.5rem;
+    background-color: var(--color-white);
+    color: var(--color-gray-900);
+    font-size: 0.875rem;
+}
+
+.dataTables_wrapper .dataTables_length select:focus,
+.dataTables_wrapper .dataTables_filter input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-500);
+}
+
+.dataTables_wrapper .dataTables_filter input {
+    margin-left: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: 0.5rem;
+    background-color: var(--color-white);
+    color: var(--color-gray-900);
+    font-size: 0.875rem;
+    width: 10rem;
+}
+
+@media (min-width: 640px) {
+    .dataTables_wrapper .dataTables_filter input {
+        width: 14rem;
+    }
+}
+
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info {
+    font-size: 0.875rem;
+    color: var(--color-gray-600);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.dataTables_wrapper .dataTables_filter {
+    display: flex;
+    align-items: center;
+}
+
+@media (min-width: 640px) {
+    .dataTables_wrapper .dataTables_filter {
+        justify-content: flex-end;
+    }
+}
+
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+/*
+ * dataTables.bootstrap5.min.js renders pagination as a real
+ * <ul class="pagination"><li class="paginate_button page-item ..."><a
+ * class="page-link">...</a></li></ul> - style the anchor (the actual
+ * clickable element) and use the <li>'s state classes to vary it via
+ * descendant selectors, rather than boxing both the <li> and its <a>
+ * independently (which would double up borders/padding).
+ */
+.dataTables_wrapper .dataTables_paginate {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.dataTables_wrapper .dataTables_paginate .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dataTables_wrapper .dataTables_paginate .page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-gray-300);
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-gray-700);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.dataTables_wrapper .dataTables_paginate .page-link:hover {
+    background-color: var(--color-gray-100);
+}
+
+.dataTables_wrapper .dataTables_paginate .active .page-link {
+    background-color: var(--color-primary-600);
+    border-color: var(--color-primary-600);
+    color: var(--color-white);
+}
+
+.dataTables_wrapper .dataTables_paginate .active .page-link:hover {
+    background-color: var(--color-primary-600);
+}
+
+.dataTables_wrapper .dataTables_paginate .disabled .page-link {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }

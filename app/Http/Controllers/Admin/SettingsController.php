@@ -24,6 +24,11 @@ class SettingsController extends Controller
             // Stored as the literal strings "1"/"0" (see updateGeneral()) -
             // matches how the View::composer in AppServiceProvider reads it.
             'dark_mode_enabled' => Setting::get('dark_mode_enabled', '1') === '1',
+            // Gates new-account sign-up (Sale Agent web form + Flutter API
+            // register endpoints) - see AgentRegistrationController and
+            // Api\Agent\AuthController::register(). Does not affect existing
+            // accounts or the admin-approval step itself.
+            'registration_enabled' => Setting::get('registration_enabled', '1') === '1',
         ];
 
         // DateTimeZone::listIdentifiers() is PHP's own canonical, always-
@@ -51,12 +56,14 @@ class SettingsController extends Controller
             'favicon' => 'nullable|mimes:ico,png,jpg,jpeg,svg|max:512',
             'theme_color' => 'required|string|in:' . implode(',', array_keys(config('themes.presets'))),
             'dark_mode_enabled' => 'nullable|boolean',
+            'registration_enabled' => 'nullable|boolean',
         ]);
 
         foreach (['app_name', 'currency_code', 'currency_symbol', 'timezone', 'date_format', 'theme_color'] as $key) {
             Setting::set($key, $validated[$key]);
         }
         Setting::set('dark_mode_enabled', $request->boolean('dark_mode_enabled') ? '1' : '0');
+        Setting::set('registration_enabled', $request->boolean('registration_enabled') ? '1' : '0');
 
         if ($request->hasFile('logo')) {
             $oldLogo = Setting::get('logo');

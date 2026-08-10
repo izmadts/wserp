@@ -51,9 +51,23 @@ class Purchase extends Model
 
         static::creating(function ($purchase) {
             if (empty($purchase->invoice_no)) {
-                $purchase->invoice_no = 'PO-' . strtoupper(Str::random(8));
+                // Temporary placeholder, unique on its own - swapped for the
+                // real id-based number right after insert (see created()
+                // below), matching Sale::invoice_no's pattern. Two rows can
+                // never share an id, so this can never collide - unlike the
+                // old pure random-suffix scheme or a timestamp-only code,
+                // neither of which is safe against two purchases being
+                // created in the same second/request.
+                $purchase->invoice_no = 'PO-TMP-' . (string) Str::uuid();
             }
             $purchase->calculateTotals();
+        });
+
+        static::created(function ($purchase) {
+            if (str_starts_with($purchase->invoice_no, 'PO-TMP-')) {
+                $purchase->invoice_no = 'PO-' . $purchase->created_at->format('ymd') . '-' . str_pad($purchase->id, 5, '0', STR_PAD_LEFT);
+                $purchase->saveQuietly();
+            }
         });
 
         static::updating(function ($purchase) {

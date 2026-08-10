@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,11 +13,21 @@ class AgentRegistrationController extends Controller
 {
     public function showRegistrationForm()
     {
+        if (Setting::get('registration_enabled', '1') !== '1') {
+            return view('auth.agent-register-closed');
+        }
+
         return view('auth.agent-register');
     }
 
     public function register(Request $request)
     {
+        // Re-checked here too (not just on the GET form) - the form being
+        // hidden doesn't stop a direct POST to this route.
+        if (Setting::get('registration_enabled', '1') !== '1') {
+            return redirect()->route('agent.register')->with('error', 'New sales agent registration is currently closed.');
+        }
+
         $validator = Validator::make($request->all(), [
             // Personal Information
             'name' => 'required|string|max:255',

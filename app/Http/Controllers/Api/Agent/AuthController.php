@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Agent;
 
+use App\Models\Setting;
 use App\Models\User;
 use App\Http\Resources\Api\AgentResource;
 use Illuminate\Http\Request;
@@ -22,6 +23,10 @@ class AuthController extends ApiController
      */
     public function register(Request $request)
     {
+        if (Setting::get('registration_enabled', '1') !== '1') {
+            return $this->error('New sales agent registration is currently closed. Please contact the admin.', 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'guardian_name' => 'nullable|string|max:255',
