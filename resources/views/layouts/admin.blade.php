@@ -53,49 +53,9 @@
             transition: all 0.15s ease-in-out;
         }
 
-        /* ========================================== */
-        /* SIDEBAR STYLES */
-        /* ========================================== */
-        .sidebar-link {
-            @apply flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150;
-        }
-
-        .sidebar-link-active {
-            @apply bg-blue-50 text-blue-700;
-        }
-
-        .sidebar-link-inactive {
-            @apply text-gray-700 hover:bg-gray-100;
-        }
-
-        .sidebar-icon {
-            @apply w-5 text-lg flex-shrink-0 text-center;
-        }
-
-        .sidebar-badge {
-            @apply ml-auto text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0;
-        }
-
-        .sidebar-badge-red {
-            @apply bg-red-500 text-white;
-        }
-
-        .sidebar-badge-yellow {
-            @apply bg-yellow-500 text-white;
-        }
-
-        .sidebar-badge-gray {
-            @apply bg-gray-200 text-gray-600;
-        }
-
-        .sidebar-section-title {
-            @apply px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider;
-        }
-
-        /* Mobile overlay */
-        .sidebar-overlay {
-            @apply fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden;
-        }
+        /* Sidebar component classes (.sidebar-link, .sidebar-overlay, etc.)
+           moved to resources/css/app.css's @layer components - @apply only
+           compiles there, not in an inline <style> tag like this one. */
     </style>
 </head>
 
@@ -356,6 +316,123 @@
                     </div>
 
                     <div class="flex items-center gap-1 sm:gap-3">
+                    <!-- Quick Search (Ctrl/Cmd+K) -->
+                    <button type="button" @click="$store.wserpUi.searchOpen = true" title="Quick search (Ctrl/Cmd+K)"
+                        class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                        <i class="fas fa-search"></i>
+                    </button>
+
+                    @php
+                        $quickAddItems = array_values(array_filter([
+                            ['route' => 'admin.sales.create', 'icon' => 'fa-shopping-bag', 'color' => 'text-emerald-600', 'label' => 'New Sale', 'module' => 'sales'],
+                            ['route' => 'admin.purchases.create', 'icon' => 'fa-shopping-cart', 'color' => 'text-purple-700', 'label' => 'New Purchase', 'module' => 'purchases'],
+                            ['route' => 'admin.products.create', 'icon' => 'fa-box', 'color' => 'text-yellow-600', 'label' => 'New Product', 'module' => 'products'],
+                            ['route' => 'admin.customers.create', 'icon' => 'fa-users', 'color' => 'text-emerald-600', 'label' => 'New Customer', 'module' => 'customers'],
+                            ['route' => 'admin.suppliers.create', 'icon' => 'fa-truck', 'color' => 'text-purple-700', 'label' => 'New Supplier', 'module' => 'suppliers'],
+                            ['route' => 'admin.expenses.create', 'icon' => 'fa-arrow-down', 'color' => 'text-red-600', 'label' => 'New Expense', 'module' => 'expenses'],
+                            ['route' => 'admin.incomes.create', 'icon' => 'fa-arrow-up', 'color' => 'text-green-600', 'label' => 'New Income', 'module' => 'incomes'],
+                        ], fn ($item) => auth()->user() && auth()->user()->hasPermission($item['module'], 'create')));
+                    @endphp
+
+                    <!-- Quick Add -->
+                    @if(count($quickAddItems))
+                    <div x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false" class="relative">
+                        <button @click="open = !open" title="Quick add"
+                            class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <div x-show="open" x-cloak x-transition:enter.duration.150ms x-transition:leave.duration.100ms
+                            class="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
+                            <p class="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Quick Add</p>
+                            @foreach($quickAddItems as $item)
+                            <a href="{{ route($item['route']) }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                <i class="fas {{ $item['icon'] }} w-5 {{ $item['color'] }}"></i>
+                                <span class="ml-3">{{ $item['label'] }}</span>
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
+
+                    @php
+                        $notifItems = array_values(array_filter([
+                            (auth()->user() && auth()->user()->hasPermission('products', 'view')) ? [
+                                'label' => 'Low Stock', 'icon' => 'fa-exclamation-triangle', 'color' => 'text-red-500',
+                                'count' => App\Models\Product::lowStock()->count(),
+                                'route' => 'admin.products.low-stock',
+                                'text' => 'product(s) at or below their minimum stock level',
+                            ] : null,
+                            (auth()->user() && auth()->user()->hasPermission('agents', 'view')) ? [
+                                'label' => 'Pending Agents', 'icon' => 'fa-user-clock', 'color' => 'text-yellow-500',
+                                'count' => App\Models\User::where('role', 'sales_agent')->where('is_active', false)->whereNull('approved_at')->count(),
+                                'route' => 'admin.agents.pending',
+                                'text' => 'sales agent registration(s) awaiting approval',
+                            ] : null,
+                            (auth()->user() && auth()->user()->hasPermission('leaves', 'view')) ? [
+                                'label' => 'Pending Leave', 'icon' => 'fa-calendar-check', 'color' => 'text-indigo-500',
+                                'count' => App\Models\LeaveRequest::where('status', 'pending')->count(),
+                                'route' => 'admin.leave-requests.index', 'params' => ['status' => 'pending'],
+                                'text' => 'leave request(s) awaiting approval',
+                            ] : null,
+                        ]));
+                        $notifTotal = collect($notifItems)->sum('count');
+                    @endphp
+
+                    <!-- Notifications -->
+                    @if(count($notifItems))
+                    <div x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false" class="relative">
+                        <button @click="open = !open" title="Notifications"
+                            class="relative w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-bell"></i>
+                            @if($notifTotal > 0)
+                            <span class="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{{ $notifTotal > 99 ? '99+' : $notifTotal }}</span>
+                            @endif
+                        </button>
+                        <div x-show="open" x-cloak x-transition:enter.duration.150ms x-transition:leave.duration.100ms
+                            class="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
+                            <p class="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Notifications</p>
+                            @if($notifTotal === 0)
+                            <p class="px-4 py-4 text-sm text-gray-400 text-center"><i class="fas fa-check-circle text-green-400 mr-1"></i> All caught up</p>
+                            @else
+                                @foreach($notifItems as $item)
+                                @if($item['count'] > 0)
+                                <a href="{{ route($item['route'], $item['params'] ?? []) }}" class="flex items-start px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                                    <i class="fas {{ $item['icon'] }} w-5 mt-0.5 {{ $item['color'] }}"></i>
+                                    <span class="ml-3">
+                                        <span class="font-semibold text-gray-900">{{ $item['count'] }} {{ $item['label'] }}</span>
+                                        <span class="block text-xs text-gray-500">{{ $item['text'] }}</span>
+                                    </span>
+                                </a>
+                                @endif
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+
+                    <!-- Fullscreen toggle -->
+                    <div x-data="{ fs: false }" @fullscreenchange.window="fs = !!document.fullscreenElement" class="hidden sm:block">
+                        <button type="button" title="Toggle fullscreen"
+                            @click="document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()"
+                            class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-expand" x-show="!fs"></i>
+                            <i class="fas fa-compress" x-show="fs" x-cloak></i>
+                        </button>
+                    </div>
+
+                    @if(auth()->user() && auth()->user()->isAdmin())
+                    <a href="{{ route('admin.ledger-integrity.index') }}" title="Reconcile All Accounts"
+                        class="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50">
+                        <i class="fas fa-heartbeat"></i>
+                    </a>
+                    @endif
+
+                    <!-- Keyboard shortcuts help -->
+                    <button type="button" @click="$store.wserpUi.shortcutsOpen = true" title="Keyboard shortcuts (?)"
+                        class="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                        <i class="fas fa-keyboard"></i>
+                    </button>
+
                     @if($darkModeEnabled ?? true)
                     <button type="button" onclick="wserpToggleTheme()" title="Toggle dark mode"
                         class="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
@@ -382,6 +459,147 @@
                     </div>
                 </div>
             </header>
+
+            @php
+                $shortcutItems = array_values(array_filter([
+                    ['key' => 'd', 'route' => 'admin.dashboard', 'label' => 'Dashboard'],
+                    ['key' => 's', 'route' => 'admin.sales.index', 'label' => 'Sales', 'module' => 'sales'],
+                    ['key' => 'p', 'route' => 'admin.purchases.index', 'label' => 'Purchases', 'module' => 'purchases'],
+                    ['key' => 'i', 'route' => 'admin.products.index', 'label' => 'Products (Inventory)', 'module' => 'products'],
+                    ['key' => 'c', 'route' => 'admin.customers.index', 'label' => 'Customers', 'module' => 'customers'],
+                    ['key' => 'v', 'route' => 'admin.suppliers.index', 'label' => 'Suppliers (Vendors)', 'module' => 'suppliers'],
+                    ['key' => 'e', 'route' => 'admin.expenses.index', 'label' => 'Expenses', 'module' => 'expenses'],
+                    ['key' => 'n', 'route' => 'admin.incomes.index', 'label' => 'Income', 'module' => 'incomes'],
+                    ['key' => 'r', 'route' => 'admin.reports.profit-loss', 'label' => 'Reports', 'module' => 'reports'],
+                    ['key' => 'h', 'route' => 'admin.employees.index', 'label' => 'Employees (HR)', 'module' => 'employees'],
+                    ['key' => 'a', 'route' => 'admin.accounts.index', 'label' => 'Chart of Accounts', 'module' => 'accounts'],
+                ], fn ($item) => !isset($item['module']) || (auth()->user() && auth()->user()->hasPermission($item['module'], 'view'))));
+                $shortcutMap = collect($shortcutItems)->mapWithKeys(fn ($item) => [$item['key'] => route($item['route'])])->toArray();
+            @endphp
+
+            <!-- ========================================== -->
+            <!-- QUICK SEARCH PALETTE (Ctrl/Cmd+K) -->
+            <!-- ========================================== -->
+            <div x-data="{
+                    query: '',
+                    groups: [],
+                    loading: false,
+                    activeIndex: 0,
+                    debounceTimer: null,
+                    flatItems() {
+                        let items = [];
+                        this.groups.forEach(g => g.items.forEach(it => items.push(it)));
+                        return items;
+                    },
+                    async runSearch() {
+                        const q = this.query.trim();
+                        if (q.length < 2) { this.groups = []; return; }
+                        this.loading = true;
+                        try {
+                            const res = await fetch('{{ route('admin.quick-search') }}?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            const data = await res.json();
+                            this.groups = data.groups || [];
+                            this.activeIndex = 0;
+                        } catch (e) {
+                            this.groups = [];
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+                    debouncedSearch() {
+                        clearTimeout(this.debounceTimer);
+                        this.debounceTimer = setTimeout(() => this.runSearch(), 250);
+                    },
+                    go(index) {
+                        const items = this.flatItems();
+                        if (items[index]) window.location.href = items[index].url;
+                    },
+                    moveActive(delta) {
+                        const items = this.flatItems();
+                        if (!items.length) return;
+                        this.activeIndex = (this.activeIndex + delta + items.length) % items.length;
+                    },
+                }"
+                x-show="$store.wserpUi.searchOpen" x-cloak
+                x-effect="if ($store.wserpUi.searchOpen) { query = ''; groups = []; activeIndex = 0; $nextTick(() => $refs.searchInput && $refs.searchInput.focus()); }"
+                @keydown.escape.window="$store.wserpUi.searchOpen = false"
+                class="fixed inset-0 z-[60] overflow-y-auto" style="display: none;">
+                <div class="fixed inset-0 bg-[rgba(0,0,0,.5)]" @click="$store.wserpUi.searchOpen = false"></div>
+                <div class="relative max-w-xl mx-auto mt-20 px-4">
+                    <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
+                        <div class="flex items-center px-4 py-3 border-b border-gray-100">
+                            <i class="fas fa-search text-gray-400"></i>
+                            <input type="text" x-ref="searchInput" x-model="query" @input="debouncedSearch()"
+                                @keydown.down.prevent="moveActive(1)" @keydown.up.prevent="moveActive(-1)"
+                                @keydown.enter.prevent="go(activeIndex)"
+                                placeholder="Search customers, products, suppliers, sales & purchase invoices..."
+                                class="flex-1 ml-3 outline-none text-sm text-gray-800 placeholder-gray-400">
+                            <kbd class="hidden sm:inline px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 bg-gray-100 rounded border border-gray-200">ESC</kbd>
+                        </div>
+                        <div class="max-h-96 overflow-y-auto">
+                            <template x-if="loading">
+                                <p class="px-4 py-6 text-sm text-gray-400 text-center"><i class="fas fa-spinner fa-spin mr-1"></i> Searching...</p>
+                            </template>
+                            <template x-if="!loading && query.trim().length >= 2 && groups.length === 0">
+                                <p class="px-4 py-6 text-sm text-gray-400 text-center">No results for "<span x-text="query"></span>"</p>
+                            </template>
+                            <template x-if="!loading && query.trim().length < 2">
+                                <p class="px-4 py-6 text-sm text-gray-400 text-center">Type at least 2 characters to search.</p>
+                            </template>
+                            <template x-for="group in groups" :key="group.label">
+                                <div>
+                                    <p class="px-4 pt-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider" x-text="group.label"></p>
+                                    <template x-for="item in group.items" :key="item.url">
+                                        <a :href="item.url"
+                                            class="flex items-center px-4 py-2.5 text-sm"
+                                            :class="(flatItems().indexOf(item) === activeIndex) ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'">
+                                            <i class="fas" :class="group.icon + ' ' + group.color"></i>
+                                            <span class="ml-3 flex-1 min-w-0">
+                                                <span class="block font-medium truncate" x-text="item.title"></span>
+                                                <span class="block text-xs text-gray-400 truncate" x-text="item.subtitle"></span>
+                                            </span>
+                                        </a>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- KEYBOARD SHORTCUTS HELP -->
+            <!-- ========================================== -->
+            <div x-show="$store.wserpUi.shortcutsOpen" x-cloak
+                @keydown.escape.window="$store.wserpUi.shortcutsOpen = false"
+                class="fixed inset-0 z-[60] overflow-y-auto" style="display: none;">
+                <div class="fixed inset-0 bg-[rgba(0,0,0,.5)]" @click="$store.wserpUi.shortcutsOpen = false"></div>
+                <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900"><i class="fas fa-keyboard text-gray-400 mr-2"></i> Keyboard Shortcuts</h3>
+                            <button @click="$store.wserpUi.shortcutsOpen = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="space-y-2 text-sm max-h-96 overflow-y-auto">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Quick search</span>
+                                <span><kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">K</kbd></span>
+                            </div>
+                            @foreach($shortcutItems as $item)
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">{{ $item['label'] }}</span>
+                                <span><kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">G</kbd> <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">{{ strtoupper($item['key']) }}</kbd></span>
+                            </div>
+                            @endforeach
+                            <div class="flex items-center justify-between pt-2 mt-2 border-t border-gray-100">
+                                <span class="text-gray-600">Show this help</span>
+                                <span><kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">?</kbd></span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-4">Shortcuts are ignored while typing in a text field.</p>
+                    </div>
+                </div>
+            </div>
 
             <!-- Page Content -->
             <main class="p-4 lg:p-6">
@@ -430,6 +648,68 @@
                     }
                 });
             }
+        });
+    </script>
+
+    <!-- Quick search / keyboard shortcuts store + global hotkeys -->
+    <script>
+        const wserpShortcutMap = @json($shortcutMap ?? []);
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('wserpUi', { searchOpen: false, shortcutsOpen: false });
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            let chordArmed = false;
+            let chordTimer = null;
+
+            function isTyping(el) {
+                if (!el) return false;
+                const tag = el.tagName;
+                return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+            }
+
+            document.addEventListener('keydown', function (e) {
+                // Ctrl/Cmd+K - quick search, works everywhere (even while typing).
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    chordArmed = false;
+                    Alpine.store('wserpUi').searchOpen = true;
+                    return;
+                }
+
+                const ui = Alpine.store('wserpUi');
+                const modalOpen = ui.searchOpen || ui.shortcutsOpen;
+
+                // Never hijack typing, an open modal, or any other modifier combo.
+                if (isTyping(e.target) || modalOpen || e.ctrlKey || e.metaKey || e.altKey) {
+                    chordArmed = false;
+                    return;
+                }
+
+                if (chordArmed) {
+                    chordArmed = false;
+                    clearTimeout(chordTimer);
+                    const url = wserpShortcutMap[e.key.toLowerCase()];
+                    if (url) {
+                        e.preventDefault();
+                        window.location.href = url;
+                    }
+                    return;
+                }
+
+                if (e.key === 'g') {
+                    chordArmed = true;
+                    clearTimeout(chordTimer);
+                    chordTimer = setTimeout(() => { chordArmed = false; }, 1200);
+                    return;
+                }
+
+                if (e.key === '?') {
+                    e.preventDefault();
+                    Alpine.store('wserpUi').shortcutsOpen = true;
+                }
+            });
         });
     </script>
     @yield('scripts')

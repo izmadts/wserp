@@ -23,6 +23,7 @@
                         'about' => ['fa-info-circle', 'About This System'],
                         'how-money-flows' => ['fa-exchange-alt', 'How Money Flows (Double-Entry Basics)'],
                         'roles-permissions' => ['fa-user-shield', 'Roles & Permissions'],
+                        'top-bar-tools' => ['fa-toolbox', 'Top Bar Tools'],
                     ],
                     'Inventory' => [
                         'categories' => ['fa-tags', 'Categories'],
@@ -182,6 +183,21 @@
                     under Settings &rarr; Permissions before handing an account to a new staff member.
                 </p>
             </div>
+        </section>
+
+        <section id="top-bar-tools" class="bg-white rounded-xl shadow-card p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-3"><i class="fas fa-toolbox text-blue-500 mr-2"></i>Top Bar Tools</h2>
+            <p class="text-gray-700 leading-7 mb-3">A row of quick tools sits in the header, to the left of the profile menu, on every admin page:</p>
+            <ul class="list-disc pl-6 space-y-1.5 text-gray-700 text-sm leading-6 mb-3">
+                <li><strong>Quick Search</strong> (<kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">Ctrl</kbd>/<kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">Cmd</kbd>+<kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">K</kbd>, magnifying-glass icon) - jump straight to a Customer, Supplier, Product, or Sale/Purchase invoice by typing a few characters, from anywhere. Only searches modules you have View access to.</li>
+                <li><strong>Quick Add</strong> (+ icon) - one click to New Sale/Purchase/Product/Customer/Supplier/Expense/Income. Only lists what you have Create access to, and disappears entirely if that's nothing.</li>
+                <li><strong>Notifications</strong> (bell icon) - live counts for Low Stock products, Pending Agent approvals, and Pending Leave requests, each gated the same way as its module. Click a row to go straight to that list, already filtered.</li>
+                <li><strong>Fullscreen</strong> (expand icon, desktop only) - toggles the browser's fullscreen mode for distraction-free data entry.</li>
+                <li><strong>Reconcile All Accounts</strong> (red heartbeat icon, admin only) - shortcut straight to the <a href="#reconcile-all" class="text-blue-600 hover:underline">ledger integrity tool</a>.</li>
+                <li><strong>Keyboard Shortcuts</strong> (keyboard icon, desktop only, or press <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">?</kbd>) - opens a cheat-sheet of every <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">G</kbd> then <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">letter</kbd> navigation shortcut (e.g. <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">G</kbd> <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">S</kbd> for Sales, <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">G</kbd> <kbd class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded border border-gray-200">P</kbd> for Purchases), filtered to modules you can view. Shortcuts never fire while typing in a text field.</li>
+                <li><strong>Dark Mode</strong> (moon/sun icon) - if enabled in Settings &rarr; General.</li>
+            </ul>
+            <p class="text-gray-700 text-sm leading-6">Every one of these respects the same permission matrix as the rest of the app - nothing here bypasses <a href="#roles-permissions" class="text-blue-600 hover:underline">Roles & Permissions</a>, it's just a faster way to reach what you already have access to.</p>
         </section>
 
         <!-- ===================== INVENTORY ===================== -->

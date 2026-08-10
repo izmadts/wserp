@@ -131,20 +131,6 @@
             </div>
         </a>
 
-        @if(auth()->user()?->isAdmin())
-        <a href="{{ route('admin.ledger-integrity.index') }}"
-           class="bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-lg p-4 text-white hover:shadow-xl transition-shadow duration-200">
-            <div class="flex items-center">
-                <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-heartbeat text-xl"></i>
-                </div>
-                <div class="ml-3">
-                    <h4 class="text-sm font-semibold">Reconcile All Accounts</h4>
-                    <p class="text-xs text-red-100">Ledger Integrity Scan</p>
-                </div>
-            </div>
-        </a>
-        @endif
     </div>
 
     <!-- ========================================== -->

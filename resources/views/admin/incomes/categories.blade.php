@@ -119,7 +119,7 @@
          style="display: none;">
         
         <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 bg-black bg-opacity-50" @click="showEditModal = false"></div>
+            <div class="fixed inset-0 bg-[rgba(0,0,0,.5)]" @click="showEditModal = false"></div>
             
             <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
                 <div class="flex items-center justify-between mb-4">

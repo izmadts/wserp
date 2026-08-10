@@ -42,6 +42,7 @@ use App\Http\Controllers\Admin\SalaryComponentController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\MyPayslipController;
 use App\Http\Controllers\Admin\GuideController;
+use App\Http\Controllers\Admin\QuickSearchController;
 
 // Agent Controllers
 use App\Http\Controllers\Agent\DashboardController as AgentDashboardController;
@@ -101,6 +102,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // 1. DASHBOARD
     // ==========================================
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('permission:dashboard,view')->name('dashboard');
+
+    // Ctrl/Cmd+K quick search palette - no permission: middleware here since
+    // it aggregates several modules at once; QuickSearchController filters
+    // each group internally by hasPermission() instead.
+    Route::get('/quick-search', [QuickSearchController::class, 'search'])->name('quick-search');
 
     // ==========================================
     // 2. ACCOUNTS MANAGEMENT
