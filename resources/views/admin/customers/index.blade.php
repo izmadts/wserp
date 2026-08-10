@@ -26,7 +26,8 @@
                         <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Code</th>
                         <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Name</th>
                         <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Email</th>
-                        <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Phone</th>
+                        <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Mobile</th>
+                        <th class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Type</th>
                         <th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Balance</th>
                         <th class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Sales</th>
                         <th class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Status</th>
@@ -44,7 +45,16 @@
                             <span class="font-medium text-gray-900">{{ $customer->name }}</span>
                         </td>
                         <td class="py-3 px-2 text-sm text-gray-600">{{ $customer->email ?? '-' }}</td>
-                        <td class="py-3 px-2 text-sm text-gray-600">{{ $customer->phone ?? '-' }}</td>
+                        <td class="py-3 px-2 text-sm text-gray-600">{{ $customer->mobile ?? '-' }}</td>
+                        <td class="py-3 px-2 text-center">
+                            @if($customer->customerGroup)
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $customer->customerGroup->price_field == 'wholesale_price' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800' }}">
+                                    {{ $customer->customerGroup->price_field == 'wholesale_price' ? 'Wholesale' : 'Retail' }}
+                                </span>
+                            @else
+                                <span class="text-xs text-gray-400">-</span>
+                            @endif
+                        </td>
                         <td class="py-3 px-2 text-right font-medium {{ $customer->balance > 0 ? 'text-red-600' : 'text-green-600' }}">
                             {{ $customer->formatted_balance }}
                         </td>
