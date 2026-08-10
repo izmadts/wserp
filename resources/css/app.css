@@ -501,3 +501,18 @@
     cursor: not-allowed;
     pointer-events: none;
 }
+
+/*
+ * dataTables.bootstrap5.min.css (CDN, loaded before this file - see
+ * layouts/admin.blade.php's <head>) sets `div.dataTables_wrapper
+ * div.dt-row { position: relative; }`. That establishes .dt-row as a
+ * positioning/stacking context, which put some other absolutely-positioned
+ * element (invisible) on top of the search input and table rows, silently
+ * eating the first click on both - confirmed by disabling this exact
+ * property in devtools. Selector matches the CDN rule's specificity
+ * (2 classes + 2 element types) so this override reliably wins despite
+ * loading later in the same cascade, no !important needed.
+ */
+div.dataTables_wrapper div.dt-row {
+    position: static;
+}
