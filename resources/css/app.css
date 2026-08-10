@@ -459,6 +459,27 @@
     text-decoration: none;
     cursor: pointer;
     transition: background-color 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/*
+ * Rapid clicking on a page-number button or a sortable column header (both
+ * plain text, not styled as buttons at the browser's own level) can get
+ * interpreted as the start of a text-selection drag instead of two
+ * discrete clicks - the browser swallows the first click resolving the
+ * selection gesture, so it visibly "needs a double click," and what
+ * actually results on screen is the row/header text highlighted instead of
+ * the page changing or the column sorting. `user-select: none` on every
+ * clickable-but-textual DataTables control removes the ambiguity so a
+ * single click always reaches the click handler.
+ */
+.dataTables_wrapper .dataTables_paginate,
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label,
+.dataTables_wrapper table thead th {
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .dataTables_wrapper .dataTables_paginate .page-link:hover {
