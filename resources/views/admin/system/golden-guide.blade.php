@@ -16,6 +16,7 @@
                 <a href="#kya-hai" class="block px-3 py-1.5 rounded-lg text-gray-700 hover:bg-yellow-50 hover:text-yellow-700"><i class="fas fa-crown w-4 ml-1 text-gray-400"></i> گولڈن کلب کیا ہے</a>
                 <a href="#membership" class="block px-3 py-1.5 rounded-lg text-gray-700 hover:bg-yellow-50 hover:text-yellow-700"><i class="fas fa-user-plus w-4 ml-1 text-gray-400"></i> ممبرشپ اور تصدیق</a>
                 <a href="#zaroori-usool" class="block px-3 py-1.5 rounded-lg text-red-700 hover:bg-red-50"><i class="fas fa-exclamation-circle w-4 ml-1 text-red-400"></i> اہم اصول - پیمنٹ اور پوائنٹس</a>
+                <a href="#zero-points" class="block px-3 py-1.5 rounded-lg text-orange-700 hover:bg-orange-50"><i class="fas fa-search w-4 ml-1 text-orange-400"></i> پوائنٹس 0 کیوں نظر آ رہے ہیں؟</a>
                 <a href="#points" class="block px-3 py-1.5 rounded-lg text-gray-700 hover:bg-yellow-50 hover:text-yellow-700"><i class="fas fa-coins w-4 ml-1 text-gray-400"></i> پوائنٹس کیسے ملتے ہیں</a>
                 <a href="#tiers" class="block px-3 py-1.5 rounded-lg text-gray-700 hover:bg-yellow-50 hover:text-yellow-700"><i class="fas fa-medal w-4 ml-1 text-gray-400"></i> ممبرشپ لیول (سلور/گولڈ/پلاٹینم)</a>
                 <a href="#redeem" class="block px-3 py-1.5 rounded-lg text-gray-700 hover:bg-yellow-50 hover:text-yellow-700"><i class="fas fa-gift w-4 ml-1 text-gray-400"></i> پوائنٹس ریڈیم کرنا</a>
@@ -79,6 +80,43 @@
                 نوٹ: پہلے اس سسٹم میں ایک خرابی تھی جس کی وجہ سے نئی سیل بناتے وقت اگر "Paid" اسٹیٹس منتخب کر لیا جاتا تو
                 کسٹمر کو پوائنٹس نہیں ملتے تھے، چاہے سیل واقعی مکمل ادا شدہ ہی کیوں نہ ہو۔ اب یہ ٹھیک کر دیا گیا ہے، اور
                 "Paid" اسٹیٹس فارم سے منتخب کرنا ممکن ہی نہیں - یہ صرف اوپر بتائے گئے طریقے سے خودکار طے ہوتا ہے۔
+            </p>
+        </section>
+
+        <section id="zero-points" class="bg-white rounded-xl shadow-card p-6 border-2 border-orange-200">
+            <h2 class="text-xl font-bold text-orange-700 mb-3"><i class="fas fa-search ml-2"></i>پوائنٹس 0 کیوں نظر آ رہے ہیں؟ (چیک لسٹ)</h2>
+            <p class="text-gray-700 leading-8 mb-3">
+                اگر آپ کو گولڈن کلب اسکرین پر بہت سے کسٹمر "سلور" لیول میں نظر آ رہے ہیں لیکن پوائنٹس 0 ہیں تو گھبرائیں
+                نہیں - یہ عام طور پر خرابی نہیں، بلکہ نیچے دی گئی دو شرائط میں سے کوئی ایک پوری نہیں ہوئی۔ ترتیب سے چیک
+                کریں:
+            </p>
+            <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
+                <div class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <p class="text-orange-900 text-sm leading-7"><strong>کیا کسٹمر تصدیق شدہ (Verified) ہے؟</strong> Admin
+                        → Golden Club → Pending Verification میں چیک کریں۔ جب تک ایڈمن کسٹمر کو ویریفائی نہ کرے، اس کے
+                        لیول کچھ بھی دکھے (سلور/گولڈ/پلاٹینم بیج ہمیشہ نظر آتا ہے، یہ صرف ایک ڈیفالٹ بیج ہے) - پوائنٹس
+                        ہمیشہ 0 ہی رہیں گے۔</p>
+                </div>
+                <div class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <p class="text-orange-900 text-sm leading-7"><strong>کیا سیل واقعی "Paid" اسٹیٹس پر پہنچی؟</strong>
+                        "Confirmed" یا "Partial" اسٹیٹس پر پوائنٹس نہیں ملتے - صرف اُس وقت ملتے ہیں جب سیل کی پوری رقم
+                        وصول ہو کر اسٹیٹس خودکار "Paid" بنے۔ سیل کی تفصیل کھول کر "Due Amount" چیک کریں - اگر یہ 0 نہیں تو
+                        ابھی پوائنٹس نہیں ملیں گے۔</p>
+                </div>
+                <div class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <p class="text-orange-900 text-sm leading-7"><strong>"سلور" بیج کا مطلب خریداری نہیں۔</strong> ہر نیا
+                        رجسٹرڈ کسٹمر شروع سے "سلور" پر ہوتا ہے، چاہے اس نے ابھی تک ایک روپے کی بھی خریداری نہ کی ہو۔ سلور
+                        بیج دیکھ کر یہ نہ سمجھیں کہ کسٹمر نے خریداری کی اور پوائنٹس ملنے چاہییں تھے - اصل ثبوت پوائنٹس اور
+                        Lifetime Purchase کا ہندسہ ہے، بیج نہیں۔</p>
+                </div>
+            </div>
+            <p class="text-gray-500 text-sm leading-7 mt-3">
+                نوٹ: گولڈن کلب پوائنٹس اور سیل ایجنٹ کا اپنا کمیشن دو الگ الگ چیزیں ہیں - کمیشن ایجنٹ کو سیل پر ملتا ہے
+                (Reports → Commission سے دیکھیں)، جبکہ پوائنٹس کسٹمر کو ملتے ہیں (اوپر بیان کردہ شرائط پر)۔ ایک کا دوسرے
+                پر انحصار نہیں۔
             </p>
         </section>
 
