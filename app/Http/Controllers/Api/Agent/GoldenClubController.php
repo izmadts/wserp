@@ -29,8 +29,18 @@ class GoldenClubController extends ApiController
 
     public function customers(Request $request)
     {
-        $customers = Customer::where('created_by_agent_id', $this->agent()->id)
-            ->orderByDesc('lifetime_purchase')
+        $query = Customer::where('created_by_agent_id', $this->agent()->id);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $customers = $query->orderByDesc('lifetime_purchase')
             ->paginate($request->input('per_page', 30));
 
         return $this->paginated($customers, fn ($c) => new CustomerResource($c));

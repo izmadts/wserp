@@ -7,10 +7,16 @@ use App\Models\Customer;
 use App\Models\AgentCommissionLog;
 use App\Http\Resources\Api\SaleResource;
 use App\Http\Resources\Api\CommissionLogResource;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 
 class ReportController extends ApiController
 {
+    // Ledger-recognized statuses only - matches the web agent report/dashboard
+    // controllers and SaleService::applyStockAndAccounting. A draft sale
+    // never posted anything and shouldn't inflate the agent's own totals.
+    private const SALE_LEDGER_STATUSES = ['confirmed', 'partial', 'paid'];
+
     public function overview(Request $request)
     {
         $agent = $this->agent();
@@ -18,9 +24,12 @@ class ReportController extends ApiController
         return $this->success([
             'total_customers' => Customer::where('created_by_agent_id', $agent->id)->count(),
             'active_customers' => Customer::where('created_by_agent_id', $agent->id)->where('is_active', true)->count(),
-            'total_sales' => (float) Sale::where('agent_id', $agent->id)->sum('total_amount'),
+            'total_sales' => (float) Sale::where('agent_id', $agent->id)
+                ->whereIn('status', self::SALE_LEDGER_STATUSES)
+                ->sum('total_amount'),
             'total_commission' => (float) AgentCommissionLog::where('agent_id', $agent->id)->sum('amount'),
             'monthly_sales' => (float) Sale::where('agent_id', $agent->id)
+                ->whereIn('status', self::SALE_LEDGER_STATUSES)
                 ->whereMonth('sale_date', now()->month)->whereYear('sale_date', now()->year)
                 ->sum('total_amount'),
             'monthly_commission' => (float) AgentCommissionLog::where('agent_id', $agent->id)
@@ -101,7 +110,11 @@ class ReportController extends ApiController
         $agent = $this->agent();
         $year = $request->input('year', now()->year);
 
+        // Ledger-recognized statuses only, so this preview matches what
+        // CommissionService::closeMonthTargetBonuses() will actually pay -
+        // matches Agent\ReportController::target() (web).
         $currentMonthSales = (float) Sale::where('agent_id', $agent->id)
+            ->whereIn('status', self::SALE_LEDGER_STATUSES)
             ->whereMonth('sale_date', now()->month)->whereYear('sale_date', now()->year)
             ->sum('total_amount');
 
@@ -111,6 +124,7 @@ class ReportController extends ApiController
         $monthlyData = [];
         for ($i = 1; $i <= 12; $i++) {
             $monthSales = (float) Sale::where('agent_id', $agent->id)
+                ->whereIn('status', self::SALE_LEDGER_STATUSES)
                 ->whereMonth('sale_date', $i)->whereYear('sale_date', $year)
                 ->sum('total_amount');
 
@@ -138,11 +152,24 @@ class ReportController extends ApiController
         ]);
     }
 
-    private function calculateBonus($achievement)
+    /**
+     * Reads tiers from the same admin-configurable setting
+     * CommissionService::closeMonthTargetBonuses() actually pays from -
+     * this used to be hardcoded here (matching an old, already-fixed copy
+     * of the same bug in the web Agent\ReportController), so changing the
+     * tiers in Settings silently stopped matching what this app showed agents.
+     */
+    private function calculateBonus($achievementPct)
     {
-        if ($achievement >= 150) return 20000;
-        if ($achievement >= 120) return 10000;
-        if ($achievement >= 100) return 5000;
-        return 0;
+        $tiers = CommissionService::getSetting('commission.target_bonus_tiers');
+        $bonus = 0;
+
+        foreach ($tiers as $tier) {
+            if ($achievementPct >= $tier['achievement_pct']) {
+                $bonus = max($bonus, $tier['bonus']);
+            }
+        }
+
+        return $bonus;
     }
 }

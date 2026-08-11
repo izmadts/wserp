@@ -17,9 +17,16 @@ class DashboardController extends ApiController
     {
         $agent = $this->agent();
 
-        $sales = Sale::where('agent_id', $agent->id)->get();
+        // Ledger-recognized statuses only - matches the web agent dashboard
+        // (Agent\DashboardController) and SaleService::applyStockAndAccounting.
+        // A draft sale never posted anything and shouldn't inflate the
+        // agent's own totals shown on this screen.
+        $saleLedgerStatuses = ['confirmed', 'partial', 'paid'];
+
+        $sales = Sale::where('agent_id', $agent->id)->whereIn('status', $saleLedgerStatuses)->get();
 
         $currentMonthSales = Sale::where('agent_id', $agent->id)
+            ->whereIn('status', $saleLedgerStatuses)
             ->whereMonth('sale_date', now()->month)
             ->whereYear('sale_date', now()->year)
             ->get();
@@ -41,6 +48,7 @@ class DashboardController extends ApiController
             $date = now()->subMonths($i);
             $monthlyLabels[] = $date->format('M');
             $monthlySalesData[] = (float) Sale::where('agent_id', $agent->id)
+                ->whereIn('status', $saleLedgerStatuses)
                 ->whereMonth('sale_date', $date->month)
                 ->whereYear('sale_date', $date->year)
                 ->sum('total_amount');
