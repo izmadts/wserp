@@ -129,17 +129,35 @@
                                 <template x-for="(item, index) in items" :key="index">
                                     <tr class="border-b border-gray-100 hover:bg-blue-50/30 transition-colors duration-150">
                                         <td class="py-1.5 px-1.5">
-                                            <select :name="'items['+index+'][product_id]'"
-                                                x-model="item.product_id"
-                                                @change="onProductChange(index, $event)"
-                                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                                                <option value="">Select Product</option>
-                                                @foreach($products as $product)
-                                                <option value="{{ $product->id }}" data-price="{{ $product->purchase_price }}">
-                                                    {{ Str::limit($product->name, 25) }} ({{ $product->code }})
-                                                </option>
-                                                @endforeach
-                                            </select>
+                                            <div class="relative"
+                                                x-data="{
+                                                    open: false, query: '', highlighted: 0,
+                                                    get selected() { return allProducts.find(p => p.id == item.product_id) || null; },
+                                                    get results() {
+                                                        const q = this.query.trim().toLowerCase();
+                                                        return q ? allProducts.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)) : allProducts;
+                                                    },
+                                                    pick(p) { item.product_id = p.id; onProductChange(index); this.open = false; this.query = ''; }
+                                                }"
+                                                @click.outside="open = false">
+                                                <input type="text" autocomplete="off"
+                                                    :value="open ? query : (selected ? selected.name + ' (' + selected.code + ')' : '')"
+                                                    @focus="open = true; query = ''; highlighted = 0"
+                                                    @input="open = true; query = $event.target.value; highlighted = 0"
+                                                    @keydown.escape="open = false"
+                                                    @keydown.down.prevent="highlighted = Math.min(highlighted + 1, results.length - 1)"
+                                                    @keydown.up.prevent="highlighted = Math.max(highlighted - 1, 0)"
+                                                    @keydown.enter.prevent="results[highlighted] && pick(results[highlighted])"
+                                                    placeholder="Search product..."
+                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                                <input type="hidden" :name="'items['+index+'][product_id]'" x-model="item.product_id">
+                                                <div x-show="open" x-cloak class="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                                                    <template x-for="(p, i) in results" :key="p.id">
+                                                        <div @click="pick(p)" @mouseenter="highlighted = i" :class="i === highlighted ? 'bg-blue-50' : ''" class="px-2 py-1.5 text-sm cursor-pointer hover:bg-blue-50" x-text="p.name + ' (' + p.code + ')'"></div>
+                                                    </template>
+                                                    <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400">No products found</div>
+                                                </div>
+                                            </div>
                                             <p class="mt-1 text-xs text-orange-600" x-show="overCost(item)">
                                                 <i class="fas fa-exclamation-triangle mr-1"></i>Well above last cost (Rs. <span x-text="item.expectedCost"></span>)
                                             </p>
@@ -252,17 +270,32 @@
                                 <div class="space-y-2">
                                     <!-- Product Select -->
                                     <div>
-                                        <select :name="'items['+index+'][product_id]'"
-                                            x-model="item.product_id"
-                                            @change="onProductChange(index, $event)"
-                                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                                            <option value="">Select Product</option>
-                                            @foreach($products as $product)
-                                            <option value="{{ $product->id }}" data-price="{{ $product->purchase_price }}">
-                                                {{ $product->name }} ({{ $product->code }})
-                                            </option>
-                                            @endforeach
-                                        </select>
+                                        <div class="relative"
+                                            x-data="{
+                                                open: false, query: '',
+                                                get selected() { return allProducts.find(p => p.id == item.product_id) || null; },
+                                                get results() {
+                                                    const q = this.query.trim().toLowerCase();
+                                                    return q ? allProducts.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)) : allProducts;
+                                                },
+                                                pick(p) { item.product_id = p.id; onProductChange(index); this.open = false; this.query = ''; }
+                                            }"
+                                            @click.outside="open = false">
+                                            <input type="text" autocomplete="off"
+                                                :value="open ? query : (selected ? selected.name + ' (' + selected.code + ')' : '')"
+                                                @focus="open = true; query = ''"
+                                                @input="open = true; query = $event.target.value"
+                                                @keydown.escape="open = false"
+                                                placeholder="Search product..."
+                                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                            <input type="hidden" :name="'items['+index+'][product_id]'" x-model="item.product_id">
+                                            <div x-show="open" x-cloak class="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                                                <template x-for="p in results" :key="p.id">
+                                                    <div @click="pick(p)" class="px-2 py-1.5 text-sm cursor-pointer hover:bg-blue-50" x-text="p.name + ' (' + p.code + ')'"></div>
+                                                </template>
+                                                <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400">No products found</div>
+                                            </div>
+                                        </div>
                                         <p class="mt-1 text-xs text-orange-600" x-show="overCost(item)">
                                             <i class="fas fa-exclamation-triangle mr-1"></i>Well above last cost (Rs. <span x-text="item.expectedCost"></span>)
                                         </p>
@@ -352,6 +385,8 @@
 
 <script>
     function purchaseForm() {
+        const allProducts = @json($productsForJs);
+
         return {
             items: [],
             discount: 0,
@@ -360,6 +395,7 @@
             subTotal: 0,
             discountAmount: 0,
             grandTotal: 0,
+            allProducts: allProducts,
 
             init() {
                 this.addRow();
@@ -385,11 +421,11 @@
                 }
             },
 
-            onProductChange(index, event) {
-                const option = event.target.selectedOptions[0];
+            onProductChange(index) {
                 const item = this.items[index];
-                if (option && option.value) {
-                    const price = parseFloat(option.dataset.price) || 0;
+                const product = this.allProducts.find(p => p.id == item.product_id);
+                if (product) {
+                    const price = product.purchase_price || 0;
                     item.unit_price = price;
                     item.expectedCost = price;
                 } else {

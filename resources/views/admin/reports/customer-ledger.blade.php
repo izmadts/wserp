@@ -20,6 +20,11 @@
         'pdfUrl' => route('admin.reports.customer-ledger-pdf', [$customer] + request()->only(['from_date', 'to_date'])),
     ])
 
+    @include('admin.reports.partials.ledger-share', [
+        'partyName' => $customer->name,
+        'partyPhone' => $customer->mobile ?: $customer->phone,
+    ])
+
     <div class="bg-white rounded-xl shadow-card overflow-hidden">
         <div class="p-6">
             @include('admin.reports.partials.ledger-table')

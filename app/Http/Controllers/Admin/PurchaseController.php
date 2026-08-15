@@ -35,7 +35,8 @@ class PurchaseController extends Controller
     {
         $suppliers = Supplier::active()->orderBy('name')->get();
         $products = Product::active()->orderBy('name')->get();
-        return view('admin.purchases.create', compact('suppliers', 'products'));
+        $productsForJs = $this->productsForJs($products);
+        return view('admin.purchases.create', compact('suppliers', 'products', 'productsForJs'));
     }
 
     public function store(Request $request)
@@ -160,9 +161,20 @@ class PurchaseController extends Controller
         }
 
         $suppliers = Supplier::active()->orderBy('name')->get();
-        $products = Product::active()->orderBy('name')->get();
         $purchase->load('items');
-        return view('admin.purchases.edit', compact('purchase', 'suppliers', 'products'));
+
+        // Union "currently active" products with whatever this purchase's
+        // existing items already reference, so an item on a product that's
+        // since gone inactive still shows correctly instead of the edit
+        // form's product search silently blanking its selection.
+        $existingProductIds = $purchase->items->pluck('product_id');
+        $products = Product::where('is_active', true)
+            ->orWhereIn('id', $existingProductIds)
+            ->orderBy('name')
+            ->get();
+        $productsForJs = $this->productsForJs($products);
+
+        return view('admin.purchases.edit', compact('purchase', 'suppliers', 'products', 'productsForJs'));
     }
 
     public function update(Request $request, Purchase $purchase)
@@ -291,5 +303,21 @@ class PurchaseController extends Controller
         }
 
         return back()->with('success', 'Payment added successfully!');
+    }
+
+    /**
+     * Flat product data for the purchase form's searchable product
+     * combobox - lets it filter by name/code client-side instead of
+     * relying on a native <select>'s browser-built-in search.
+     */
+    private function productsForJs($products)
+    {
+        return $products->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'code' => $p->code,
+            'purchase_price' => (float) $p->purchase_price,
+            'current_stock' => (float) $p->current_stock,
+        ])->values();
     }
 }
