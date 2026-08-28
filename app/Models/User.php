@@ -42,6 +42,8 @@ class User extends Authenticatable
         'approved_by',
         'admin_note',
         'last_login_at',
+        'fcm_token',
+        'fcm_token_platform',
     ];
 
     protected $hidden = [
