@@ -18,6 +18,7 @@ class SupplierPayment extends Model
         'payment_method',
         'reference_no',
         'notes',
+        'created_by',
     ];
 
     protected $casts = [
@@ -28,6 +29,11 @@ class SupplierPayment extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function getFormattedAmountAttribute()

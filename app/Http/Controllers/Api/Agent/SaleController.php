@@ -139,35 +139,28 @@ class SaleController extends ApiController
             }
 
             // A 'cash' sale posts its FULL total straight to the Cash account
-            // the moment it's confirmed (SaleService::postAccounting) - there
+            // the moment it's approved (SaleService::postAccounting) - there
             // is no receivable behind a cash sale to collect the rest from
-            // later. Confirming one for less than the full total would
+            // later. Submitting one for less than the full total would
             // overstate Cash by the shortfall with nothing tracking the
-            // difference. If the customer isn't paying it all today, this
-            // has to be a Credit sale instead.
-            if ($validated['status'] !== 'draft' && $validated['payment_term'] === 'cash' && abs($amountReceived - $totalAmount) > 0.01) {
+            // difference once admin confirms it. If the customer isn't
+            // paying it all today, this has to be a Credit sale instead.
+            // Checked at submission time (not just at admin confirm) so bad
+            // data is caught immediately instead of surfacing as a confusing
+            // failure in the approvals queue later.
+            if ($amountReceived > 0 && $validated['payment_term'] === 'cash' && abs($amountReceived - $totalAmount) > 0.01) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'amount_received' => 'A cash sale must be paid in full. Enter the full amount received, save as Draft instead, or choose Credit payment term if the customer will pay over time.',
+                    'amount_received' => 'A cash sale must be paid in full. Enter the full amount received, or choose Credit payment term if the customer will pay over time.',
                 ]);
             }
 
-            // A real payment can't be received against a draft/quote - the
-            // sale is confirmed the moment money changes hands. status only
-            // ever reaches 'paid'/'partial' via recordPayment() below, never
-            // written directly, so it can't land on "Paid" with $0 recorded.
-            $status = $amountReceived > 0 ? 'confirmed' : $validated['status'];
-
-            // Credit-hold / credit-limit gate - both off by default, admin
-            // opt-in via Settings > Commission & Bonus. A draft sale hasn't
-            // posted a receivable yet, so it's not gated here.
-            if ($status !== 'draft' && $validated['payment_term'] === 'credit') {
-                $blockMessage = $this->commissionService->creditGateMessage($customer, $totalAmount);
-                if ($blockMessage) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'customer_id' => $blockMessage,
-                    ]);
-                }
-            }
+            // Every agent-submitted sale lands as draft, regardless of what
+            // the client sent for 'status' or whether a payment was
+            // collected up front - admin approval (Admin\SaleController::
+            // confirm) is the only thing that now posts stock/accounting for
+            // an agent-originated sale. Same rule the customer-app order
+            // channel already followed (see Api\Customer\OrderController).
+            $status = 'draft';
 
             $sale = Sale::create([
                 'customer_id' => $customer->id,
@@ -193,18 +186,19 @@ class SaleController extends ApiController
                 $sale->items()->create($itemData);
             }
 
-            $this->saleService->applyStockAndAccounting($sale);
-
+            // No applyStockAndAccounting() call here - the sale is always a
+            // draft at this point (see $status above), and that method is a
+            // no-op for drafts anyway. Stock/accounting only post once an
+            // admin confirms it (Admin\SaleController::confirm).
             $customer->incrementOrderCount();
             $this->commissionService->awardNewCustomerBonus($customer, $sale);
 
             if ($amountReceived > 0) {
-                // recordPayment() sets paid_amount/due_amount/status itself
-                // and fires SaleCreated (Golden Club) the moment it
-                // genuinely reaches paid for the first time - routing an
-                // instant full payment through here (instead of creating the
-                // row already status='paid') is what makes that event fire.
-                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date']);
+                // Recorded as a PENDING payment - it sits alongside the
+                // draft sale with zero ledger effect until admin confirms
+                // the sale (which approves any pending payment on it too,
+                // see Admin\SaleController::confirm).
+                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date'], null, null, 'pending', $this->agent()->id);
             }
 
             return $sale;
@@ -236,9 +230,6 @@ class SaleController extends ApiController
             'customer_id' => 'required|exists:customers,id',
             'sale_date' => 'required|date',
             'payment_term' => 'required|in:cash,credit',
-            // 'partial'/'paid' deliberately excluded - derived from recorded
-            // payments (SaleService::recordPayment), never picked directly.
-            'status' => 'required|in:draft,confirmed',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
@@ -277,7 +268,7 @@ class SaleController extends ApiController
         // collect a payment, so a sale that still owes money can't be
         // (re)labeled 'cash' here - Add Payment is the only real way to
         // settle it, or Credit is the correct term for it either way.
-        if ($validated['status'] !== 'draft' && $validated['payment_term'] === 'cash' && (float) $sale->due_amount > 0.01) {
+        if ($sale->status !== 'draft' && $validated['payment_term'] === 'cash' && (float) $sale->due_amount > 0.01) {
             return $this->error('This sale still has an outstanding balance, so it cannot be set to Cash. Use Credit instead, or record the remaining payment first via Add Payment.', 422);
         }
 
@@ -301,11 +292,18 @@ class SaleController extends ApiController
                     ];
                 }
 
+                // Status is deliberately NOT settable here - it stays
+                // whatever it already was. Draft stays draft (only admin
+                // confirm/reject moves it off draft); an already-confirmed
+                // sale stays confirmed. Without this, an agent could use
+                // this endpoint to self-promote a draft straight to
+                // confirmed (which syncItemsAndUpdate below would then post
+                // stock/accounting for), completely bypassing admin review.
                 $sale->update([
                     'customer_id' => $validated['customer_id'],
                     'sale_date' => $validated['sale_date'],
                     'payment_term' => $validated['payment_term'],
-                    'status' => $validated['status'],
+                    'status' => $sale->status,
                     'discount' => $validated['discount'] ?? 0,
                     'discount_type' => $validated['discount_type'] ?? 'fixed',
                     'tax' => $validated['tax'] ?? 0,
@@ -365,75 +363,22 @@ class SaleController extends ApiController
         $validated = $validator->validated();
 
         try {
+            // Recorded as PENDING - admin must approve it (see
+            // Admin\ApprovalController) before it posts to the ledger.
             $this->saleService->recordPayment(
                 $sale,
                 $validated['amount'],
                 $validated['payment_method'],
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                'pending',
+                $this->agent()->id
             );
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), 422);
         }
 
-        return $this->success(new SaleResource($sale->fresh(['customer', 'items.product', 'payments'])), 'Payment added successfully.');
-    }
-
-    /**
-     * Commits a still-draft sale: flips it to confirmed and runs
-     * SaleService::applyStockAndAccounting, which is what actually deducts
-     * stock and posts ledger entries (a draft sale has done neither yet).
-     * This is how a customer-placed order (source=customer_app, created via
-     * the customer API's OrderController::store, which deliberately never
-     * calls applyStockAndAccounting itself) gets turned into a real sale -
-     * but it works the same for any draft sale this agent owns, not just
-     * customer-placed ones.
-     */
-    public function confirm(Request $request, Sale $sale)
-    {
-        if ($sale->agent_id != $this->agent()->id) {
-            return $this->error('You do not have access to this sale.', 403);
-        }
-
-        if ($sale->status !== 'draft') {
-            return $this->error('Only a draft sale can be confirmed.', 422);
-        }
-
-        $sale->status = 'confirmed';
-        $sale->save();
-
-        try {
-            $this->saleService->applyStockAndAccounting($sale);
-        } catch (\Exception $e) {
-            // Most likely: stock this draft reserved got sold elsewhere in
-            // the meantime. Roll the status change back so the sale stays a
-            // confirmable draft instead of getting stuck 'confirmed' with no
-            // stock/ledger effect behind it.
-            $sale->status = 'draft';
-            $sale->saveQuietly();
-            return $this->error($e->getMessage(), 422);
-        }
-
-        return $this->success(new SaleResource($sale->fresh(['customer', 'items.product', 'payments'])), 'Order confirmed - stock and accounting updated.');
-    }
-
-    /**
-     * Rejects a still-draft sale. No reversal needed - a draft sale never
-     * had stock or ledger entries posted in the first place.
-     */
-    public function reject(Request $request, Sale $sale)
-    {
-        if ($sale->agent_id != $this->agent()->id) {
-            return $this->error('You do not have access to this sale.', 403);
-        }
-
-        if ($sale->status !== 'draft') {
-            return $this->error('Only a draft sale can be rejected.', 422);
-        }
-
-        $sale->update(['status' => 'cancelled']);
-
-        return $this->success(new SaleResource($sale), 'Order rejected.');
+        return $this->success(new SaleResource($sale->fresh(['customer', 'items.product', 'payments'])), 'Payment submitted - pending admin approval.');
     }
 }

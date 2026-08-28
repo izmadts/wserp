@@ -18,6 +18,7 @@ class CustomerPayment extends Model
         'payment_method',
         'reference_no',
         'notes',
+        'created_by',
     ];
 
     protected $casts = [
@@ -28,6 +29,11 @@ class CustomerPayment extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function getFormattedAmountAttribute()

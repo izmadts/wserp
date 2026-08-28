@@ -330,9 +330,10 @@ JSON,
         <section id="sales" class="bg-white rounded-xl shadow-card p-6">
             <h2 class="text-xl font-bold text-gray-900 mb-3"><i class="fas fa-shopping-bag text-blue-600 mr-2"></i> Sales</h2>
             <p class="text-sm text-gray-600 mb-4">
-                Creating/updating a sale runs through the exact same accounting engine as the web app
-                (stock deduction, double-entry ledger posting, commission calculation) - there is no separate,
-                simpler "mobile" code path. <code>customer_id</code> must belong to the requesting agent.
+                Every sale created through this endpoint lands as <code>status: draft</code>, whatever you send
+                for <code>status</code> - it has zero stock/ledger effect until an admin reviews and confirms it
+                from the web app. There is no agent-side confirm/reject endpoint any more; only an admin can move
+                a sale off draft. <code>customer_id</code> must belong to the requesting agent.
             </p>
 
             @include('admin.system._endpoint', [
@@ -342,10 +343,11 @@ JSON,
 
             @include('admin.system._endpoint', [
                 'method' => 'POST', 'path' => '/sales', 'auth' => true,
-                'description' => 'Create a sale. sub_total/total_amount/due_amount are computed server-side from items - do not send them. Stock is deducted and ledger entries posted immediately. If status is "paid", a full payment is recorded automatically in the same request.',
+                'description' => 'Submit a sale for admin review. sub_total/total_amount/due_amount are computed server-side from items - do not send them. Always created as status "draft" - stock is NOT deducted and no ledger entries are posted until an admin confirms it. If amount_received > 0, it is recorded as a pending payment alongside the draft (also held until admin approval).',
                 'body' => [
                     'customer_id' => 'integer, required - must be this agent\'s own customer',
-                    'sale_date' => 'date, required', 'payment_term' => 'in: cash,credit - required', 'status' => 'in: draft,confirmed,paid - required',
+                    'sale_date' => 'date, required', 'payment_term' => 'in: cash,credit - required', 'status' => 'in: draft,confirmed - required, but ignored: every submission is stored as draft',
+                    'amount_received' => 'numeric, optional - recorded as a pending payment, not applied',
                     'discount' => 'numeric, optional', 'discount_type' => 'in: fixed,percentage - optional',
                     'tax' => 'numeric, optional', 'shipping_cost' => 'numeric, optional', 'notes' => 'string, optional',
                     'items' => 'array, required, min 1 item',
@@ -358,7 +360,7 @@ JSON,
   "message": "Sale created successfully.",
   "data": {
     "id": 231, "invoice_no": "SA-260804-00231", "customer": {"id":12,"name":"...","code":"...","phone":"..."},
-    "status": "confirmed", "status_label": "Confirmed", "status_color": "bg-blue-100 text-blue-800",
+    "status": "draft", "status_label": "Draft", "status_color": "bg-gray-100 text-gray-800",
     "sub_total": 2900.00, "total_amount": 2900.00, "paid_amount": 0, "due_amount": 2900.00,
     "items": [ {"id":501,"product_id":7,"product_name":"Cooking Oil 5L","quantity":2,"unit_price":1450,"total_price":2900} ],
     "payments": []
@@ -368,12 +370,12 @@ JSON,
             ])
 
             @include('admin.system._endpoint', ['method' => 'GET', 'path' => '/sales/{id}', 'auth' => true, 'description' => 'Single sale with items and payment history.'])
-            @include('admin.system._endpoint', ['method' => 'PUT', 'path' => '/sales/{id}', 'auth' => true, 'description' => 'Update a sale. Rejected with 422 once status is "paid" - edit is only allowed before that point, same as the web app. Same body as create.'])
-            @include('admin.system._endpoint', ['method' => 'DELETE', 'path' => '/sales/{id}', 'auth' => true, 'description' => 'Delete a sale. Reverses stock and ledger entries first. Rejected with 422 if status is "paid".'])
+            @include('admin.system._endpoint', ['method' => 'PUT', 'path' => '/sales/{id}', 'auth' => true, 'description' => 'Update a sale. Rejected with 422 once status is "paid" - edit is only allowed before that point, same as the web app. Same body as create, minus status - status can never be changed through this endpoint, only by admin confirm/reject.'])
+            @include('admin.system._endpoint', ['method' => 'DELETE', 'path' => '/sales/{id}', 'auth' => true, 'description' => 'Delete a sale. Reverses stock and ledger entries first (no-op if it was still a draft). Rejected with 422 if status is "paid".'])
 
             @include('admin.system._endpoint', [
                 'method' => 'POST', 'path' => '/sales/{id}/payments', 'auth' => true,
-                'description' => 'Record a payment against a sale (partial or final). For credit sales this is also what triggers commission accrual - commission is earned per payment recovered, not upfront at sale time.',
+                'description' => 'Submit a payment against a sale for admin review. It is recorded with status "pending" and has no effect on paid_amount/due_amount/the ledger/commission until an admin approves it.',
                 'body' => [
                     'amount' => 'numeric, required, min 0.01, max = the sale\'s current due_amount',
                     'payment_date' => 'date, required', 'payment_method' => 'in: cash,bank_transfer,cheque,credit_card - required',
@@ -862,9 +864,10 @@ JSON,
                 <p class="text-sm text-blue-800"><i class="fas fa-info-circle mr-1"></i>
                 An order placed here does <strong>not</strong> immediately move stock or post accounting - it's
                 created as a <strong>pending order</strong> (internally a normal Sale, <code>status: "draft"</code>,
-                <code>source: "customer_app"</code>). It only becomes real - stock deducted, ledger posted - once the
-                linked sales agent (or, for a direct/wholesale order, an admin) confirms it via the web/agent app.
-                This protects against a public-facing app directly committing real stock/accounting with no review.
+                <code>source: "customer_app"</code>). It only becomes real - stock deducted, ledger posted - once an
+                <strong>admin</strong> confirms it from the web app (there is no agent self-confirm any more, for
+                this or any other draft sale). This protects against a public-facing app directly committing real
+                stock/accounting with no review.
                 </p>
             </div>
 
@@ -888,7 +891,7 @@ JSON,
                 'response' => <<<'JSON'
 {
   "success": true,
-  "message": "Order placed! It is pending confirmation from your sales agent.",
+  "message": "Order placed! It is pending confirmation from the admin.",
   "data": {
     "id": 231, "invoice_no": "SA-260804-00231", "source": "customer_app", "payment_term": "credit",
     "status": "draft", "status_label": "Draft",
@@ -903,7 +906,7 @@ JSON,
 
             @include('admin.system._endpoint', [
                 'base' => '/api/v1/customer', 'method' => 'POST', 'path' => '/orders/{id}/cancel', 'auth' => true,
-                'description' => 'Cancel an order - only while it\'s still pending (status "draft"). Once an agent/admin has confirmed it, cancelling has to go through them since stock/ledger entries now exist.',
+                'description' => 'Cancel an order - only while it\'s still pending (status "draft"). Once an admin has confirmed it, cancelling has to go through them since stock/ledger entries now exist.',
             ])
 
             <div class="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
@@ -913,7 +916,7 @@ JSON,
                     <thead><tr class="text-left text-purple-700"><th class="py-1 pr-3">WSERP <code>status</code></th><th class="py-1">Show as</th></tr></thead>
                     <tbody class="divide-y divide-purple-100">
                         <tr><td class="py-1 pr-3 font-mono">draft</td><td class="py-1">Pending</td></tr>
-                        <tr><td class="py-1 pr-3 font-mono">confirmed / partial / paid</td><td class="py-1">Delivered (agent/admin confirming an order is treated as fulfilling it - there's no separate "out for delivery" step today)</td></tr>
+                        <tr><td class="py-1 pr-3 font-mono">confirmed / partial / paid</td><td class="py-1">Delivered (admin confirming an order is treated as fulfilling it - there's no separate "out for delivery" step today)</td></tr>
                         <tr><td class="py-1 pr-3 font-mono">cancelled</td><td class="py-1">Cancelled / Rejected</td></tr>
                     </tbody>
                 </table>

@@ -121,9 +121,9 @@ class PurchaseService
      * credited directly at creation time (pure cash purchases) so the cash
      * outflow isn't posted twice.
      */
-    public function recordPayment(Purchase $purchase, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null, $postAccounting = true)
+    public function recordPayment(Purchase $purchase, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null, $postAccounting = true, $createdBy = null)
     {
-        DB::transaction(function () use ($purchase, $amount, $method, $date, $referenceNo, $notes, $postAccounting) {
+        DB::transaction(function () use ($purchase, $amount, $method, $date, $referenceNo, $notes, $postAccounting, $createdBy) {
             $purchase->payments()->create([
                 'supplier_id' => $purchase->supplier_id,
                 'payment_date' => $date ?? now(),
@@ -131,6 +131,7 @@ class PurchaseService
                 'payment_method' => $method,
                 'reference_no' => $referenceNo,
                 'notes' => $notes ?? "Payment for Purchase #{$purchase->invoice_no}",
+                'created_by' => $createdBy,
             ]);
 
             $purchase->paid_amount = $purchase->paid_amount + $amount;

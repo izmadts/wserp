@@ -126,7 +126,8 @@ class PurchaseController extends Controller
                         'Full payment at purchase creation',
                         // Cash purchases already credited Cash directly above,
                         // so skip re-posting the cash journal entry here.
-                        !$isCash
+                        !$isCash,
+                        Auth::id()
                     );
                 }
             });
@@ -289,7 +290,9 @@ class PurchaseController extends Controller
                 $validated['payment_method'],
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                true,
+                Auth::id()
             );
 
             Expense::recordBankServiceCharge(

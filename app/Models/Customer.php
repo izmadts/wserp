@@ -340,17 +340,18 @@ class Customer extends Authenticatable
      * specific Sale - e.g. settling opening_balance or an advance. Posts
      * Dr Cash-or-Bank / Cr Accounts Receivable (1040).
      */
-    public function makePayment($amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    public function makePayment($amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null, $createdBy = null)
     {
         $payment = null;
 
-        DB::transaction(function () use (&$payment, $amount, $method, $date, $referenceNo, $notes) {
+        DB::transaction(function () use (&$payment, $amount, $method, $date, $referenceNo, $notes, $createdBy) {
             $payment = $this->payments()->create([
                 'payment_date' => $date ?? now(),
                 'amount' => $amount,
                 'payment_method' => $method,
                 'reference_no' => $referenceNo,
                 'notes' => $notes,
+                'created_by' => $createdBy,
             ]);
 
             $this->postPaymentJournal($payment, $amount, $method, $date, $referenceNo);

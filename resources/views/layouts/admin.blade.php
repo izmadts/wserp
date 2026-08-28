@@ -151,6 +151,7 @@
                                 ['route' => 'admin.customers.index', 'is' => 'admin.customers.*', 'icon' => 'fa-users', 'label' => 'Customers', 'module' => 'customers'],
                                 ['route' => 'admin.sales.index', 'is' => 'admin.sales.*', 'icon' => 'fa-shopping-bag', 'label' => 'Sales', 'module' => 'sales'],
                                 ['route' => 'admin.sales-returns.index', 'is' => 'admin.sales-returns.*', 'icon' => 'fa-undo-alt', 'label' => 'Sales Returns', 'module' => 'sales-returns'],
+                                ['route' => 'admin.approvals.index', 'is' => 'admin.approvals.*', 'icon' => 'fa-clipboard-check', 'label' => 'Pending Approvals', 'badge' => $pendingApprovals = App\Models\Sale::where('status', 'draft')->count() + App\Models\SalePayment::where('status', 'pending')->count(), 'badgeColor' => 'bg-yellow-500', 'module' => 'approvals'],
                             ],
                         ],
                         [
@@ -198,6 +199,7 @@
                             'key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-bar', 'color' => 'text-gray-600',
                             'active' => request()->routeIs('admin.reports.*'),
                             'links' => [
+                                ['route' => 'admin.reports.accounting-dashboard', 'is' => 'admin.reports.accounting-dashboard', 'icon' => 'fa-chart-pie', 'label' => 'Accounting Dashboard', 'module' => 'reports'],
                                 ['route' => 'admin.reports.profit-loss', 'is' => 'admin.reports.profit-loss', 'icon' => 'fa-chart-bar', 'label' => 'Profit & Loss', 'module' => 'reports'],
                                 ['route' => 'admin.reports.trial-balance', 'is' => 'admin.reports.trial-balance', 'icon' => 'fa-balance-scale', 'label' => 'Trial Balance', 'module' => 'reports'],
                                 ['route' => 'admin.reports.customers', 'is' => 'admin.reports.customers', 'icon' => 'fa-users', 'label' => 'Customers', 'module' => 'reports'],
@@ -373,6 +375,12 @@
                                 'count' => App\Models\LeaveRequest::where('status', 'pending')->count(),
                                 'route' => 'admin.leave-requests.index', 'params' => ['status' => 'pending'],
                                 'text' => 'leave request(s) awaiting approval',
+                            ] : null,
+                            (auth()->user() && auth()->user()->hasPermission('approvals', 'view')) ? [
+                                'label' => 'Pending Approvals', 'icon' => 'fa-clipboard-check', 'color' => 'text-yellow-500',
+                                'count' => $pendingApprovals ?? (App\Models\Sale::where('status', 'draft')->count() + App\Models\SalePayment::where('status', 'pending')->count()),
+                                'route' => 'admin.approvals.index',
+                                'text' => 'sale(s)/payment(s) submitted via the agent app or customer API awaiting confirmation',
                             ] : null,
                         ]));
                         $notifTotal = collect($notifItems)->sum('count');

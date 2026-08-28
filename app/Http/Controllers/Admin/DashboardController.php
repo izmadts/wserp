@@ -11,6 +11,12 @@ use App\Models\Purchase;
 use App\Models\Customer;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Expense;
+use App\Models\Income;
+use App\Models\SalePayment;
+use App\Models\PurchasePayment;
+use App\Models\CustomerPayment;
+use App\Models\SupplierPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -132,15 +138,54 @@ class DashboardController extends Controller
         // =============================================
         // RECENT ACTIVITIES
         // =============================================
-        $recentSales = Sale::with('customer')
+        $recentSales = Sale::with('customer', 'agent', 'createdBy')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(8)
             ->get();
 
-        $recentPurchases = Purchase::with('supplier')
+        $recentPurchases = Purchase::with('supplier', 'createdBy')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(8)
             ->get();
+
+        $recentExpenses = Expense::with('createdBy', 'category')
+            ->orderBy('created_at', 'desc')
+            ->limit(8)
+            ->get();
+
+        $recentIncomes = Income::with('createdBy', 'category')
+            ->orderBy('created_at', 'desc')
+            ->limit(8)
+            ->get();
+
+        // Merged from all four payment sources (only APPROVED sale payments -
+        // a pending one, awaiting admin review, hasn't actually happened yet)
+        // into one normalized feed so "Recent Payments" shows every real cash
+        // movement regardless of which table it lives in.
+        $recentPayments = collect()
+            ->concat(SalePayment::approved()->with('sale.customer', 'createdBy')->latest('payment_date')->limit(8)->get()->map(fn ($p) => [
+                'direction' => 'Received', 'date' => $p->payment_date,
+                'party' => $p->sale->customer->name ?? '-', 'reference' => $p->sale->invoice_no ?? '-',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-',
+            ]))
+            ->concat(CustomerPayment::with('customer', 'createdBy')->latest('payment_date')->limit(8)->get()->map(fn ($p) => [
+                'direction' => 'Received', 'date' => $p->payment_date,
+                'party' => $p->customer->name ?? '-', 'reference' => 'On account',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-',
+            ]))
+            ->concat(PurchasePayment::with('purchase', 'supplier', 'createdBy')->latest('payment_date')->limit(8)->get()->map(fn ($p) => [
+                'direction' => 'Paid', 'date' => $p->payment_date,
+                'party' => $p->supplier->name ?? '-', 'reference' => $p->purchase->invoice_no ?? '-',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-',
+            ]))
+            ->concat(SupplierPayment::with('supplier', 'createdBy')->latest('payment_date')->limit(8)->get()->map(fn ($p) => [
+                'direction' => 'Paid', 'date' => $p->payment_date,
+                'party' => $p->supplier->name ?? '-', 'reference' => 'On account',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-',
+            ]))
+            ->sortByDesc('date')
+            ->take(8)
+            ->values();
 
         return view('admin.dashboard', array_merge($data, [
             'currentMonthSales' => $currentMonthSales,
@@ -163,6 +208,9 @@ class DashboardController extends Controller
             'dailySales' => $dailySales,
             'recentSales' => $recentSales,
             'recentPurchases' => $recentPurchases,
+            'recentExpenses' => $recentExpenses,
+            'recentIncomes' => $recentIncomes,
+            'recentPayments' => $recentPayments,
         ]));
     }
 }

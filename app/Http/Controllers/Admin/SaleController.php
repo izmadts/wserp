@@ -199,7 +199,7 @@ class SaleController extends Controller
                 // routing an instant full payment through here (instead of
                 // creating the row already status='paid') is what makes that
                 // event actually fire for a pay-in-full-at-checkout sale.
-                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date']);
+                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date'], null, null, 'approved', Auth::id(), Auth::id());
             }
         });
     }
@@ -421,16 +421,31 @@ class SaleController extends Controller
         }
 
         $sale->status = 'confirmed';
+        $sale->approved_by = Auth::id();
+        $sale->approved_at = now();
         $sale->save();
 
         try {
-            $this->saleService->applyStockAndAccounting($sale);
+            DB::transaction(function () use ($sale) {
+                $this->saleService->applyStockAndAccounting($sale);
+
+                // Any payment the agent bundled in at submission time (or
+                // added later while this sale still sat as a draft) has
+                // been waiting on this same confirm click - approve it now
+                // rather than making the admin do a second action for one
+                // submission.
+                foreach ($sale->payments()->pending()->get() as $payment) {
+                    $this->saleService->approvePayment($payment, Auth::id());
+                }
+            });
         } catch (\Exception $e) {
             // Most likely: stock this draft reserved got sold elsewhere in
             // the meantime. Roll the status change back so the sale stays a
             // confirmable draft instead of getting stuck 'confirmed' with no
             // stock/ledger effect behind it.
             $sale->status = 'draft';
+            $sale->approved_by = null;
+            $sale->approved_at = null;
             $sale->saveQuietly();
             return back()->with('error', $e->getMessage());
         }
@@ -439,8 +454,9 @@ class SaleController extends Controller
     }
 
     /**
-     * No reversal needed - a draft sale never had stock or ledger entries
-     * posted in the first place.
+     * No stock/ledger reversal needed - a draft sale never had either
+     * posted in the first place. Any pending payment on it is rejected too,
+     * since it was submitted as part of the same order.
      */
     public function reject(Sale $sale)
     {
@@ -448,7 +464,13 @@ class SaleController extends Controller
             return back()->with('error', 'Only a draft sale can be rejected.');
         }
 
-        $sale->update(['status' => 'cancelled']);
+        DB::transaction(function () use ($sale) {
+            foreach ($sale->payments()->pending()->get() as $payment) {
+                $this->saleService->rejectPayment($payment, Auth::id());
+            }
+
+            $sale->update(['status' => 'cancelled']);
+        });
 
         return back()->with('success', 'Order rejected.');
     }
@@ -476,7 +498,10 @@ class SaleController extends Controller
                 $validated['payment_method'],
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                'approved',
+                Auth::id(),
+                Auth::id()
             );
 
             Expense::recordBankServiceCharge(

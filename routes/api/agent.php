@@ -41,13 +41,13 @@ Route::prefix('agent')->name('api.agent.')->group(function () {
 
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 
+        // Every sale submitted here lands as status=draft, no stock/ledger
+        // effect - only an admin can confirm/reject it (Admin\SaleController,
+        // see admin.sales.confirm/reject). There is no agent-side confirm or
+        // reject endpoint any more, for agent-created sales or customer-app
+        // orders alike.
         Route::apiResource('sales', SaleController::class);
         Route::post('/sales/{sale}/payments', [SaleController::class, 'addPayment'])->name('sales.payments.store');
-        // Confirms/rejects a still-draft sale - this is how a customer-placed
-        // order (see routes/api/customer.php's OrderController::store, which
-        // never itself deducts stock or posts to the ledger) becomes real.
-        Route::post('/sales/{sale}/confirm', [SaleController::class, 'confirm'])->name('sales.confirm');
-        Route::post('/sales/{sale}/reject', [SaleController::class, 'reject'])->name('sales.reject');
 
         Route::get('/commissions', [CommissionController::class, 'index'])->name('commissions.index');
         Route::get('/commissions/summary', [CommissionController::class, 'summary'])->name('commissions.summary');

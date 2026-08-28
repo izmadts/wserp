@@ -9,6 +9,7 @@ use App\Models\Account;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class SupplierController extends Controller
 {
@@ -185,7 +186,8 @@ class SupplierController extends Controller
                 $validated['payment_method'],
                 $validated['payment_date'],
                 $validated['reference_no'] ?? null,
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                Auth::id()
             );
 
             Expense::recordBankServiceCharge(

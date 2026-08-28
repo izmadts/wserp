@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\PurchaseController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\SaleController;
+use App\Http\Controllers\Admin\ApprovalController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\StockAdjustmentController;
 use App\Http\Controllers\Admin\ProfileController;
@@ -344,6 +345,14 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::post('/{sale}/reject', [SaleController::class, 'reject'])->middleware('permission:sales,edit')->name('reject');
     });
 
+    // Everything submitted via the Sale Agent app/portal or the customer
+    // mandi API lands here for review - see Admin\ApprovalController.
+    Route::prefix('approvals')->name('approvals.')->middleware('permission:approvals,view')->group(function () {
+        Route::get('/', [ApprovalController::class, 'index'])->name('index');
+        Route::post('/payments/{payment}/approve', [ApprovalController::class, 'approvePayment'])->middleware('permission:approvals,create')->name('payments.approve');
+        Route::post('/payments/{payment}/reject', [ApprovalController::class, 'rejectPayment'])->middleware('permission:approvals,create')->name('payments.reject');
+    });
+
     // ==========================================
     // 12. SALES RETURNS (Admin)
     // ==========================================
@@ -439,6 +448,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     Route::prefix('reports')->name('reports.')->middleware('permission:reports,view')->group(function () {
         // Financial Reports
+        Route::get('/accounting-dashboard', [ReportController::class, 'accountingDashboard'])->name('accounting-dashboard');
         Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/profit-loss/pdf', [ReportController::class, 'profitLossPdf'])->name('profit-loss-pdf');
         Route::get('/trial-balance', [ReportController::class, 'trialBalance'])->name('trial-balance');
@@ -677,7 +687,10 @@ Route::prefix('agent')->name('agent.')->middleware(['auth'])->group(function () 
             Route::delete('/{customer}', [AgentCustomerController::class, 'destroy'])->name('destroy');
         });
 
-        // Sales (Only agent's own sales)
+        // Sales (Only agent's own sales) - every sale created here lands as
+        // status=draft, no stock/ledger effect, and there is no agent-side
+        // confirm/reject route any more: only an admin can move a sale off
+        // draft (see admin.sales.confirm/reject).
         Route::prefix('sales')->name('sales.')->group(function () {
             Route::get('/', [AgentSaleController::class, 'index'])->name('index');
             Route::get('/create', [AgentSaleController::class, 'create'])->name('create');
@@ -687,10 +700,6 @@ Route::prefix('agent')->name('agent.')->middleware(['auth'])->group(function () 
             Route::put('/{sale}', [AgentSaleController::class, 'update'])->name('update');
             Route::delete('/{sale}', [AgentSaleController::class, 'destroy'])->name('destroy');
             Route::post('/{sale}/add-payment', [AgentSaleController::class, 'addPayment'])->name('add-payment');
-            // Confirms/rejects a still-draft sale - how a customer's order
-            // placed through this agent (source=customer_app) becomes real.
-            Route::post('/{sale}/confirm', [AgentSaleController::class, 'confirm'])->name('confirm');
-            Route::post('/{sale}/reject', [AgentSaleController::class, 'reject'])->name('reject');
         });
 
         // Commission & Reports

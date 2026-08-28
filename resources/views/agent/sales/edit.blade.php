@@ -24,16 +24,11 @@
                     </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Date <span class="text-red-500">*</span></label><input type="date" name="sale_date" value="{{ old('sale_date', $sale->sale_date->format('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment <span class="text-red-500">*</span></label><select name="payment_term" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"><option value="cash" {{ $sale->payment_term == 'cash' ? 'selected' : '' }}>Cash</option><option value="credit" {{ $sale->payment_term == 'credit' ? 'selected' : '' }}>Credit</option></select></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                        @if($sale->paid_amount > 0)
-                            {{-- Has real payments - status is derived from paid_amount/due_amount,
-                                 not editable here. 'confirmed' is safe to submit: SaleService
-                                 re-derives 'partial'/'paid' from paid_amount right after. --}}
-                            <div class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm">{{ $sale->status_label }} - Rs. {{ number_format($sale->paid_amount, 2) }} paid</div>
-                            <input type="hidden" name="status" value="confirmed">
-                        @else
-                            <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"><option value="draft" {{ $sale->status == 'draft' ? 'selected' : '' }}>Draft</option><option value="confirmed" {{ $sale->status == 'confirmed' ? 'selected' : '' }}>Confirmed</option></select>
-                        @endif
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        {{-- Not editable here any more - only an admin can move a sale off
+                             draft (Admin\SaleController::confirm/reject). This form can never
+                             change it, whatever's submitted. --}}
+                        <div class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm">{{ $sale->status_label }}@if($sale->paid_amount > 0) - Rs. {{ number_format($sale->paid_amount, 2) }} paid @endif</div>
                     </div>
                 </div>
 

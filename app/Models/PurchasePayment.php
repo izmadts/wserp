@@ -13,7 +13,8 @@ class PurchasePayment extends Model
         'amount',
         'payment_method',
         'reference_no',
-        'notes'
+        'notes',
+        'created_by',
     ];
 
     protected $casts = [
@@ -30,6 +31,11 @@ class PurchasePayment extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     // Scopes

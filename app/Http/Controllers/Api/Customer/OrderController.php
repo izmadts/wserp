@@ -159,7 +159,7 @@ class OrderController extends ApiController
 
         return $this->success(
             new SaleResource($sale->load('items.product')),
-            'Order placed! It is pending confirmation from ' . ($channel['agent_id'] ? 'your sales agent' : 'the admin') . '.',
+            'Order placed! It is pending confirmation from the admin.',
             201
         );
     }

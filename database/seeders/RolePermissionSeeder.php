@@ -14,12 +14,12 @@ class RolePermissionSeeder extends Seeder
         // it always passes every check (see User::hasPermission()).
         $defaults = [
             'manager' => [
-                'full' => ['dashboard', 'products', 'categories', 'suppliers', 'purchases', 'purchase-returns', 'inventory', 'customers', 'sales', 'sales-returns', 'agents', 'reports', 'exports', 'employees', 'leaves'],
+                'full' => ['dashboard', 'products', 'categories', 'suppliers', 'purchases', 'purchase-returns', 'inventory', 'customers', 'sales', 'sales-returns', 'agents', 'approvals', 'reports', 'exports', 'employees', 'leaves'],
                 'view_only' => ['accounts', 'expenses', 'incomes', 'money-transfers', 'bank-reconciliations', 'activity-logs', 'golden-club'],
                 'none' => ['backups', 'settings', 'payroll'],
             ],
             'accountant' => [
-                'full' => ['accounts', 'expenses', 'incomes', 'money-transfers', 'bank-reconciliations', 'reports', 'exports', 'payroll'],
+                'full' => ['accounts', 'expenses', 'incomes', 'money-transfers', 'bank-reconciliations', 'reports', 'exports', 'payroll', 'approvals'],
                 'view_only' => ['dashboard', 'products', 'suppliers', 'purchases', 'customers', 'sales', 'agents', 'activity-logs', 'employees', 'leaves'],
                 'none' => ['backups', 'settings', 'categories', 'purchase-returns', 'inventory', 'sales-returns', 'golden-club'],
             ],

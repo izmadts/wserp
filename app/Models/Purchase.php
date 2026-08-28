@@ -113,9 +113,9 @@ class Purchase extends Model
      * Record a payment against this purchase (creates the payment record,
      * updates paid/due amounts + status, and posts payment journal entries).
      */
-    public function recordPayment($amount, $paymentMethod = 'cash', $paymentDate = null, $referenceNo = null, $notes = null, $postAccounting = true)
+    public function recordPayment($amount, $paymentMethod = 'cash', $paymentDate = null, $referenceNo = null, $notes = null, $postAccounting = true, $createdBy = null)
     {
-        app(PurchaseService::class)->recordPayment($this, $amount, $paymentMethod, $paymentDate, $referenceNo, $notes, $postAccounting);
+        app(PurchaseService::class)->recordPayment($this, $amount, $paymentMethod, $paymentDate, $referenceNo, $notes, $postAccounting, $createdBy);
     }
 
     public function markAsReceived()

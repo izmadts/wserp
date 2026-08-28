@@ -23,8 +23,13 @@
                     </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Date <span class="text-red-500">*</span></label><input type="date" name="sale_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment <span class="text-red-500">*</span></label><select name="payment_term" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"><option value="cash">Cash</option><option value="credit">Credit</option></select></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label><select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"><option value="draft">Draft</option><option value="confirmed">Confirmed</option></select>
-                        <p class="mt-1 text-xs text-gray-500">'Paid'/'Partial' aren't picked here - enter an amount received below instead.</p>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        {{-- Every sale submitted here goes to draft and waits for admin
+                             review - this isn't a real choice any more, but the field is
+                             still required server-side (status stays 'draft' regardless of
+                             what's sent) for compatibility with older app builds. --}}
+                        <input type="hidden" name="status" value="draft">
+                        <div class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 text-sm"><i class="fas fa-hourglass-half mr-1"></i> Pending Admin Approval</div>
                     </div>
                 </div>
 
@@ -74,7 +79,7 @@
                         <div><span class="text-sm text-gray-600">Shipping:</span> <input type="number" step="0.01" name="shipping_cost" x-model="shipping" @input="calculateTotals()" class="w-20 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg inline-block" min="0"> <span class="text-sm" x-text="'Rs. '+shipping.toFixed(2)"></span></div>
                         <div class="bg-green-50 p-2 rounded-lg border-2 border-green-200"><span class="font-bold">Grand Total:</span> <span class="text-lg font-bold text-green-600" x-text="'Rs. '+grandTotal.toFixed(2)"></span></div>
                         <div class="pt-1"><span class="text-sm text-gray-600">Amount Received Now:</span> <input type="number" step="0.01" name="amount_received" x-model="amountReceived" min="0" :max="grandTotal" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg inline-block" placeholder="0.00"> <button type="button" @click="amountReceived = grandTotal.toFixed(2)" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Pay in Full</button></div>
-                        <p class="text-xs text-gray-500">Leave blank for no payment yet.</p>
+                        <p class="text-xs text-gray-500">Leave blank for no payment yet. Recorded as pending until admin approves it along with the sale.</p>
                     </div>
                 </div>
                 <input type="hidden" name="sub_total" x-bind:value="subTotal">

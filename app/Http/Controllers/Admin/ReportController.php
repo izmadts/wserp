@@ -24,12 +24,15 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class ReportController extends Controller
 {
 
-    public function profitLoss(Request $request)
+    /**
+     * The actual P&L math, shared by profitLoss() (the full report, one
+     * date range picked via the filter form) and accountingDashboard()
+     * (current month + previous month + a trailing 6-month trend) - kept in
+     * one place so the dashboard's Net Profit tile can never silently
+     * disagree with this report for the same period.
+     */
+    private function computeProfitLossFigures(string $fromDate, string $toDate): array
     {
-        // Get date range
-        $fromDate = $request->from_date ?? date('Y-m-01');
-        $toDate = $request->to_date ?? date('Y-m-t');
-
         // =============================================
         // 1. INCOME (Revenue)
         // =============================================
@@ -127,6 +130,20 @@ class ReportController extends Controller
             ->with('category')
             ->get();
 
+        return compact(
+            'salesRevenue', 'otherIncome', 'totalIncome', 'cogs', 'grossProfit',
+            'operatingExpenses', 'netProfit', 'incomeByCategory', 'expensesByCategory'
+        );
+    }
+
+    public function profitLoss(Request $request)
+    {
+        // Get date range
+        $fromDate = $request->from_date ?? date('Y-m-01');
+        $toDate = $request->to_date ?? date('Y-m-t');
+
+        extract($this->computeProfitLossFigures($fromDate, $toDate));
+
         // =============================================
         // 7. MONTHLY BREAKDOWN
         // =============================================
@@ -178,6 +195,82 @@ class ReportController extends Controller
             'monthlyData'
         ));
     }
+
+    /**
+     * P&L-focused dashboard: current-month tiles (vs. previous month),
+     * a trailing 6-month trend, and category/cash-position breakdowns.
+     * Every figure comes from computeProfitLossFigures() (same as
+     * profitLoss()) or an existing report's own numbers - never a
+     * parallel calculation, so this page can't silently disagree with
+     * the full Profit & Loss report or the Receivable/Payable reports.
+     */
+    public function accountingDashboard(Request $request)
+    {
+        $currentFrom = date('Y-m-01');
+        $currentTo = date('Y-m-t');
+        $previousFrom = date('Y-m-01', strtotime('-1 month'));
+        $previousTo = date('Y-m-t', strtotime('-1 month'));
+
+        $current = $this->computeProfitLossFigures($currentFrom, $currentTo);
+        $previous = $this->computeProfitLossFigures($previousFrom, $previousTo);
+
+        $netMargin = $current['totalIncome'] > 0
+            ? round(($current['netProfit'] / $current['totalIncome']) * 100, 2)
+            : 0;
+
+        $netProfitGrowth = $previous['netProfit'] != 0
+            ? round((($current['netProfit'] - $previous['netProfit']) / abs($previous['netProfit'])) * 100, 2)
+            : 0;
+
+        $revenueGrowth = $previous['totalIncome'] > 0
+            ? round((($current['totalIncome'] - $previous['totalIncome']) / $previous['totalIncome']) * 100, 2)
+            : 0;
+
+        // Trailing 6-month trend (oldest first), same figures the monthly
+        // breakdown in profitLoss() computes, just fixed to 6 months back
+        // instead of an arbitrary date-range param.
+        $monthlyTrend = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = date('Y-m-01', strtotime("-$i months"));
+            $monthEnd = date('Y-m-t', strtotime("-$i months"));
+            $figures = $this->computeProfitLossFigures($monthStart, $monthEnd);
+
+            $monthlyTrend[] = [
+                'month' => date('M Y', strtotime($monthStart)),
+                'revenue' => $figures['totalIncome'],
+                'expenses' => $figures['operatingExpenses'],
+                'profit' => $figures['netProfit'],
+            ];
+        }
+
+        // Cash position - same accounts the dashboard/ledger already treat
+        // as Cash(1010)/Bank(1020).
+        $cashBalance = Account::where('code', '1010')->first()->balance ?? 0;
+        $bankBalance = Account::where('code', '1020')->first()->balance ?? 0;
+
+        // Reuse the existing Receivable/Payable reports' own totals rather
+        // than recomputing the same figure a third way (same trick
+        // receivablePdf()/payablePdf() already use to reuse receivable()/
+        // payable()'s output).
+        $totalReceivable = $this->receivable($request)->getData()['totalReceivable'] ?? 0;
+        $totalPayable = $this->payable($request)->getData()['totalPayable'] ?? 0;
+
+        return view('admin.reports.accounting-dashboard', [
+            'current' => $current,
+            'previous' => $previous,
+            'netMargin' => $netMargin,
+            'netProfitGrowth' => $netProfitGrowth,
+            'revenueGrowth' => $revenueGrowth,
+            'monthlyTrend' => $monthlyTrend,
+            'cashBalance' => $cashBalance,
+            'bankBalance' => $bankBalance,
+            'totalReceivable' => $totalReceivable,
+            'totalPayable' => $totalPayable,
+            'currentFrom' => $currentFrom,
+            'currentTo' => $currentTo,
+        ]);
+    }
+
     // =============================================
     // 1. CUSTOMER REPORTS
     // =============================================

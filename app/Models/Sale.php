@@ -16,7 +16,8 @@ class Sale extends Model
         'tax', 'shipping_cost', 'total_amount', 'commission_amount',
         'commission_paid_amount', 'commission_due_amount', 'recovery_percentage',
         'is_commission_held', 'commission_hold_reason',
-        'paid_amount', 'due_amount', 'refunded_amount', 'notes', 'created_by'
+        'paid_amount', 'due_amount', 'refunded_amount', 'notes', 'created_by',
+        'approved_by', 'approved_at',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class Sale extends Model
         'paid_amount' => 'decimal:2',
         'due_amount' => 'decimal:2',
         'refunded_amount' => 'decimal:2',
+        'approved_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -144,6 +146,11 @@ class Sale extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     // Scopes

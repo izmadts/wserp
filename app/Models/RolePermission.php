@@ -30,7 +30,7 @@ class RolePermission extends Model
     public const MODULES = [
         'dashboard', 'accounts', 'categories', 'products', 'suppliers',
         'purchases', 'purchase-returns', 'inventory', 'customers', 'agents',
-        'sales', 'sales-returns', 'expenses', 'incomes', 'money-transfers',
+        'sales', 'sales-returns', 'approvals', 'expenses', 'incomes', 'money-transfers',
         'reports', 'bank-reconciliations', 'exports', 'activity-logs',
         'backups', 'settings', 'golden-club', 'employees', 'leaves', 'payroll',
     ];

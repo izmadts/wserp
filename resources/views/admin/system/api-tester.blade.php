@@ -162,7 +162,7 @@ function apiTester() {
             ]},
             { label: 'Sales', items: [
                 { method: 'GET', path: '/sales', body: null },
-                { method: 'POST', path: '/sales', body: { customer_id: 1, sale_date: new Date().toISOString().slice(0, 10), payment_term: 'cash', status: 'confirmed', items: [{ product_id: 1, quantity: 1, unit_price: 100 }] } },
+                { method: 'POST', path: '/sales', body: { customer_id: 1, sale_date: new Date().toISOString().slice(0, 10), payment_term: 'cash', status: 'draft', items: [{ product_id: 1, quantity: 1, unit_price: 100 }] } },
                 { method: 'GET', path: '/sales/1', body: null },
                 { method: 'PUT', path: '/sales/1', body: { customer_id: 1, sale_date: new Date().toISOString().slice(0, 10), payment_term: 'cash', status: 'draft', items: [{ product_id: 1, quantity: 1, unit_price: 100 }] } },
                 { method: 'DELETE', path: '/sales/1', body: null },

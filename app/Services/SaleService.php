@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Sale;
+use App\Models\SalePayment;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Account;
@@ -158,54 +159,117 @@ class SaleService
     }
 
     /**
-     * Record a payment against a sale: creates the payment row, updates
-     * paid_amount/due_amount/recovery_percentage/status, and posts the
-     * cash-from-receivable journal entry for credit sales.
+     * Record a payment against a sale: creates the payment row and, unless
+     * $status is 'pending' (an agent-submitted payment awaiting admin
+     * review - see Api\Agent\SaleController/Agent\SaleController), applies
+     * it immediately via applyPaymentEffects() below.
      */
-    public function recordPayment(Sale $sale, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null)
+    public function recordPayment(Sale $sale, $amount, $method = 'cash', $date = null, $referenceNo = null, $notes = null, $status = 'approved', $createdBy = null, $approvedBy = null)
     {
-        DB::transaction(function () use ($sale, $amount, $method, $date, $referenceNo, $notes) {
-            $wasAlreadyPaid = $sale->status === 'paid';
-
-            $sale->payments()->create([
+        return DB::transaction(function () use ($sale, $amount, $method, $date, $referenceNo, $notes, $status, $createdBy, $approvedBy) {
+            $payment = $sale->payments()->create([
                 'customer_id' => $sale->customer_id,
                 'payment_date' => $date ?? now(),
                 'amount' => $amount,
                 'payment_method' => $method,
                 'reference_no' => $referenceNo,
                 'notes' => $notes ?? "Payment for Sale #{$sale->invoice_no}",
+                'status' => $status,
+                'created_by' => $createdBy,
+                'approved_by' => $status === 'approved' ? $approvedBy : null,
+                'approved_at' => $status === 'approved' ? now() : null,
             ]);
 
-            $sale->paid_amount = $sale->paid_amount + $amount;
-            $sale->due_amount = $sale->total_amount - $sale->paid_amount;
-            $sale->updateRecoveryPercentage();
-            $sale->status = $sale->due_amount <= 0 ? 'paid' : 'partial';
-            $sale->save();
-
-            $this->postPaymentAccounting($sale, $amount, $method);
-
-            // Both methods check is_commission_held themselves.
-            $this->commissionService->accrueCreditCommission($sale, $amount);
-            $this->commissionService->awardRecoveryBonus($sale);
-
-            // Fires Golden Club processing (points/membership/lucky draw) -
-            // centralized here so it covers every path that can bring a
-            // sale to 'paid' (both controllers' store() and addPayment()),
-            // not just the one admin creation path that used to fire it.
-            // Guarded on the transition itself so re-saving an
-            // already-paid sale doesn't reprocess Golden Club side effects.
-            if (!$wasAlreadyPaid && $sale->status === 'paid') {
-                event(new SaleCreated($sale));
+            if ($status === 'approved') {
+                $this->applyPaymentEffects($sale, $payment);
             }
 
-            Log::info('Payment recorded for sale', [
-                'sale_id' => $sale->id,
-                'amount' => $amount,
-                'paid_amount' => $sale->paid_amount,
-                'due_amount' => $sale->due_amount,
-                'status' => $sale->status,
-            ]);
+            return $payment;
         });
+    }
+
+    /**
+     * Approves a pending payment (an agent submitted it via addPayment or
+     * at sale creation, and it never touched stock/ledger until now) -
+     * applies exactly the same effects an immediately-approved payment
+     * would have, just deferred to this moment.
+     */
+    public function approvePayment(SalePayment $payment, $approverId)
+    {
+        DB::transaction(function () use ($payment, $approverId) {
+            if ($payment->status !== 'pending') {
+                throw new \Exception('Only a pending payment can be approved.');
+            }
+
+            $payment->update([
+                'status' => 'approved',
+                'approved_by' => $approverId,
+                'approved_at' => now(),
+            ]);
+
+            $this->applyPaymentEffects($payment->sale, $payment);
+        });
+    }
+
+    /**
+     * Rejects a pending payment. No reversal needed - a pending payment
+     * never posted to stock/ledger/paid_amount in the first place.
+     */
+    public function rejectPayment(SalePayment $payment, $approverId)
+    {
+        if ($payment->status !== 'pending') {
+            throw new \Exception('Only a pending payment can be rejected.');
+        }
+
+        $payment->update([
+            'status' => 'rejected',
+            'approved_by' => $approverId,
+            'approved_at' => now(),
+        ]);
+    }
+
+    /**
+     * The actual effect of a payment landing on a sale: updates
+     * paid_amount/due_amount/recovery_percentage/status, posts the
+     * cash-from-receivable journal entry for credit sales, and accrues
+     * commission. Shared by recordPayment() (immediate path) and
+     * approvePayment() (deferred path) so both apply identically.
+     */
+    private function applyPaymentEffects(Sale $sale, SalePayment $payment)
+    {
+        $wasAlreadyPaid = $sale->status === 'paid';
+        $amount = $payment->amount;
+
+        $sale->paid_amount = $sale->paid_amount + $amount;
+        $sale->due_amount = $sale->total_amount - $sale->paid_amount;
+        $sale->updateRecoveryPercentage();
+        $sale->status = $sale->due_amount <= 0 ? 'paid' : 'partial';
+        $sale->save();
+
+        $this->postPaymentAccounting($sale, $amount, $payment->payment_method, $payment->payment_date);
+
+        // Both methods check is_commission_held themselves.
+        $this->commissionService->accrueCreditCommission($sale, $amount);
+        $this->commissionService->awardRecoveryBonus($sale);
+
+        // Fires Golden Club processing (points/membership/lucky draw) -
+        // centralized here so it covers every path that can bring a
+        // sale to 'paid' (both controllers' store() and addPayment(),
+        // plus a deferred approvePayment()), not just the one admin
+        // creation path that used to fire it. Guarded on the transition
+        // itself so re-saving an already-paid sale doesn't reprocess
+        // Golden Club side effects.
+        if (!$wasAlreadyPaid && $sale->status === 'paid') {
+            event(new SaleCreated($sale));
+        }
+
+        Log::info('Payment applied to sale', [
+            'sale_id' => $sale->id,
+            'amount' => $amount,
+            'paid_amount' => $sale->paid_amount,
+            'due_amount' => $sale->due_amount,
+            'status' => $sale->status,
+        ]);
     }
 
     // =============================================
@@ -449,7 +513,7 @@ class SaleService
                 return;
             }
 
-            foreach ($sale->payments()->orderBy('payment_date')->get() as $payment) {
+            foreach ($sale->payments()->approved()->orderBy('payment_date')->get() as $payment) {
                 $this->postPaymentAccounting($sale, $payment->amount, $payment->payment_method, $payment->payment_date);
             }
         });

@@ -209,6 +209,7 @@
                                     {{ $sale->invoice_no }}
                                 </a>
                                 <p class="text-xs text-gray-500">{{ $sale->customer->name ?? 'N/A' }}</p>
+                                <p class="text-xs text-gray-400">{{ $sale->sale_date->format('d-m-Y') }} &middot; by {{ $sale->agent->name ?? ($sale->createdBy->name ?? '-') }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-sm font-semibold">Rs. {{ number_format($sale->total_amount, 2) }}</p>
@@ -242,6 +243,7 @@
                                     {{ $purchase->invoice_no }}
                                 </a>
                                 <p class="text-xs text-gray-500">{{ $purchase->supplier->name ?? 'N/A' }}</p>
+                                <p class="text-xs text-gray-400">{{ $purchase->purchase_date->format('d-m-Y') }} &middot; by {{ $purchase->createdBy->name ?? '-' }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-sm font-semibold">Rs. {{ number_format($purchase->total_amount, 2) }}</p>
@@ -254,6 +256,102 @@
                     @endforeach
                 @else
                     <p class="text-center text-gray-500 py-4">No recent purchases</p>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-xl shadow-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h4 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-money-bill-wave text-green-600 mr-2"></i> Recent Payments
+                </h4>
+            </div>
+            <div class="p-4">
+                @if($recentPayments->count() > 0)
+                    @foreach($recentPayments as $payment)
+                    <div class="border-b border-gray-100 py-3 last:border-0">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium">{{ $payment['party'] }}</p>
+                                <p class="text-xs text-gray-500">{{ $payment['reference'] }}</p>
+                                <p class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($payment['date'])->format('d-m-Y') }} &middot; by {{ $payment['by'] }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-semibold {{ $payment['direction'] === 'Received' ? 'text-green-600' : 'text-red-600' }}">
+                                    {{ $payment['direction'] === 'Received' ? '+' : '-' }} Rs. {{ number_format($payment['amount'], 2) }}
+                                </p>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $payment['direction'] === 'Received' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                    {{ $payment['direction'] }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
+                    <p class="text-center text-gray-500 py-4">No recent payments</p>
+                @endif
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h4 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-arrow-down text-red-600 mr-2"></i> Recent Expenses
+                </h4>
+                <a href="{{ route('admin.expenses.index') }}" class="text-sm text-blue-600 hover:underline">View All</a>
+            </div>
+            <div class="p-4">
+                @if($recentExpenses->count() > 0)
+                    @foreach($recentExpenses as $expense)
+                    <div class="border-b border-gray-100 py-3 last:border-0">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium">{{ $expense->title }}</p>
+                                <p class="text-xs text-gray-500">{{ $expense->category->name ?? '-' }}</p>
+                                <p class="text-xs text-gray-400">{{ $expense->expense_date->format('d-m-Y') }} &middot; by {{ $expense->createdBy->name ?? '-' }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-semibold text-red-600">Rs. {{ number_format($expense->amount, 2) }}</p>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $expense->status_color ?? 'bg-gray-100 text-gray-800' }}">
+                                    {{ $expense->status_label ?? ucfirst($expense->status) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
+                    <p class="text-center text-gray-500 py-4">No recent expenses</p>
+                @endif
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h4 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-arrow-up text-green-600 mr-2"></i> Recent Income
+                </h4>
+                <a href="{{ route('admin.incomes.index') }}" class="text-sm text-blue-600 hover:underline">View All</a>
+            </div>
+            <div class="p-4">
+                @if($recentIncomes->count() > 0)
+                    @foreach($recentIncomes as $income)
+                    <div class="border-b border-gray-100 py-3 last:border-0">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium">{{ $income->title }}</p>
+                                <p class="text-xs text-gray-500">{{ $income->category->name ?? '-' }}</p>
+                                <p class="text-xs text-gray-400">{{ $income->income_date->format('d-m-Y') }} &middot; by {{ $income->createdBy->name ?? '-' }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-semibold text-green-600">Rs. {{ number_format($income->amount, 2) }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
+                    <p class="text-center text-gray-500 py-4">No recent income</p>
                 @endif
             </div>
         </div>
