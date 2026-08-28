@@ -55,6 +55,11 @@ class SaleResource extends JsonResource
                 'payment_method' => $p->payment_method,
                 'reference_no' => $p->reference_no,
                 'notes' => $p->notes,
+                // A payment an agent submits sits 'pending' (no ledger effect)
+                // until admin approves it - without this the app has no way
+                // to tell a pending/rejected payment apart from an approved
+                // one in the payment history list.
+                'status' => $p->status,
             ])),
             'created_at' => optional($this->created_at)->toIso8601String(),
         ];
