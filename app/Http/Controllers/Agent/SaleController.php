@@ -231,8 +231,11 @@ class SaleController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        if ($sale->status == 'paid') {
-            return back()->with('error', 'Cannot edit a paid sale!');
+        // Once admin has acted on this sale (confirmed/paid/partial, or
+        // rejected to cancelled), it's locked from agent-side edits - only
+        // a still-pending draft can be changed here.
+        if ($sale->status !== 'draft') {
+            return back()->with('error', 'This sale has already been reviewed and confirmed by admin, so it can no longer be edited here. Please contact your admin or manager if changes are needed.');
         }
 
         $customers = Customer::where('created_by_agent_id', Auth::id())->active()->with('customerGroup')->orderBy('name')->get();
@@ -260,8 +263,12 @@ class SaleController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        if ($sale->status == 'paid') {
-            return back()->with('error', 'Cannot update a paid sale!');
+        // Same lock as edit() above - once admin has confirmed/rejected it,
+        // this endpoint can no longer touch it (which also means it can
+        // never reach syncItemsAndUpdate() and re-post live stock/ledger
+        // entries for a sale admin has already acted on).
+        if ($sale->status !== 'draft') {
+            return back()->with('error', 'This sale has already been reviewed and confirmed by admin, so it can no longer be edited here. Please contact your admin or manager if changes are needed.');
         }
 
         $validated = $request->validate([
@@ -349,8 +356,10 @@ class SaleController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        if ($sale->status == 'paid') {
-            return back()->with('error', 'Cannot delete a paid sale!');
+        // Same lock as edit()/update() above - once admin has acted on it,
+        // an agent can no longer delete it either.
+        if ($sale->status !== 'draft') {
+            return back()->with('error', 'This sale has already been reviewed and confirmed by admin, so it can no longer be deleted here. Please contact your admin or manager if changes are needed.');
         }
 
         try {

@@ -222,8 +222,13 @@ class SaleController extends ApiController
             return $this->error('You do not have access to this sale.', 403);
         }
 
-        if ($sale->status === 'paid') {
-            return $this->error('Cannot update a paid sale.', 422);
+        // Once admin has acted on this sale (confirmed/paid/partial, or
+        // rejected to cancelled), it's locked from agent-side edits - only
+        // a still-pending draft can be changed here. Without this, an
+        // already-confirmed sale could still reach syncItemsAndUpdate()
+        // below and re-post live stock/ledger entries agent-side.
+        if ($sale->status !== 'draft') {
+            return $this->error('This sale has already been reviewed and confirmed by admin, so it can no longer be edited here. Please contact your admin or manager if changes are needed.', 422);
         }
 
         $validator = Validator::make($request->all(), [
@@ -326,8 +331,10 @@ class SaleController extends ApiController
             return $this->error('You do not have access to this sale.', 403);
         }
 
-        if ($sale->status === 'paid') {
-            return $this->error('Cannot delete a paid sale.', 422);
+        // Same lock as update() above - once admin has acted on it, an
+        // agent can no longer delete it either.
+        if ($sale->status !== 'draft') {
+            return $this->error('This sale has already been reviewed and confirmed by admin, so it can no longer be deleted here. Please contact your admin or manager if changes are needed.', 422);
         }
 
         try {
