@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Services\SaleService;
+use App\Services\FcmService;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -17,10 +18,12 @@ use Illuminate\Support\Facades\Auth;
 class ApprovalController extends Controller
 {
     protected $saleService;
+    protected $fcmService;
 
-    public function __construct(SaleService $saleService)
+    public function __construct(SaleService $saleService, FcmService $fcmService)
     {
         $this->saleService = $saleService;
+        $this->fcmService = $fcmService;
     }
 
     public function index()
@@ -51,6 +54,16 @@ class ApprovalController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        $agent = $payment->sale?->agent;
+        if ($agent) {
+            $this->fcmService->sendToUser(
+                $agent,
+                'Payment Approved',
+                "Your payment of Rs. " . number_format($payment->amount, 2) . " for sale #{$payment->sale->invoice_no} has been approved.",
+                ['type' => 'payment_approved', 'sale_id' => $payment->sale_id]
+            );
+        }
+
         return back()->with('success', 'Payment approved and posted to the ledger.');
     }
 
@@ -60,6 +73,16 @@ class ApprovalController extends Controller
             $this->saleService->rejectPayment($payment, Auth::id());
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        $agent = $payment->sale?->agent;
+        if ($agent) {
+            $this->fcmService->sendToUser(
+                $agent,
+                'Payment Rejected',
+                "Your payment of Rs. " . number_format($payment->amount, 2) . " for sale #{$payment->sale->invoice_no} has been rejected.",
+                ['type' => 'payment_rejected', 'sale_id' => $payment->sale_id]
+            );
         }
 
         return back()->with('success', 'Payment rejected.');

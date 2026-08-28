@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\Expense;
 use App\Services\SaleService;
 use App\Services\CommissionService;
+use App\Services\FcmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -19,11 +20,13 @@ class SaleController extends Controller
 {
     protected $saleService;
     protected $commissionService;
+    protected $fcmService;
 
-    public function __construct(SaleService $saleService, CommissionService $commissionService)
+    public function __construct(SaleService $saleService, CommissionService $commissionService, FcmService $fcmService)
     {
         $this->saleService = $saleService;
         $this->commissionService = $commissionService;
+        $this->fcmService = $fcmService;
     }
 
     public function index()
@@ -450,6 +453,15 @@ class SaleController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        if ($sale->agent) {
+            $this->fcmService->sendToUser(
+                $sale->agent,
+                'Sale Confirmed',
+                "Your sale #{$sale->invoice_no} has been confirmed by admin.",
+                ['type' => 'sale_confirmed', 'sale_id' => $sale->id]
+            );
+        }
+
         return back()->with('success', 'Order confirmed - stock and accounting updated.');
     }
 
@@ -471,6 +483,15 @@ class SaleController extends Controller
 
             $sale->update(['status' => 'cancelled']);
         });
+
+        if ($sale->agent) {
+            $this->fcmService->sendToUser(
+                $sale->agent,
+                'Sale Rejected',
+                "Your sale #{$sale->invoice_no} has been rejected by admin.",
+                ['type' => 'sale_rejected', 'sale_id' => $sale->id]
+            );
+        }
 
         return back()->with('success', 'Order rejected.');
     }
