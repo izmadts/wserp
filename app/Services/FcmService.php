@@ -17,14 +17,17 @@ use Kreait\Firebase\Messaging\Notification;
  */
 class FcmService
 {
-    public function __construct(private Messaging $messaging)
-    {
-    }
-
     /**
      * `$data` values are read by the app to route a tapped notification
      * (see FcmService.dart's _handleTap) - keep keys/values in sync with
      * what that side expects, e.g. ['type' => 'sale_confirmed', 'sale_id' => $sale->id].
+     *
+     * Messaging is resolved from the container here rather than injected via
+     * the constructor - a misconfigured/missing Firebase credential must
+     * only skip the push (caught below), never break the admin action that
+     * triggered it. Constructor injection would throw as soon as any
+     * controller depending on this service is instantiated, before this
+     * try/catch even runs.
      */
     public function sendToUser(User $user, string $title, string $body, array $data = []): void
     {
@@ -37,7 +40,7 @@ class FcmService
                 ->withNotification(Notification::create($title, $body))
                 ->withData(array_map('strval', $data));
 
-            $this->messaging->send($message);
+            app(Messaging::class)->send($message);
         } catch (\Throwable $e) {
             Log::warning('FCM push failed', [
                 'user_id' => $user->id,
