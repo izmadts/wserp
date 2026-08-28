@@ -33,6 +33,7 @@ Route::prefix('agent')->name('api.agent.')->group(function () {
         Route::get('/me', [AuthController::class, 'me'])->name('me');
         Route::put('/me', [AuthController::class, 'updateProfile'])->name('me.update');
         Route::put('/me/password', [AuthController::class, 'changePassword'])->name('me.password');
+        Route::post('/device-token', [AuthController::class, 'updateDeviceToken'])->name('device-token');
 
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

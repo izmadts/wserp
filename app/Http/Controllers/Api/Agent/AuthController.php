@@ -188,6 +188,32 @@ class AuthController extends ApiController
         return $this->success(new AgentResource($agent->fresh()), 'Profile updated successfully.');
     }
 
+    /**
+     * Stores/refreshes the FCM token the app should receive push
+     * notifications on (admin approvals/rejections, policy/commission
+     * updates - see NotificationService). No history is kept, only the
+     * most recent token per user - a stale token just fails to deliver,
+     * it doesn't affect anything else.
+     */
+    public function updateDeviceToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string|max:255',
+            'platform' => 'nullable|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation failed', 422, $validator->errors());
+        }
+
+        $request->user()->update([
+            'fcm_token' => $request->token,
+            'fcm_token_platform' => $request->platform,
+        ]);
+
+        return $this->success(null, 'Device token registered.');
+    }
+
     public function changePassword(Request $request)
     {
         $agent = $request->user();
