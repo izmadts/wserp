@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Agent\SaleController;
 use App\Http\Controllers\Api\Agent\CommissionController;
 use App\Http\Controllers\Api\Agent\ReportController;
 use App\Http\Controllers\Api\Agent\GoldenClubController;
+use App\Http\Controllers\Api\Agent\NotificationController;
 
 // ============================================================
 // SALE AGENT MOBILE APP API (Flutter) - /api/v1/agent/*
@@ -36,6 +37,13 @@ Route::prefix('agent')->name('api.agent.')->group(function () {
         Route::post('/device-token', [AuthController::class, 'updateDeviceToken'])->name('device-token');
 
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        Route::prefix('notifications')->name('notifications.')->group(function () {
+            Route::get('/', [NotificationController::class, 'index'])->name('index');
+            Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('unread-count');
+            Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+            Route::post('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+        });
 
         Route::apiResource('customers', CustomerController::class);
         Route::get('/customer-groups', [CustomerController::class, 'groups'])->name('customer-groups');
