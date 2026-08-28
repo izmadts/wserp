@@ -13,6 +13,17 @@
         </div>
 
         <div class="p-4 sm:p-6">
+            @if($errors->any())
+            <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p class="text-sm font-medium text-red-800 mb-1"><i class="fas fa-exclamation-circle mr-1"></i> Please fix the following:</p>
+                <ul class="list-disc list-inside text-sm text-red-700">
+                    @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+
             <form action="{{ route('admin.purchase-returns.store') }}" method="POST">
                 @csrf
 
@@ -96,27 +107,30 @@
                                 <template x-for="(item, index) in items" :key="index">
                                     <tr class="border-b border-gray-100 hover:bg-blue-50/30 transition-colors duration-150">
                                         <td class="py-1.5 px-1.5">
-                                            <select :name="'items['+index+'][product_id]'" 
-                                                    x-model="item.product_id" 
-                                                    @change="calculateRow(index)"
+                                            <input type="hidden" :name="'items['+index+'][purchase_item_id]'" x-model="item.purchase_item_id">
+                                            <select :name="'items['+index+'][product_id]'"
+                                                    x-model="item.product_id"
+                                                    @change="onProductChange(index, $event)"
                                                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
                                                 <template x-for="product in purchaseDetails.items" :key="product.id">
-                                                    <option :value="product.id" 
+                                                    <option :value="product.id"
                                                             :data-purchase-item-id="product.purchase_item_id"
                                                             :data-price="product.unit_price"
                                                             :data-discount="product.discount"
                                                             :data-tax="product.tax"
+                                                            :data-max="product.quantity"
                                                             x-text="product.product_name + ' (Max: ' + product.quantity + ')'">
                                                     </option>
                                                 </template>
                                             </select>
                                         </td>
                                         <td class="py-1.5 px-1.5">
-                                            <input type="number" step="0.01" 
-                                                   :name="'items['+index+'][quantity]'" 
+                                            <input type="number" step="0.01"
+                                                   :name="'items['+index+'][quantity]'"
                                                    x-model="item.quantity"
                                                    @input="calculateRow(index)"
+                                                   :max="item.maxQuantity || ''"
                                                    class="w-full px-1 py-1 text-sm text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                    min="0.01" step="0.01">
                                         </td>
@@ -272,6 +286,7 @@ function purchaseReturnForm() {
                 unit_price: 0,
                 discount: 0,
                 tax: 0,
+                maxQuantity: null,
                 total: 0
             });
             this.calculateTotals();
@@ -282,6 +297,36 @@ function purchaseReturnForm() {
                 this.items.splice(index, 1);
                 this.calculateTotals();
             }
+        },
+
+        // Picking a product only set item.product_id (via x-model) - none of
+        // the actual return line data (which purchase_item_id it reverses,
+        // its original price/discount/tax) ever got copied over, so every
+        // row silently submitted an empty purchase_item_id and Rs. 0 price.
+        // Since items.*.purchase_item_id is required server-side, the form
+        // failed validation on every single submission - and with no
+        // $errors display on this page (added above), that looked exactly
+        // like "nothing happens" when you click Create Return.
+        onProductChange(index, event) {
+            const option = event.target.selectedOptions[0];
+            const item = this.items[index];
+
+            if (option && option.value) {
+                item.purchase_item_id = option.dataset.purchaseItemId;
+                item.unit_price = parseFloat(option.dataset.price) || 0;
+                item.discount = parseFloat(option.dataset.discount) || 0;
+                item.tax = parseFloat(option.dataset.tax) || 0;
+                item.maxQuantity = parseFloat(option.dataset.max) || 0;
+                item.quantity = Math.min(parseFloat(item.quantity) || 1, item.maxQuantity || 1);
+            } else {
+                item.purchase_item_id = '';
+                item.unit_price = 0;
+                item.discount = 0;
+                item.tax = 0;
+                item.maxQuantity = null;
+            }
+
+            this.calculateRow(index);
         },
 
         calculateRow(index) {
