@@ -117,16 +117,18 @@ class PurchaseService
     /**
      * Undo a purchase that was wrongly marked paid/partial (e.g. created as
      * "Paid" by mistake when the supplier hasn't actually been paid): fully
-     * reverses its payments and its base stock/accounting, resets it to
-     * `received` with zero paid, then re-posts stock/accounting fresh so it
-     * ends up in exactly the same state as a normal `received`, unpaid
-     * purchase - unlocking the ordinary Edit screen (blocked while
-     * status='paid') so payment_term/amounts/items can be corrected the
-     * normal way afterward, rather than needing a bespoke correction form.
+     * reverses its payments and its base accounting, resets it to
+     * `received` with zero paid, then re-posts accounting fresh - unlocking
+     * the ordinary Edit screen (blocked while status='paid') so
+     * payment_term/amounts/items can be corrected the normal way
+     * afterward, rather than needing a bespoke correction form.
      *
-     * Deliberately does NOT touch physical stock quantity net effect - the
-     * reverse+reapply nets to zero movement if the item list is unchanged,
-     * only touching accounting - existing goods received stay received.
+     * Deliberately never touches stock/StockMovement at all, even
+     * temporarily - the goods were genuinely received and by the time an
+     * admin notices a payment mistake, some of that stock may already have
+     * been sold onward, which reverseStock() correctly refuses to allow
+     * (would go negative). Only the financial classification was wrong,
+     * not the physical receipt, so only the ledger needs correcting.
      */
     public function reopenPurchase(Purchase $purchase, $adminId = null): Purchase
     {
@@ -138,14 +140,14 @@ class PurchaseService
 
         DB::transaction(function () use ($purchase) {
             $this->reversePaymentsAndAccounting($purchase);
-            $this->reverseStockAndAccounting($purchase);
+            $this->deleteJournalEntries($purchase, 'purchase');
 
             $purchase->status = 'received';
             $purchase->paid_amount = 0;
             $purchase->due_amount = $purchase->total_amount;
             $purchase->save();
 
-            $this->applyStockAndAccounting($purchase);
+            $this->repostAccountingOnly($purchase);
         });
 
         $after = $purchase->fresh()->only(['status', 'payment_term', 'paid_amount', 'due_amount']);

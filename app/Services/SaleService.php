@@ -125,13 +125,17 @@ class SaleService
 
     /**
      * Undo a sale that was wrongly marked paid/partial (e.g. confirmed with
-     * an incorrect amount_received): fully reverses its payments and its
-     * base stock/accounting/commission, resets it to `confirmed` with zero
-     * paid, then re-posts stock/accounting fresh - same end state as a
-     * normal confirmed, unpaid sale. Unlocks the ordinary Edit screen
+     * an incorrect amount_received): reverses its payments, base
+     * accounting, and commission, resets it to `confirmed` with zero paid,
+     * then re-posts accounting fresh. Unlocks the ordinary Edit screen
      * (blocked while status='paid') so payment_term/amounts/items can be
-     * corrected the normal way afterward. Mirrors PurchaseService::
-     * reopenPurchase().
+     * corrected the normal way afterward.
+     *
+     * Deliberately never touches stock/StockMovement, even temporarily -
+     * the goods genuinely left the warehouse and some of that product may
+     * have moved again since. Only the financial classification was wrong,
+     * not the physical shipment, so only the ledger needs correcting.
+     * Mirrors PurchaseService::reopenPurchase().
      */
     public function reopenSale(Sale $sale, $adminId = null): Sale
     {
@@ -144,14 +148,15 @@ class SaleService
         DB::transaction(function () use ($sale) {
             $this->deleteJournalEntries($sale, 'sale_payment');
             $sale->payments()->delete();
-            $this->reverseStockAndAccounting($sale);
+            $this->deleteJournalEntries($sale, 'sale');
+            $this->commissionService->reverseSaleCommission($sale);
 
             $sale->status = 'confirmed';
             $sale->paid_amount = 0;
             $sale->due_amount = $sale->total_amount;
             $sale->save();
 
-            $this->applyStockAndAccounting($sale);
+            $this->repostAccountingOnly($sale);
         });
 
         $after = $sale->fresh()->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
