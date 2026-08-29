@@ -220,6 +220,15 @@ class PurchaseService
      * Reverse items + re-apply stock/accounting when a purchase is edited.
      * Payments already made are left untouched. If the edit marks the
      * purchase "paid" and there's still a due amount, it is auto-settled.
+     *
+     * If the edited item list has the exact same product/quantity pairs as
+     * before (only price/discount/tax changed), physical stock is never
+     * touched at all - only the accounting is corrected. Reversing and
+     * reapplying identical quantities would still transiently subtract
+     * them from current_stock, which fails if any of that stock has
+     * already been sold or moved on since - exactly the same guard that
+     * blocks reopening a paid purchase once its stock has moved. A pure
+     * price correction must never be blocked by that.
      */
     public function syncItemsAndUpdate(Purchase $purchase, array $newItemsData)
     {
@@ -229,7 +238,13 @@ class PurchaseService
                 'invoice_no' => $purchase->invoice_no,
             ]);
 
-            $this->reverseStockAndAccounting($purchase);
+            $quantitiesUnchanged = $this->itemQuantitiesUnchanged($purchase->items, $newItemsData);
+
+            if ($quantitiesUnchanged) {
+                $this->deleteJournalEntries($purchase, 'purchase');
+            } else {
+                $this->reverseStockAndAccounting($purchase);
+            }
 
             $purchase->items()->delete();
             foreach ($newItemsData as $itemData) {
@@ -237,11 +252,16 @@ class PurchaseService
             }
 
             $purchase->refresh();
+            $purchase->sub_total = $purchase->items()->sum('total_price');
             $purchase->calculateTotals();
             $purchase->save();
 
             if (in_array($purchase->status, ['received', 'paid', 'partial'])) {
-                $this->applyStockAndAccounting($purchase);
+                if ($quantitiesUnchanged) {
+                    $this->repostAccountingOnly($purchase);
+                } else {
+                    $this->applyStockAndAccounting($purchase);
+                }
             }
 
             $purchase->refresh();
@@ -276,6 +296,20 @@ class PurchaseService
                 Log::info("Stock increased for product: {$product->name} (+{$item->quantity})");
             }
         }
+    }
+
+    /**
+     * True if $newItemsData has the exact same product_id => total quantity
+     * pairs as the purchase's current items - i.e. only price/discount/tax
+     * changed, nothing that would require moving physical stock at all.
+     */
+    private function itemQuantitiesUnchanged($currentItems, array $newItemsData): bool
+    {
+        $old = $currentItems->groupBy('product_id')->map(fn ($group) => round((float) $group->sum('quantity'), 4));
+        $new = collect($newItemsData)->groupBy('product_id')->map(fn ($group) => round((float) collect($group)->sum('quantity'), 4));
+
+        return $old->count() === $new->count()
+            && $old->every(fn ($qty, $productId) => abs(($new[$productId] ?? -1) - $qty) < 0.0001);
     }
 
     private function reverseStock(Purchase $purchase)
