@@ -22,8 +22,8 @@
                         <i class="fas fa-edit mr-1"></i> Edit
                     </a>
                     @endif
-                    @if(in_array($purchase->status, ['paid', 'partial']) && auth()->user()->isAdmin())
-                    <div x-data="{ open: false, term: '{{ $purchase->payment_term }}' }">
+                    @if(in_array($purchase->status, ['received', 'paid', 'partial']) && auth()->user()->isAdmin())
+                    <div x-data="{ open: false, term: '{{ $purchase->payment_term === 'cash' ? 'credit' : 'cash' }}' }">
                         <button type="button" @click="open = true"
                             class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors duration-200">
                             <i class="fas fa-undo mr-1"></i> Reopen for Correction
@@ -31,13 +31,14 @@
                         <div x-show="open" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @keydown.escape.window="open = false">
                             <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="open = false">
                                 <h3 class="text-lg font-bold text-red-700 mb-2"><i class="fas fa-triangle-exclamation mr-1"></i> Reopen Purchase #{{ $purchase->invoice_no }}?</h3>
-                                <p class="text-sm text-gray-600 mb-3">Use this only if this purchase was created or paid incorrectly. This will <strong>permanently</strong>:</p>
+                                <p class="text-sm text-gray-600 mb-3">Use this only if this purchase was created, paid, or classified incorrectly. This will <strong>permanently</strong>:</p>
                                 <ul class="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
                                     <li>Delete all {{ $purchase->payments()->count() }} recorded payment(s) on this purchase</li>
                                     <li>Reverse and re-post its accounting entries with the payment term you pick below</li>
                                     <li>Reset it to <strong>Received</strong> / Rs. 0 paid</li>
                                 </ul>
                                 <p class="text-xs text-gray-500 mb-4">Stock is never touched - existing received quantities are left exactly as they are. If a real payment needs recording afterward, use "Add Payment" once this completes.</p>
+                                <p class="text-xs font-medium text-red-600 mb-2">Currently set to: {{ ucfirst($purchase->payment_term) }} - double-check the selection below before submitting.</p>
                                 <form action="{{ route('admin.purchases.reopen', $purchase) }}" method="POST">
                                     @csrf
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Correct Payment Term</label>

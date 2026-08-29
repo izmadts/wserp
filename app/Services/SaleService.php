@@ -143,8 +143,8 @@ class SaleService
      */
     public function reopenSale(Sale $sale, $adminId = null, $correctedPaymentTerm = null): Sale
     {
-        if (!in_array($sale->status, ['paid', 'partial'])) {
-            throw new \Exception('Only a paid or partially-paid sale can be reopened.');
+        if (!in_array($sale->status, ['confirmed', 'paid', 'partial'])) {
+            throw new \Exception('Only a confirmed, paid, or partially-paid sale can be reopened.');
         }
 
         $before = $sale->only(['status', 'payment_term', 'paid_amount', 'due_amount']);

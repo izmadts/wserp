@@ -13,19 +13,20 @@
                     @if($sale->status != 'paid' && $sale->status != 'cancelled')
                     <a href="{{ route('admin.sales.edit', $sale) }}" class="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700">Edit</a>
                     @endif
-                    @if(in_array($sale->status, ['paid', 'partial']) && auth()->user()->isAdmin())
-                    <div x-data="{ open: false, term: '{{ $sale->payment_term }}' }">
+                    @if(in_array($sale->status, ['confirmed', 'paid', 'partial']) && auth()->user()->isAdmin())
+                    <div x-data="{ open: false, term: '{{ $sale->payment_term === 'cash' ? 'credit' : 'cash' }}' }">
                         <button type="button" @click="open = true" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"><i class="fas fa-undo mr-1"></i> Reopen for Correction</button>
                         <div x-show="open" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @keydown.escape.window="open = false">
                             <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="open = false">
                                 <h3 class="text-lg font-bold text-red-700 mb-2"><i class="fas fa-triangle-exclamation mr-1"></i> Reopen Sale #{{ $sale->invoice_no }}?</h3>
-                                <p class="text-sm text-gray-600 mb-3">Use this only if this sale was created or paid incorrectly. This will <strong>permanently</strong>:</p>
+                                <p class="text-sm text-gray-600 mb-3">Use this only if this sale was created, paid, or classified incorrectly. This will <strong>permanently</strong>:</p>
                                 <ul class="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
                                     <li>Delete all {{ $sale->payments()->count() }} recorded payment(s) on this sale</li>
                                     <li>Reverse and re-post its commission and accounting entries with the payment term you pick below</li>
                                     <li>Reset it to <strong>Confirmed</strong> / Rs. 0 paid</li>
                                 </ul>
                                 <p class="text-xs text-gray-500 mb-4">Stock is never touched - already-shipped quantities are left exactly as they are. If a real payment needs recording afterward, use "Add Payment" once this completes.</p>
+                                <p class="text-xs font-medium text-red-600 mb-2">Currently set to: {{ ucfirst($sale->payment_term) }} - double-check the selection below before submitting.</p>
                                 <form action="{{ route('admin.sales.reopen', $sale) }}" method="POST">
                                     @csrf
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Correct Payment Term</label>

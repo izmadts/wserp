@@ -134,8 +134,8 @@ class PurchaseService
      */
     public function reopenPurchase(Purchase $purchase, $adminId = null, $correctedPaymentTerm = null): Purchase
     {
-        if (!in_array($purchase->status, ['paid', 'partial'])) {
-            throw new \Exception('Only a paid or partially-paid purchase can be reopened.');
+        if (!in_array($purchase->status, ['received', 'paid', 'partial'])) {
+            throw new \Exception('Only a received, paid, or partially-paid purchase can be reopened.');
         }
 
         $before = $purchase->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
