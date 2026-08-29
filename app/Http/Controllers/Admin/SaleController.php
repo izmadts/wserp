@@ -412,20 +412,26 @@ class SaleController extends Controller
 
     /**
      * Undo an incorrectly-recorded paid/partial sale (e.g. confirmed with an
-     * incorrect amount_received) so it can be corrected via the normal Edit
-     * screen, which is otherwise blocked once a sale is paid. See
-     * SaleService::reopenSale() for exactly what gets reversed.
+     * incorrect amount_received, or the wrong payment_term) - reverses
+     * payments/commission/accounting and applies the corrected payment_term
+     * in one step. Never touches items/stock, so it works even if some of
+     * the sold stock has already moved on since. See SaleService::
+     * reopenSale() for exactly what gets reversed.
      */
-    public function reopen(Sale $sale)
+    public function reopen(Request $request, Sale $sale)
     {
+        $validated = $request->validate([
+            'payment_term' => 'required|in:cash,credit',
+        ]);
+
         try {
-            $this->saleService->reopenSale($sale, Auth::id());
+            $this->saleService->reopenSale($sale, Auth::id(), $validated['payment_term']);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('admin.sales.edit', $sale)
-            ->with('success', 'Sale reopened - payments, commission, and accounting were reversed. It is now unpaid and ready to correct.');
+        return redirect()->route('admin.sales.show', $sale)
+            ->with('success', 'Sale reopened - payments, commission, and accounting were reversed and reposted with the corrected payment term. It is now unpaid; use Add Payment if a real payment needs recording.');
     }
 
     /**

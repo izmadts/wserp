@@ -116,21 +116,23 @@ class PurchaseService
 
     /**
      * Undo a purchase that was wrongly marked paid/partial (e.g. created as
-     * "Paid" by mistake when the supplier hasn't actually been paid): fully
-     * reverses its payments and its base accounting, resets it to
-     * `received` with zero paid, then re-posts accounting fresh - unlocking
-     * the ordinary Edit screen (blocked while status='paid') so
-     * payment_term/amounts/items can be corrected the normal way
-     * afterward, rather than needing a bespoke correction form.
+     * "Paid" by mistake when the supplier hasn't actually been paid, or
+     * created with the wrong payment_term): reverses its payments and base
+     * accounting, corrects payment_term if a new one is given, resets it to
+     * `received` with zero paid, then re-posts accounting fresh using the
+     * (possibly corrected) payment_term.
      *
-     * Deliberately never touches stock/StockMovement at all, even
-     * temporarily - the goods were genuinely received and by the time an
-     * admin notices a payment mistake, some of that stock may already have
-     * been sold onward, which reverseStock() correctly refuses to allow
-     * (would go negative). Only the financial classification was wrong,
-     * not the physical receipt, so only the ledger needs correcting.
+     * Deliberately does everything through accounting-only methods and
+     * never goes anywhere near syncItemsAndUpdate()/the normal Edit screen -
+     * that path unconditionally reverses+reapplies stock on every save
+     * regardless of whether items actually changed, which fails exactly
+     * the same way reverseStock() does once any of the stock has already
+     * moved on. A payment_term/status mistake is a pure ledger problem;
+     * fixing it must never require touching stock at all. If the supplier
+     * really was paid something for real, use the existing "Add Payment"
+     * action afterward - it never touches stock either.
      */
-    public function reopenPurchase(Purchase $purchase, $adminId = null): Purchase
+    public function reopenPurchase(Purchase $purchase, $adminId = null, $correctedPaymentTerm = null): Purchase
     {
         if (!in_array($purchase->status, ['paid', 'partial'])) {
             throw new \Exception('Only a paid or partially-paid purchase can be reopened.');
@@ -138,10 +140,13 @@ class PurchaseService
 
         $before = $purchase->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
 
-        DB::transaction(function () use ($purchase) {
+        DB::transaction(function () use ($purchase, $correctedPaymentTerm) {
             $this->reversePaymentsAndAccounting($purchase);
             $this->deleteJournalEntries($purchase, 'purchase');
 
+            if ($correctedPaymentTerm) {
+                $purchase->payment_term = $correctedPaymentTerm;
+            }
             $purchase->status = 'received';
             $purchase->paid_amount = 0;
             $purchase->due_amount = $purchase->total_amount;

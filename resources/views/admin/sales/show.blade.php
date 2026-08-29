@@ -14,11 +14,33 @@
                     <a href="{{ route('admin.sales.edit', $sale) }}" class="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700">Edit</a>
                     @endif
                     @if(in_array($sale->status, ['paid', 'partial']) && auth()->user()->isAdmin())
-                    <form action="{{ route('admin.sales.reopen', $sale) }}" method="POST" class="inline"
-                        onsubmit="return confirm('Reopen this sale for correction?\n\nThis will PERMANENTLY:\n- Delete all recorded payments for this sale\n- Reverse its commission, stock, and accounting entries, then re-post them fresh\n- Reset it to Confirmed / Rs. 0 paid\n\nUse this ONLY if the sale was created or paid incorrectly and needs to be re-entered correctly via Edit. This cannot be undone from the UI - only a fresh backup restore could reverse it.');">
-                        @csrf
-                        <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"><i class="fas fa-undo mr-1"></i> Reopen for Correction</button>
-                    </form>
+                    <div x-data="{ open: false, term: '{{ $sale->payment_term }}' }">
+                        <button type="button" @click="open = true" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"><i class="fas fa-undo mr-1"></i> Reopen for Correction</button>
+                        <div x-show="open" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @keydown.escape.window="open = false">
+                            <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="open = false">
+                                <h3 class="text-lg font-bold text-red-700 mb-2"><i class="fas fa-triangle-exclamation mr-1"></i> Reopen Sale #{{ $sale->invoice_no }}?</h3>
+                                <p class="text-sm text-gray-600 mb-3">Use this only if this sale was created or paid incorrectly. This will <strong>permanently</strong>:</p>
+                                <ul class="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
+                                    <li>Delete all {{ $sale->payments()->count() }} recorded payment(s) on this sale</li>
+                                    <li>Reverse and re-post its commission and accounting entries with the payment term you pick below</li>
+                                    <li>Reset it to <strong>Confirmed</strong> / Rs. 0 paid</li>
+                                </ul>
+                                <p class="text-xs text-gray-500 mb-4">Stock is never touched - already-shipped quantities are left exactly as they are. If a real payment needs recording afterward, use "Add Payment" once this completes.</p>
+                                <form action="{{ route('admin.sales.reopen', $sale) }}" method="POST">
+                                    @csrf
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Correct Payment Term</label>
+                                    <select name="payment_term" x-model="term" required class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4">
+                                        <option value="cash">Cash (paid in full)</option>
+                                        <option value="credit">Credit (owed by customer)</option>
+                                    </select>
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" @click="open = false" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Cancel</button>
+                                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Reopen &amp; Correct</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                     @endif
                     <a href="{{ route('admin.sales.index') }}" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
                 </div>

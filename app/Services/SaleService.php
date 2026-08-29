@@ -125,19 +125,23 @@ class SaleService
 
     /**
      * Undo a sale that was wrongly marked paid/partial (e.g. confirmed with
-     * an incorrect amount_received): reverses its payments, base
-     * accounting, and commission, resets it to `confirmed` with zero paid,
-     * then re-posts accounting fresh. Unlocks the ordinary Edit screen
-     * (blocked while status='paid') so payment_term/amounts/items can be
-     * corrected the normal way afterward.
+     * an incorrect amount_received, or the wrong payment_term): reverses
+     * its payments, base accounting, and commission, corrects payment_term
+     * if a new one is given, resets it to `confirmed` with zero paid, then
+     * re-posts accounting fresh using the (possibly corrected) payment_term.
      *
-     * Deliberately never touches stock/StockMovement, even temporarily -
-     * the goods genuinely left the warehouse and some of that product may
-     * have moved again since. Only the financial classification was wrong,
-     * not the physical shipment, so only the ledger needs correcting.
-     * Mirrors PurchaseService::reopenPurchase().
+     * Deliberately does everything through accounting-only methods and
+     * never goes anywhere near syncItemsAndUpdate()/the normal Edit screen -
+     * that path unconditionally reverses+reapplies stock on every save
+     * regardless of whether items actually changed, which fails exactly
+     * the same way reverseStock() does once any of that stock has already
+     * moved on. A payment_term/status mistake is a pure ledger problem;
+     * fixing it must never require touching stock at all. If the customer
+     * really did pay something for real, use the existing "Add Payment"
+     * action afterward - it never touches stock either. Mirrors
+     * PurchaseService::reopenPurchase().
      */
-    public function reopenSale(Sale $sale, $adminId = null): Sale
+    public function reopenSale(Sale $sale, $adminId = null, $correctedPaymentTerm = null): Sale
     {
         if (!in_array($sale->status, ['paid', 'partial'])) {
             throw new \Exception('Only a paid or partially-paid sale can be reopened.');
@@ -145,12 +149,15 @@ class SaleService
 
         $before = $sale->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
 
-        DB::transaction(function () use ($sale) {
+        DB::transaction(function () use ($sale, $correctedPaymentTerm) {
             $this->deleteJournalEntries($sale, 'sale_payment');
             $sale->payments()->delete();
             $this->deleteJournalEntries($sale, 'sale');
             $this->commissionService->reverseSaleCommission($sale);
 
+            if ($correctedPaymentTerm) {
+                $sale->payment_term = $correctedPaymentTerm;
+            }
             $sale->status = 'confirmed';
             $sale->paid_amount = 0;
             $sale->due_amount = $sale->total_amount;

@@ -23,14 +23,36 @@
                     </a>
                     @endif
                     @if(in_array($purchase->status, ['paid', 'partial']) && auth()->user()->isAdmin())
-                    <form action="{{ route('admin.purchases.reopen', $purchase) }}" method="POST" class="inline"
-                        onsubmit="return confirm('Reopen this purchase for correction?\n\nThis will PERMANENTLY:\n- Delete all recorded payments for this purchase\n- Reverse its stock and accounting entries, then re-post them fresh\n- Reset it to Received / Rs. 0 paid\n\nUse this ONLY if the purchase was created or paid incorrectly and needs to be re-entered correctly via Edit. This cannot be undone from the UI - only a fresh backup restore could reverse it.');">
-                        @csrf
-                        <button type="submit"
+                    <div x-data="{ open: false, term: '{{ $purchase->payment_term }}' }">
+                        <button type="button" @click="open = true"
                             class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors duration-200">
                             <i class="fas fa-undo mr-1"></i> Reopen for Correction
                         </button>
-                    </form>
+                        <div x-show="open" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @keydown.escape.window="open = false">
+                            <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="open = false">
+                                <h3 class="text-lg font-bold text-red-700 mb-2"><i class="fas fa-triangle-exclamation mr-1"></i> Reopen Purchase #{{ $purchase->invoice_no }}?</h3>
+                                <p class="text-sm text-gray-600 mb-3">Use this only if this purchase was created or paid incorrectly. This will <strong>permanently</strong>:</p>
+                                <ul class="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
+                                    <li>Delete all {{ $purchase->payments()->count() }} recorded payment(s) on this purchase</li>
+                                    <li>Reverse and re-post its accounting entries with the payment term you pick below</li>
+                                    <li>Reset it to <strong>Received</strong> / Rs. 0 paid</li>
+                                </ul>
+                                <p class="text-xs text-gray-500 mb-4">Stock is never touched - existing received quantities are left exactly as they are. If a real payment needs recording afterward, use "Add Payment" once this completes.</p>
+                                <form action="{{ route('admin.purchases.reopen', $purchase) }}" method="POST">
+                                    @csrf
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Correct Payment Term</label>
+                                    <select name="payment_term" x-model="term" required class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4">
+                                        <option value="cash">Cash (paid in full)</option>
+                                        <option value="credit">Credit (owed to supplier)</option>
+                                    </select>
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" @click="open = false" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Cancel</button>
+                                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Reopen &amp; Correct</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                     @endif
                     <a href="{{ route('admin.purchases.index') }}"
                         class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors duration-200">
