@@ -13,6 +13,13 @@
                     @if($sale->status != 'paid' && $sale->status != 'cancelled')
                     <a href="{{ route('admin.sales.edit', $sale) }}" class="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700">Edit</a>
                     @endif
+                    @if(in_array($sale->status, ['paid', 'partial']) && auth()->user()->isAdmin())
+                    <form action="{{ route('admin.sales.reopen', $sale) }}" method="POST" class="inline"
+                        onsubmit="return confirm('Reopen this sale for correction?\n\nThis will PERMANENTLY:\n- Delete all recorded payments for this sale\n- Reverse its commission, stock, and accounting entries, then re-post them fresh\n- Reset it to Confirmed / Rs. 0 paid\n\nUse this ONLY if the sale was created or paid incorrectly and needs to be re-entered correctly via Edit. This cannot be undone from the UI - only a fresh backup restore could reverse it.');">
+                        @csrf
+                        <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"><i class="fas fa-undo mr-1"></i> Reopen for Correction</button>
+                    </form>
+                    @endif
                     <a href="{{ route('admin.sales.index') }}" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
                 </div>
             </div>

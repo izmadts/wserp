@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\Product;
@@ -10,6 +11,7 @@ use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Traits\AccountingTrait;
 use App\Events\SaleCreated;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -119,6 +121,57 @@ class SaleService
             $this->deleteJournalEntries($sale, 'sale_payment');
             $sale->payments()->delete();
         });
+    }
+
+    /**
+     * Undo a sale that was wrongly marked paid/partial (e.g. confirmed with
+     * an incorrect amount_received): fully reverses its payments and its
+     * base stock/accounting/commission, resets it to `confirmed` with zero
+     * paid, then re-posts stock/accounting fresh - same end state as a
+     * normal confirmed, unpaid sale. Unlocks the ordinary Edit screen
+     * (blocked while status='paid') so payment_term/amounts/items can be
+     * corrected the normal way afterward. Mirrors PurchaseService::
+     * reopenPurchase().
+     */
+    public function reopenSale(Sale $sale, $adminId = null): Sale
+    {
+        if (!in_array($sale->status, ['paid', 'partial'])) {
+            throw new \Exception('Only a paid or partially-paid sale can be reopened.');
+        }
+
+        $before = $sale->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
+
+        DB::transaction(function () use ($sale) {
+            $this->deleteJournalEntries($sale, 'sale_payment');
+            $sale->payments()->delete();
+            $this->reverseStockAndAccounting($sale);
+
+            $sale->status = 'confirmed';
+            $sale->paid_amount = 0;
+            $sale->due_amount = $sale->total_amount;
+            $sale->save();
+
+            $this->applyStockAndAccounting($sale);
+        });
+
+        $after = $sale->fresh()->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
+
+        $user = $adminId ? \App\Models\User::find($adminId) : Auth::user();
+        ActivityLog::create([
+            'user_id' => $user?->id,
+            'user_name' => $user?->name,
+            'user_email' => $user?->email,
+            'user_role' => $user?->role,
+            'action' => 'reopened',
+            'module' => 'sales',
+            'description' => "Reopened Sale #{$sale->invoice_no} for correction - payments, commission, and accounting reversed, reset to 'confirmed'/unpaid.",
+            'old_data' => $before,
+            'new_data' => $after,
+        ]);
+
+        Log::info('Sale reopened for correction', ['sale_id' => $sale->id, 'before' => $before, 'after' => $after]);
+
+        return $sale->fresh();
     }
 
     /**

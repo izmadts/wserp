@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Purchase;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Traits\AccountingTrait;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -110,6 +112,60 @@ class PurchaseService
 
             $this->deleteJournalEntries($purchase, 'purchase_payment');
         });
+    }
+
+    /**
+     * Undo a purchase that was wrongly marked paid/partial (e.g. created as
+     * "Paid" by mistake when the supplier hasn't actually been paid): fully
+     * reverses its payments and its base stock/accounting, resets it to
+     * `received` with zero paid, then re-posts stock/accounting fresh so it
+     * ends up in exactly the same state as a normal `received`, unpaid
+     * purchase - unlocking the ordinary Edit screen (blocked while
+     * status='paid') so payment_term/amounts/items can be corrected the
+     * normal way afterward, rather than needing a bespoke correction form.
+     *
+     * Deliberately does NOT touch physical stock quantity net effect - the
+     * reverse+reapply nets to zero movement if the item list is unchanged,
+     * only touching accounting - existing goods received stay received.
+     */
+    public function reopenPurchase(Purchase $purchase, $adminId = null): Purchase
+    {
+        if (!in_array($purchase->status, ['paid', 'partial'])) {
+            throw new \Exception('Only a paid or partially-paid purchase can be reopened.');
+        }
+
+        $before = $purchase->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
+
+        DB::transaction(function () use ($purchase) {
+            $this->reversePaymentsAndAccounting($purchase);
+            $this->reverseStockAndAccounting($purchase);
+
+            $purchase->status = 'received';
+            $purchase->paid_amount = 0;
+            $purchase->due_amount = $purchase->total_amount;
+            $purchase->save();
+
+            $this->applyStockAndAccounting($purchase);
+        });
+
+        $after = $purchase->fresh()->only(['status', 'payment_term', 'paid_amount', 'due_amount']);
+
+        $user = $adminId ? \App\Models\User::find($adminId) : Auth::user();
+        ActivityLog::create([
+            'user_id' => $user?->id,
+            'user_name' => $user?->name,
+            'user_email' => $user?->email,
+            'user_role' => $user?->role,
+            'action' => 'reopened',
+            'module' => 'purchases',
+            'description' => "Reopened Purchase #{$purchase->invoice_no} for correction - payments and accounting reversed, reset to 'received'/unpaid.",
+            'old_data' => $before,
+            'new_data' => $after,
+        ]);
+
+        Log::info('Purchase reopened for correction', ['purchase_id' => $purchase->id, 'before' => $before, 'after' => $after]);
+
+        return $purchase->fresh();
     }
 
     /**

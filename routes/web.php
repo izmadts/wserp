@@ -182,6 +182,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::delete('/{purchase}', [PurchaseController::class, 'destroy'])->middleware('permission:purchases,delete')->name('destroy');
         Route::post('/{purchase}/add-payment', [PurchaseController::class, 'addPayment'])->middleware('permission:purchases,edit')->name('add-payment');
         Route::get('/{purchase}/return', [PurchaseController::class, 'returnCreate'])->name('return-create');
+        Route::post('/{purchase}/reopen', [PurchaseController::class, 'reopen'])->middleware('role:admin')->name('reopen');
     });
 
     // ==========================================
@@ -343,6 +344,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         // only an admin can act on) becomes a real, ledger-posted sale.
         Route::post('/{sale}/confirm', [SaleController::class, 'confirm'])->middleware('permission:sales,edit')->name('confirm');
         Route::post('/{sale}/reject', [SaleController::class, 'reject'])->middleware('permission:sales,edit')->name('reject');
+        Route::post('/{sale}/reopen', [SaleController::class, 'reopen'])->middleware('role:admin')->name('reopen');
     });
 
     // Everything submitted via the Sale Agent app/portal or the customer

@@ -60,6 +60,7 @@ class SaleController extends Controller
             'payment_term' => 'required|in:cash,credit',
             'status' => 'required|in:draft,confirmed',
             'amount_received' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|in:cash,bank_transfer,cheque,credit_card',
             'sub_total' => 'required|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
@@ -202,7 +203,7 @@ class SaleController extends Controller
                 // routing an instant full payment through here (instead of
                 // creating the row already status='paid') is what makes that
                 // event actually fire for a pay-in-full-at-checkout sale.
-                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date'], null, null, 'approved', Auth::id(), Auth::id());
+                $this->saleService->recordPayment($sale, $amountReceived, $validated['payment_method'] ?? 'cash', $validated['sale_date'], null, null, 'approved', Auth::id(), Auth::id());
             }
         });
     }
@@ -407,6 +408,24 @@ class SaleController extends Controller
 
         return redirect()->route('admin.sales.index')
             ->with('success', 'Sale deleted successfully! Stock and accounting reversed.');
+    }
+
+    /**
+     * Undo an incorrectly-recorded paid/partial sale (e.g. confirmed with an
+     * incorrect amount_received) so it can be corrected via the normal Edit
+     * screen, which is otherwise blocked once a sale is paid. See
+     * SaleService::reopenSale() for exactly what gets reversed.
+     */
+    public function reopen(Sale $sale)
+    {
+        try {
+            $this->saleService->reopenSale($sale, Auth::id());
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.sales.edit', $sale)
+            ->with('success', 'Sale reopened - payments, commission, and accounting were reversed. It is now unpaid and ready to correct.');
     }
 
     /**

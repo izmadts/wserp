@@ -22,6 +22,16 @@
                         <i class="fas fa-edit mr-1"></i> Edit
                     </a>
                     @endif
+                    @if(in_array($purchase->status, ['paid', 'partial']) && auth()->user()->isAdmin())
+                    <form action="{{ route('admin.purchases.reopen', $purchase) }}" method="POST" class="inline"
+                        onsubmit="return confirm('Reopen this purchase for correction?\n\nThis will PERMANENTLY:\n- Delete all recorded payments for this purchase\n- Reverse its stock and accounting entries, then re-post them fresh\n- Reset it to Received / Rs. 0 paid\n\nUse this ONLY if the purchase was created or paid incorrectly and needs to be re-entered correctly via Edit. This cannot be undone from the UI - only a fresh backup restore could reverse it.');">
+                        @csrf
+                        <button type="submit"
+                            class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors duration-200">
+                            <i class="fas fa-undo mr-1"></i> Reopen for Correction
+                        </button>
+                    </form>
+                    @endif
                     <a href="{{ route('admin.purchases.index') }}"
                         class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors duration-200">
                         <i class="fas fa-arrow-left mr-1"></i> Back

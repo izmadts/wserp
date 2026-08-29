@@ -230,6 +230,18 @@
                                 <button type="button" @click="amountReceived = grandTotal.toFixed(2)" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 whitespace-nowrap">Pay in Full</button>
                             </div>
                             <p class="text-xs text-gray-500 text-right">Leave blank for no payment yet - status becomes Paid/Partial automatically based on what's entered here.</p>
+                            <div class="flex items-center gap-2 justify-end pt-1" x-show="payment_term === 'credit' && parseFloat(amountReceived) > 0">
+                                <span class="text-sm text-gray-600 inline-flex items-center">
+                                    Received Via:
+                                    <x-help-tooltip>How this initial payment actually arrived - determines whether it posts to Cash or Bank. A Cash-term sale always posts its full total to Cash, so this only matters for an immediate payment on a Credit sale.</x-help-tooltip>
+                                </span>
+                                <select name="payment_method" x-model="paymentMethod" class="px-2 py-1 text-sm border border-gray-300 rounded-lg">
+                                    <option value="cash">Cash</option>
+                                    <option value="bank_transfer">Bank Transfer</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="credit_card">Credit Card</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -257,6 +269,7 @@ function saleForm() {
         customer_id: '',
         agent_id: '',
         payment_term: 'cash',
+        paymentMethod: 'cash',
         priceField: 'sale_price',
         discount: 0,
         discountType: 'fixed',

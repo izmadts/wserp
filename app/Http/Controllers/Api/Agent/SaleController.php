@@ -49,6 +49,7 @@ class SaleController extends ApiController
             'payment_term' => 'required|in:cash,credit',
             'status' => 'required|in:draft,confirmed',
             'amount_received' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|in:cash,bank_transfer,cheque,credit_card',
             'discount' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
@@ -198,7 +199,7 @@ class SaleController extends ApiController
                 // draft sale with zero ledger effect until admin confirms
                 // the sale (which approves any pending payment on it too,
                 // see Admin\SaleController::confirm).
-                $this->saleService->recordPayment($sale, $amountReceived, 'cash', $validated['sale_date'], null, null, 'pending', $this->agent()->id);
+                $this->saleService->recordPayment($sale, $amountReceived, $validated['payment_method'] ?? 'cash', $validated['sale_date'], null, null, 'pending', $this->agent()->id);
             }
 
             return $sale;

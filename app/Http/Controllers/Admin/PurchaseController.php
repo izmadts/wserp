@@ -270,6 +270,24 @@ class PurchaseController extends Controller
             ->with('success', 'Purchase deleted successfully! Stock, payments, and accounting reversed.');
     }
 
+    /**
+     * Undo an incorrectly-recorded paid/partial purchase (e.g. created as
+     * "Paid" by mistake) so it can be corrected via the normal Edit screen,
+     * which is otherwise blocked once a purchase is paid. See
+     * PurchaseService::reopenPurchase() for exactly what gets reversed.
+     */
+    public function reopen(Purchase $purchase)
+    {
+        try {
+            $this->purchaseService->reopenPurchase($purchase, Auth::id());
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.purchases.edit', $purchase)
+            ->with('success', 'Purchase reopened - payments and accounting were reversed. It is now unpaid and ready to correct.');
+    }
+
     public function addPayment(Request $request, Purchase $purchase)
     {
         $validated = $request->validate([
