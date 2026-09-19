@@ -360,6 +360,34 @@
                         @endforeach
                     </div>
                 </div>
+                @elseif($sale->status === 'draft')
+                <!-- No payment yet: let the admin record one while reviewing (approved with the sale) -->
+                <div class="mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <h4 class="text-sm font-semibold text-gray-800 mb-1"><i class="fas fa-money-bill-wave text-green-600 mr-1"></i> Payment received (optional)</h4>
+                    <p class="text-xs text-gray-500 mb-3">Money already collected for this sale - by cash or bank. It is recorded when you <strong>Save &amp; Confirm</strong> (Cash sales must be paid in full or not at all).</p>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Amount (Rs.)</label>
+                            <input type="number" step="0.01" min="0" name="new_payment[amount]" value="{{ old('new_payment.amount') }}" placeholder="0.00" class="w-full px-2 py-1.5 text-sm text-right border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Received via</label>
+                            <select name="new_payment[payment_method]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                                @foreach(['cash' => 'Cash', 'bank_transfer' => 'Bank Transfer', 'cheque' => 'Cheque', 'credit_card' => 'Credit Card'] as $value => $label)
+                                <option value="{{ $value }}" {{ old('new_payment.payment_method', 'cash') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Date</label>
+                            <input type="date" name="new_payment[payment_date]" value="{{ old('new_payment.payment_date', now()->format('Y-m-d')) }}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-0.5">Reference (cheque / transaction no.)</label>
+                            <input type="text" maxlength="100" name="new_payment[reference_no]" value="{{ old('new_payment.reference_no') }}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                </div>
                 @endif
 
                 <!-- Totals -->

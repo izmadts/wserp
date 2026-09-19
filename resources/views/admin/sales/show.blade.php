@@ -100,7 +100,8 @@
         <div class="bg-white rounded-xl shadow-card overflow-hidden border-2 border-purple-200">
             <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-hourglass-half text-purple-600 mr-2"></i> Pending Confirmation</h4></div>
             <div class="p-6 space-y-3">
-                <p class="text-sm text-gray-500">This order hasn't been confirmed yet - stock and accounting are only committed once confirmed.</p>
+                <p class="text-sm text-gray-500">This order hasn't been confirmed yet - stock and accounting are only committed once confirmed.@if($sale->payments->where('status', 'pending')->count()) The payment listed below is approved together with the sale.@endif</p>
+                <p class="text-xs text-gray-500">Something wrong (customer name, items, prices, the payment)? Use <strong>Edit</strong> to correct it, then <strong>Save &amp; Confirm</strong>. Need to record a payment received? Add it in Edit as well.</p>
                 <div class="flex gap-2">
                     <form action="{{ route('admin.sales.confirm', $sale) }}" method="POST" class="flex-1">
                         @csrf
@@ -116,7 +117,7 @@
         @endif
 
         @if($sale->due_amount > 0 && $sale->status != 'cancelled' && $sale->status != 'draft')
-        <div class="bg-white rounded-xl shadow-card overflow-hidden">
+        <div id="add-payment" class="bg-white rounded-xl shadow-card overflow-hidden scroll-mt-20">
             <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-plus-circle text-green-600 mr-2"></i> Add Payment</h4></div>
             <div class="p-6" x-data="{ method: 'cash' }">
                 <form action="{{ route('admin.sales.add-payment', $sale) }}" method="POST">
@@ -146,7 +147,7 @@
             <div class="p-6 space-y-3">
                 @foreach($sale->payments as $payment)
                 <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                    <div class="flex justify-between"><div><p class="font-medium text-gray-900">Rs. {{ number_format($payment->amount, 2) }}</p><p class="text-xs text-gray-500">{{ $payment->payment_date->format('d-m-Y') }}</p></div><div class="text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</span>@if($payment->reference_no)<p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>@endif</div></div>
+                    <div class="flex justify-between"><div><p class="font-medium text-gray-900">Rs. {{ number_format($payment->amount, 2) }}</p><p class="text-xs text-gray-500">{{ $payment->payment_date->format('d-m-Y') }}@if($payment->createdBy) &middot; by {{ $payment->createdBy->name }}@endif</p></div><div class="text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</span>@if($payment->status === 'pending')<span class="block mt-1 text-xs font-medium text-yellow-700"><i class="fas fa-hourglass-half mr-1"></i>Awaiting approval</span>@elseif($payment->status === 'rejected')<span class="block mt-1 text-xs font-medium text-red-600"><i class="fas fa-ban mr-1"></i>Rejected</span>@endif @if($payment->reference_no)<p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>@endif</div></div>
                 </div>
                 @endforeach
             </div>

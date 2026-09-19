@@ -213,7 +213,7 @@ class SaleController extends Controller
      */
     public function show(Sale $sale)
     {
-        $sale->load('customer', 'agent', 'items.product', 'payments', 'createdBy');
+        $sale->load('customer', 'agent', 'items.product', 'payments.createdBy', 'createdBy');
         return view('admin.sales.show', compact('sale'));
     }
 
@@ -360,6 +360,13 @@ class SaleController extends Controller
             'pending_payments.*.payment_date' => 'nullable|date',
             'pending_payments.*.reference_no' => 'nullable|string|max:100',
             'pending_payments.*.reject' => 'nullable|boolean',
+            // A payment the admin records while reviewing a draft (cash / bank
+            // ...) - kept pending and approved with the sale, like the app's.
+            'new_payment' => 'nullable|array',
+            'new_payment.amount' => 'nullable|numeric|min:0',
+            'new_payment.payment_method' => 'nullable|in:cash,bank_transfer,cheque,credit_card',
+            'new_payment.payment_date' => 'nullable|date',
+            'new_payment.reference_no' => 'nullable|string|max:100',
             'return_to' => 'nullable|in:approvals',
             'confirm_after' => 'nullable|boolean',
         ]);
@@ -422,7 +429,7 @@ class SaleController extends Controller
                 // (wrong) customer's account.
                 $sale->payments()->where('customer_id', '!=', $sale->customer_id)->update(['customer_id' => $sale->customer_id]);
 
-                $this->applyPendingPaymentEdits($sale, $validated['pending_payments'] ?? []);
+                $this->applyPendingPaymentEdits($sale, $validated['pending_payments'] ?? [], $validated['new_payment'] ?? []);
             });
         } catch (\Exception $e) {
             // Catches SaleService's defensive throws (insufficient stock, a
@@ -472,13 +479,33 @@ class SaleController extends Controller
      * re-synced, so the amounts are checked against the corrected total - a
      * failure throws and the whole edit rolls back.
      */
-    private function applyPendingPaymentEdits(Sale $sale, array $edits): void
+    private function applyPendingPaymentEdits(Sale $sale, array $edits, array $newPayment = []): void
     {
-        if (empty($edits)) {
+        $newAmount = round((float) ($newPayment['amount'] ?? 0), 2);
+        $addNew = $newAmount > 0 && $sale->status === 'draft';
+
+        if (empty($edits) && !$addNew) {
             return;
         }
 
         $sale->refresh();
+
+        // A payment the admin records while reviewing a draft (the agent
+        // forgot to, or it arrived later): stays pending like the agent's
+        // own and is approved together with the sale on Confirm.
+        if ($addNew) {
+            $this->saleService->recordPayment(
+                $sale,
+                $newAmount,
+                $newPayment['payment_method'] ?? 'cash',
+                $newPayment['payment_date'] ?? now()->toDateString(),
+                $newPayment['reference_no'] ?? null,
+                null,
+                'pending',
+                Auth::id()
+            );
+        }
+
         $kept = 0.0;
 
         foreach ($sale->payments()->pending()->get() as $payment) {

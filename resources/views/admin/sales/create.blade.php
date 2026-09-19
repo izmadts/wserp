@@ -233,7 +233,7 @@
                             <div class="flex items-center gap-2 justify-end pt-1" x-show="payment_term === 'credit' && parseFloat(amountReceived) > 0">
                                 <span class="text-sm text-gray-600 inline-flex items-center">
                                     Received Via:
-                                    <x-help-tooltip>How this initial payment actually arrived - determines whether it posts to Cash or Bank. A Cash-term sale always posts its full total to Cash, so this only matters for an immediate payment on a Credit sale.</x-help-tooltip>
+                                    <x-help-tooltip>How this initial payment actually arrived - determines whether it posts to Cash or Bank. A Cash-term sale always posts its full total to Cash, so this only matters for an immediate payment on a Credit sale. Customer paid the whole amount by bank transfer / cheque? Choose Credit, click Pay in Full and pick the method here.</x-help-tooltip>
                                 </span>
                                 <select name="payment_method" x-model="paymentMethod" class="px-2 py-1 text-sm border border-gray-300 rounded-lg">
                                     <option value="cash">Cash</option>
