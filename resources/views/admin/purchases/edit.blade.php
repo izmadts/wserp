@@ -117,7 +117,14 @@
                                         <td class="py-1.5 px-1.5">
                                             <div class="relative"
                                                 x-data="{
-                                                    open: false, query: '', highlighted: 0,
+                                                    open: false, query: '', highlighted: 0, pos: '',
+                                                    place() {
+                                                        const r = this.$refs.input.getBoundingClientRect();
+                                                        const below = window.innerHeight - r.bottom;
+                                                        this.pos = (below >= 240 || below >= r.top)
+                                                            ? 'top:' + (r.bottom + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(224, below - 12)) + 'px'
+                                                            : 'bottom:' + (window.innerHeight - r.top + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(224, r.top - 12)) + 'px';
+                                                    },
                                                     get selected() { return allProducts.find(p => p.id == item.product_id) || null; },
                                                     get results() {
                                                         const q = this.query.trim().toLowerCase();
@@ -126,10 +133,10 @@
                                                     pick(p) { item.product_id = p.id; onProductChange(index); this.open = false; this.query = ''; }
                                                 }"
                                                 @click.outside="open = false">
-                                                <input type="text" autocomplete="off"
+                                                <input type="text" autocomplete="off" x-ref="input"
                                                     :value="open ? query : (selected ? selected.name + ' (' + selected.code + ')' : '')"
-                                                    @focus="open = true; query = ''; highlighted = 0"
-                                                    @input="open = true; query = $event.target.value; highlighted = 0"
+                                                    @focus="open = true; query = ''; highlighted = 0; place()"
+                                                    @input="open = true; query = $event.target.value; highlighted = 0; place()"
                                                     @keydown.escape="open = false"
                                                     @keydown.down.prevent="highlighted = Math.min(highlighted + 1, results.length - 1)"
                                                     @keydown.up.prevent="highlighted = Math.max(highlighted - 1, 0)"
@@ -137,7 +144,7 @@
                                                     placeholder="Search product..."
                                                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <input type="hidden" :name="'items['+index+'][product_id]'" x-model="item.product_id">
-                                                <div x-show="open" x-cloak class="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                                                <div x-show="open" x-cloak :style="pos" @scroll.window.capture="open && place()" @resize.window="open && place()" class="fixed z-50 max-h-56 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
                                                     <template x-for="(p, i) in results" :key="p.id">
                                                         <div @click="pick(p)" @mouseenter="highlighted = i" :class="i === highlighted ? 'bg-blue-50' : ''" class="px-2 py-1.5 text-sm cursor-pointer hover:bg-blue-50" x-text="p.name + ' (' + p.code + ')'"></div>
                                                     </template>
