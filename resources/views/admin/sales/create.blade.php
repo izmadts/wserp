@@ -112,7 +112,7 @@
                                                     <template x-for="(p, i) in results" :key="p.id">
                                                         <div @click="pick(p)" @mouseenter="highlighted = i" :class="i === highlighted ? 'bg-blue-50' : ''" class="px-2 py-1.5 text-sm cursor-pointer hover:bg-blue-50" x-text="p.name + ' (' + p.code + ') - Stock: ' + p.current_stock"></div>
                                                     </template>
-                                                    <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400">No products found</div>
+                                                    <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400" x-text="query.trim() ? 'No products found' : 'No products are available for this customer\'s price list - check each product\'s Retail / Wholesale setting'"></div>
                                                 </div>
                                             </div>
                                             <p class="mt-1 text-xs" x-show="item.product_id">
@@ -160,7 +160,7 @@
                                         <template x-for="p in results" :key="p.id">
                                             <div @click="pick(p)" class="px-2 py-1.5 text-sm cursor-pointer hover:bg-blue-50" x-text="p.name + ' - Stock: ' + p.current_stock"></div>
                                         </template>
-                                        <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400">No products found</div>
+                                        <div x-show="results.length === 0" class="px-2 py-1.5 text-sm text-gray-400" x-text="query.trim() ? 'No products found' : 'No products are available for this customer\'s price list - check each product\'s Retail / Wholesale setting'"></div>
                                     </div>
                                 </div>
                                 <p class="text-xs" x-show="item.product_id">
@@ -313,6 +313,12 @@ function saleForm() {
         // a row's own already-selected product in the list too, so an
         // existing selection never silently disappears from its dropdown.
         visibleProducts(currentProductId = null) {
+            // Until a customer is chosen there is no price list to filter by, so
+            // offer every product (the rows are re-checked and re-priced the
+            // moment a customer is picked - see onCustomerChange). Filtering by
+            // the default retail list here left the picker EMPTY on catalogs
+            // where every product is wholesale-only, until a customer was picked.
+            if (!this.customer_id) return this.allProducts;
             return this.allProducts.filter(p =>
                 (this.priceField === 'wholesale_price' ? p.is_wholesale : p.is_retail) || p.id == currentProductId
             );

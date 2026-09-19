@@ -401,6 +401,25 @@
             } finally {
                 state.capturing = false;
             }
+            // Self-check: Alpine removes x-cloak from every element it sets up and
+            // gives every x-data root a data stack. If either is missing the page
+            // is only half alive - it is what "a field is missing until I hard
+            // refresh" looks like - so fall back to a normal load instead of
+            // leaving it that way. (Give Alpine a moment before judging.)
+            var halfAlive = function () {
+                if (curMain.querySelector('[x-cloak]')) return 'an x-cloak element was never initialised';
+                var roots = curMain.querySelectorAll('[x-data]');
+                for (var r = 0; r < roots.length; r++) {
+                    if (!roots[r]._x_dataStack) return 'an x-data component was never initialised';
+                }
+                return '';
+            };
+            var problem = halfAlive();
+            if (problem) {
+                await new Promise(function (resolve) { setTimeout(resolve, 200); });
+                problem = halfAlive();
+            }
+            if (problem) errors.push(new Error('page not fully initialised: ' + problem));
         } finally {
             nativeRemove.window('error', onError);
         }
@@ -429,6 +448,7 @@
         try {
             var res = await fetch(href, {
                 credentials: 'same-origin',
+                cache: 'no-store',   // never swap in a cached copy of a data page
                 signal: controller.signal,
                 headers: { 'Accept': 'text/html,application/xhtml+xml' },
                 redirect: 'follow'
