@@ -382,8 +382,23 @@ class SaleController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
+        if (in_array($sale->status, ['cancelled', 'paid'], true)) {
+            return back()->with('error', $sale->status === 'cancelled'
+                ? 'This invoice was rejected/cancelled - no payment can be added to it.'
+                : 'This invoice is already fully paid - there is nothing left to collect.');
+        }
+
+        // Payments still pending admin approval count against what's left to
+        // collect, so several separate pending payments can't together
+        // exceed the invoice (see Api\Agent\SaleController::addPayment).
+        $pendingTotal = (float) $sale->payments()->where('status', 'pending')->sum('amount');
+        $collectable = round(max(0, (float) $sale->due_amount - $pendingTotal), 2);
+        if ($collectable <= 0) {
+            return back()->with('error', 'The full remaining balance is already submitted and waiting for admin approval.');
+        }
+
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|max:' . $sale->due_amount,
+            'amount' => 'required|numeric|min:0.01|max:' . $collectable,
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',

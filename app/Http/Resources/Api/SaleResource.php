@@ -6,6 +6,24 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class SaleResource extends JsonResource
 {
+    /**
+     * Uses the withSum() alias when the list query pre-computed it (avoids an
+     * N+1), otherwise falls back to the eager-loaded payments, otherwise a
+     * single query.
+     */
+    private function pendingPaymentsTotal(): float
+    {
+        if (isset($this->pending_payments_total)) {
+            return (float) $this->pending_payments_total;
+        }
+
+        if ($this->relationLoaded('payments')) {
+            return (float) $this->payments->where('status', 'pending')->sum('amount');
+        }
+
+        return (float) $this->payments()->where('status', 'pending')->sum('amount');
+    }
+
     public function toArray($request)
     {
         return [
@@ -35,6 +53,14 @@ class SaleResource extends JsonResource
             'recovery_percentage' => (float) $this->recovery_percentage,
             'paid_amount' => (float) $this->paid_amount,
             'due_amount' => (float) $this->due_amount,
+            // Money the agent has already submitted that admin hasn't approved
+            // yet, and what's genuinely left for the agent to collect after
+            // that - the app caps every payment input at collectable_amount so
+            // an invoice can never be over-collected.
+            'pending_payments_total' => $pendingPayments = $this->pendingPaymentsTotal(),
+            'collectable_amount' => in_array($this->status, ['cancelled', 'paid'], true)
+                ? 0.0
+                : round(max(0, (float) $this->due_amount - $pendingPayments), 2),
             'notes' => $this->notes,
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,

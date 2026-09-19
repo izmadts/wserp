@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\Agent\CommissionController;
 use App\Http\Controllers\Api\Agent\ReportController;
 use App\Http\Controllers\Api\Agent\GoldenClubController;
 use App\Http\Controllers\Api\Agent\NotificationController;
+use App\Http\Controllers\Api\Agent\PaymentController;
+use App\Http\Controllers\Api\Agent\CompanyController;
 
 // ============================================================
 // SALE AGENT MOBILE APP API (Flutter) - /api/v1/agent/*
@@ -57,6 +59,13 @@ Route::prefix('agent')->name('api.agent.')->group(function () {
         // orders alike.
         Route::apiResource('sales', SaleController::class);
         Route::post('/sales/{sale}/payments', [SaleController::class, 'addPayment'])->name('sales.payments.store');
+
+        // The agent's own payment history (every payment submitted against
+        // their invoices, with pending/approved/rejected state).
+        Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+
+        // Letterhead details for the invoice PDF the app generates.
+        Route::get('/company', [CompanyController::class, 'show'])->name('company');
 
         Route::get('/commissions', [CommissionController::class, 'index'])->name('commissions.index');
         Route::get('/commissions/summary', [CommissionController::class, 'summary'])->name('commissions.summary');

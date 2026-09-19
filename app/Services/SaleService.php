@@ -266,6 +266,20 @@ class SaleService
                 throw new \Exception('Only a pending payment can be approved.');
             }
 
+            // The agent app caps what an agent can submit at what was still
+            // due at that moment, but the invoice can change before review
+            // (e.g. an admin records a payment directly) - approving this one
+            // on top would over-collect the invoice and drive its balance
+            // negative, so stop here and let the admin reject or resolve it.
+            $sale = $payment->sale;
+            if ($sale && (float) $payment->amount > (float) $sale->due_amount + 0.005) {
+                throw new \Exception(
+                    'Cannot approve this payment of Rs. ' . number_format((float) $payment->amount, 2)
+                    . ' - only Rs. ' . number_format(max(0, (float) $sale->due_amount), 2)
+                    . ' is still due on invoice ' . $sale->invoice_no . '. Reject it, or adjust the invoice first.'
+                );
+            }
+
             $payment->update([
                 'status' => 'approved',
                 'approved_by' => $approverId,

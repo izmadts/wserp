@@ -24,10 +24,26 @@ class SaleController extends ApiController
 
     public function index(Request $request)
     {
-        $query = Sale::where('agent_id', $this->agent()->id)->with('customer');
+        $query = Sale::where('agent_id', $this->agent()->id)
+            ->with('customer')
+            // Feeds SaleResource's pending_payments_total/collectable_amount
+            // without an N+1 query per row.
+            ->withSum(['payments as pending_payments_total' => fn ($q) => $q->where('status', 'pending')], 'amount');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+        // Invoices that can still receive a payment: something is owed and
+        // the sale isn't cancelled/already fully paid.
+        if ($request->boolean('has_due')) {
+            $query->where('due_amount', '>', 0)->whereNotIn('status', ['cancelled', 'paid']);
+        }
+        if ($request->filled('search')) {
+            $term = trim($request->search);
+            $query->where(function ($q) use ($term) {
+                $q->where('invoice_no', 'like', "%{$term}%")
+                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$term}%"));
+            });
         }
         if ($request->filled('from_date')) {
             $query->whereDate('sale_date', '>=', $request->from_date);
@@ -132,8 +148,17 @@ class SaleController extends ApiController
 
             $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
 
+            // A discount bigger than the goods themselves would produce a
+            // zero/negative invoice that then posts a negative sale to the
+            // ledger once admin confirms it.
+            if ($totalAmount <= 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'discount' => 'The discount is larger than the invoice value - the invoice total must be greater than zero.',
+                ]);
+            }
+
             $amountReceived = (float) ($validated['amount_received'] ?? 0);
-            if ($amountReceived > $totalAmount) {
+            if (round($amountReceived, 2) > round($totalAmount, 2)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'amount_received' => 'Amount received cannot exceed the sale total.',
                 ]);
@@ -356,8 +381,33 @@ class SaleController extends ApiController
             return $this->error('You do not have access to this sale.', 403);
         }
 
+        // Nothing can be collected against a rejected/cancelled invoice, and
+        // a fully paid one has nothing left to collect.
+        if (in_array($sale->status, ['cancelled', 'paid'], true)) {
+            return $this->error(
+                $sale->status === 'cancelled'
+                    ? 'This invoice was rejected/cancelled - no payment can be added to it.'
+                    : 'This invoice is already fully paid - there is nothing left to collect.',
+                422
+            );
+        }
+
+        // Payments already submitted but still awaiting admin approval count
+        // against what's left to collect - otherwise several separate pending
+        // payments could each pass a per-payment cap and together exceed the
+        // invoice total.
+        $pendingTotal = (float) $sale->payments()->where('status', 'pending')->sum('amount');
+        $collectable = round(max(0, (float) $sale->due_amount - $pendingTotal), 2);
+
+        if ($collectable <= 0) {
+            return $this->error(
+                'The full remaining balance of this invoice is already submitted and waiting for admin approval - nothing more can be added.',
+                422
+            );
+        }
+
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:0.01|max:' . $sale->due_amount,
+            'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,cheque,credit_card',
             'reference_no' => 'nullable|string|max:100',
@@ -369,6 +419,18 @@ class SaleController extends ApiController
         }
 
         $validated = $validator->validated();
+
+        if (round((float) $validated['amount'], 2) > $collectable) {
+            $detail = $pendingTotal > 0
+                ? ' (Rs. ' . number_format($pendingTotal, 2) . ' of the balance is already pending admin approval)'
+                : '';
+
+            return $this->error(
+                'Amount exceeds what is owed on this invoice. You can add at most Rs. ' . number_format($collectable, 2) . $detail . '.',
+                422,
+                ['amount' => ['Maximum allowed: Rs. ' . number_format($collectable, 2)]]
+            );
+        }
 
         try {
             // Recorded as PENDING - admin must approve it (see
