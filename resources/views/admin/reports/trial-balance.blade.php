@@ -243,9 +243,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Account Type Chart
-        var groupedData = {
-            !!json_encode($groupedByType) !!
-        };
+        var groupedData = {!! json_encode($groupedByType) !!};
 
         if (document.getElementById('accountTypeChart') && groupedData) {
             var labels = Object.keys(groupedData);

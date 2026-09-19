@@ -102,14 +102,17 @@
 <!-- Edit Modal (Alpine.js) -->
 <!-- ========================================== -->
 <div x-data="{ showEditModal: false, categoryId: null, categoryName: '', categoryDescription: '', categoryActive: false }" 
+     {{-- void(...): Alpine calls an x-init expression's value if it is a function,
+          and a bare `window.openEditModal = function...` evaluates to exactly that -
+          which ran it on page load and opened this modal over the page. --}}
      x-init="
-        window.openEditModal = function(id, name, description, active) {
+        void (window.openEditModal = function(id, name, description, active) {
             categoryId = id;
             categoryName = name;
             categoryDescription = description || '';
             categoryActive = active || false;
             showEditModal = true;
-        }
+        })
      ">
     
     <!-- Modal Overlay -->
