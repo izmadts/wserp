@@ -636,6 +636,50 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    {{-- Sort types DataTables can't work out on its own for this app's tables:
+         - dd-mm-yyyy dates (what the views print). Left to auto-detect, the
+           browser reads "05-03-2026" as 3 May (month first) but "23-03-2026"
+           as an invalid date, so a Date column sorted in a mixed-up order.
+         - "Rs. 1,234.50" amounts, which would otherwise sort as TEXT
+           ("Rs. 900" after "Rs. 10,000").
+         A column only gets these types when EVERY cell matches (blank / "-"
+         cells excepted), so anything else keeps its normal sorting. --}}
+    <script>
+        (function ($) {
+            if (!$ || !$.fn || !$.fn.dataTable) return;
+            var ext = $.fn.dataTable.ext;
+            var plain = function (d) { return d == null ? '' : String(d).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim(); };
+            var isBlank = function (t) { return t === '' || t === '-' || t === '—'; };
+
+            var DMY = /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?)?$/i;
+            var MONEY = /^([-+]?)\s*(?:Rs\.?|PKR)\s*([-+]?)\s*(\d[\d,]*(?:\.\d+)?)$/i;
+
+            ext.type.detect.unshift(function (d) {
+                var t = plain(d);
+                return (isBlank(t) || DMY.test(t)) ? 'wserp-dmy' : null;
+            });
+            ext.type.order['wserp-dmy-pre'] = function (d) {
+                var m = DMY.exec(plain(d));
+                if (!m) return 0;
+                var h = parseInt(m[4] || 0, 10), pm = (m[7] || '').toUpperCase();
+                if (pm === 'PM' && h < 12) h += 12;
+                if (pm === 'AM' && h === 12) h = 0;
+                return Date.UTC(+m[3], +m[2] - 1, +m[1], h, +(m[5] || 0), +(m[6] || 0));
+            };
+
+            ext.type.detect.unshift(function (d) {
+                var t = plain(d);
+                return (isBlank(t) || MONEY.test(t)) ? 'wserp-money' : null;
+            });
+            ext.type.order['wserp-money-pre'] = function (d) {
+                var t = plain(d);
+                var m = MONEY.exec(t);
+                if (!m) return -Infinity;
+                var n = parseFloat(m[3].replace(/,/g, ''));
+                return (m[1] === '-' || m[2] === '-') ? -n : n;
+            };
+        })(window.jQuery);
+    </script>
     <!-- Remove @livewireScripts -->
     {{-- @livewireScripts --}}
     @vite(['resources/js/app.js'])

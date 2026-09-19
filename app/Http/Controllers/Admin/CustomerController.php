@@ -16,8 +16,27 @@ class CustomerController extends Controller
 {
     public function index()
     {
-        $customers = Customer::with('createdByAgent', 'customerGroup')->withCount('sales')->orderBy('name')->get();
-        return view('admin.customers.index', compact('customers'));
+        $customers = Customer::with('createdByAgent:id,name', 'customerGroup')->withCount('sales')->orderBy('name')->get();
+
+        // Balance / sales / last-activity for the cards, filters and sortable
+        // columns - computed once for everyone (see Customer::ledgerStats),
+        // then the page filters and totals the cards client-side from the
+        // same per-row figures, so cards and table can never disagree.
+        $stats = Customer::ledgerStats();
+
+        // "Area" filter options: cities are free text, so group on a trimmed
+        // lower-case key ("Multan " / "multan" are one area) and show the
+        // first spelling seen.
+        $areas = $customers
+            ->map(fn ($c) => trim((string) $c->city))
+            ->filter()
+            ->unique(fn ($city) => mb_strtolower($city))
+            ->sortBy(fn ($city) => mb_strtolower($city))
+            ->values();
+
+        $agents = $customers->pluck('createdByAgent')->filter()->unique('id')->sortBy('name')->values();
+
+        return view('admin.customers.index', compact('customers', 'stats', 'areas', 'agents'));
     }
 
     public function create()

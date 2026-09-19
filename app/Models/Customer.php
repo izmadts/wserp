@@ -201,6 +201,64 @@ class Customer extends Authenticatable
         return $this->opening_balance + $this->total_sales - $this->total_paid - $this->total_returned - $this->total_direct_paid;
     }
 
+    /**
+     * Ledger figures for EVERY customer in five grouped queries, keyed by
+     * customer id - what the Customers list needs to show balance / sales /
+     * last activity for hundreds of rows without the 4+ queries per row that
+     * reading $customer->balance in a loop costs.
+     *
+     * 'balance' here MUST stay identical to getBalanceAttribute() above (same
+     * statuses, same whereHas('sale') exclusion of payments on deleted
+     * sales) so the list, the customer page and the receivable report never
+     * disagree. If the balance rules change, change both, then re-check that
+     * ledgerStats()[$id]['balance'] equals $customer->balance for every row.
+     *
+     * 'last_activity' is the newest invoice (any status but cancelled) or
+     * payment (any status but rejected) date, or null if there never was one.
+     */
+    public static function ledgerStats(): \Illuminate\Support\Collection
+    {
+        $sales = Sale::whereIn('status', self::BALANCE_SALE_STATUSES)
+            ->selectRaw('customer_id, SUM(total_amount) AS total_sales, SUM(refunded_amount) AS total_returned')
+            ->groupBy('customer_id')->get()->keyBy('customer_id');
+
+        $paid = SalePayment::whereHas('sale')
+            ->selectRaw('customer_id, SUM(amount) AS total_paid')
+            ->groupBy('customer_id')->pluck('total_paid', 'customer_id');
+
+        $direct = CustomerPayment::selectRaw('customer_id, SUM(amount) AS total_direct_paid')
+            ->groupBy('customer_id')->pluck('total_direct_paid', 'customer_id');
+
+        $lastSale = Sale::where('status', '!=', 'cancelled')
+            ->selectRaw('customer_id, MAX(sale_date) AS d')
+            ->groupBy('customer_id')->pluck('d', 'customer_id');
+
+        $lastPayment = SalePayment::where('status', '!=', 'rejected')->whereHas('sale')
+            ->selectRaw('customer_id, MAX(payment_date) AS d')
+            ->groupBy('customer_id')->pluck('d', 'customer_id');
+
+        $lastDirect = CustomerPayment::selectRaw('customer_id, MAX(payment_date) AS d')
+            ->groupBy('customer_id')->pluck('d', 'customer_id');
+
+        return static::query()->pluck('opening_balance', 'id')->map(function ($opening, $id) use ($sales, $paid, $direct, $lastSale, $lastPayment, $lastDirect) {
+            $totalSales = (float) ($sales[$id]->total_sales ?? 0);
+            $totalReturned = (float) ($sales[$id]->total_returned ?? 0);
+            $totalPaid = (float) ($paid[$id] ?? 0);
+            $totalDirect = (float) ($direct[$id] ?? 0);
+
+            $dates = array_filter([$lastSale[$id] ?? null, $lastPayment[$id] ?? null, $lastDirect[$id] ?? null]);
+            $last = $dates ? \Carbon\Carbon::parse(max($dates)) : null;
+
+            return [
+                'total_sales' => $totalSales,
+                'total_paid' => $totalPaid + $totalDirect,
+                'total_returned' => $totalReturned,
+                'balance' => round((float) $opening + $totalSales - $totalPaid - $totalReturned - $totalDirect, 2),
+                'last_activity' => $last,
+            ];
+        });
+    }
+
     // Balance is a receivable: positive = customer still owes us, negative
     // = customer has paid more than they owed (an advance/credit in their
     // favor). Labeled distinctly so "Rs. 0.00" and "overpaid" aren't

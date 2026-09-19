@@ -16,6 +16,7 @@ class ExpenseController extends Controller
     {
         $expenses = Expense::with('category', 'createdBy')
             ->orderBy('expense_date', 'desc')
+            ->orderBy('id', 'desc') // same-day expenses: newest entered first, not DB-arbitrary
             ->get();
 
         // Summary stats. totalExpenses matches what's actually posted to the

@@ -99,10 +99,12 @@
                             <td class="py-3 px-2 text-sm text-gray-600">
                                 {{ $expense->category->name ?? '-' }}
                             </td>
-                            <td class="py-3 px-2 text-right font-medium text-red-600">
+                            {{-- data-order: sort by the real amount / real date (ISO), not by the
+                                 "Rs. 1,000.00" / "05-03-2026" text that is displayed. --}}
+                            <td class="py-3 px-2 text-right font-medium text-red-600" data-order="{{ (float) $expense->amount }}">
                                 Rs. {{ number_format($expense->amount, 2) }}
                             </td>
-                            <td class="py-3 px-2 text-sm text-gray-600">
+                            <td class="py-3 px-2 text-sm text-gray-600" data-order="{{ $expense->expense_date->format('Y-m-d') }}">
                                 {{ $expense->expense_date->format('d-m-Y') }}
                             </td>
                             <td class="py-3 px-2 text-sm text-gray-600">
@@ -178,6 +180,11 @@
                 pageLength: 25,
                 responsive: true,
                 order: [[4, 'desc']],
+                columnDefs: [
+                    { targets: [3], type: 'num' },
+                    { targets: [4], type: 'date' },
+                    { targets: [7], orderable: false, searchable: false },
+                ],
                 language: {
                     search: "Search:",
                     lengthMenu: "Show _MENU_ entries",
