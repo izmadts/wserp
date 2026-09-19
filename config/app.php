@@ -69,6 +69,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Admin In-Page Navigation
+    |--------------------------------------------------------------------------
+    |
+    | When true (default) the admin panel swaps only the content area when you
+    | click between pages, so the sidebar and top bar stay put (see
+    | public/js/wserp-pjax.js). Set ADMIN_PJAX=false in .env to turn it off and
+    | get plain full-page loads again, e.g. if a page misbehaves.
+    |
+    */
+
+    'admin_pjax' => env('ADMIN_PJAX', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

@@ -6,6 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    {{-- Read by public/js/wserp-pjax.js (in-page navigation): marks this as the
+         admin shell, the URL scope it may handle, and a build fingerprint - if
+         a fetched page was rendered by a different build (e.g. right after a
+         deploy) the script does a normal full load instead of mixing shells.
+         A page can opt out entirely with @section('no-pjax', '1'). --}}
+    <meta name="wserp-layout" content="admin">
+    <meta name="wserp-pjax-scope" content="{{ rtrim(parse_url(url('/admin'), PHP_URL_PATH) ?: '/admin', '/') }}">
+    <meta name="wserp-build" content="{{ substr(md5((@md5_file(public_path('build/manifest.json')) ?: '') . (@filemtime(public_path('js/wserp-pjax.js')) ?: '') . (@filemtime(__FILE__) ?: '')), 0, 12) }}">
+    @hasSection('no-pjax')<meta name="wserp-no-pjax" content="1">@endif
     @if($siteFavicon ?? null)<link rel="icon" href="{{ asset($siteFavicon) }}">@endif
     <title>@yield('title', 'WSERP - Admin Panel')</title>
 
@@ -111,7 +120,7 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="px-2 py-3 overflow-y-auto h-[calc(100vh-4rem)] text-sm">
+            <nav data-pjax-nav class="px-2 py-3 overflow-y-auto h-[calc(100vh-4rem)] text-sm">
 
                 <!-- Dashboard: always visible, no accordion needed for a single link -->
                 <a href="{{ route('admin.dashboard') }}"
@@ -314,7 +323,7 @@
                         <button @click="toggleSidebar()" class="text-gray-500 hover:text-gray-700 lg:hidden">
                             <i class="fas fa-bars text-xl"></i>
                         </button>
-                        <h1 class="ml-2 text-xl font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h1>
+                        <h1 data-pjax-region="page-title" class="ml-2 text-xl font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h1>
                     </div>
 
                     <div class="flex items-center gap-1 sm:gap-3">
@@ -389,14 +398,14 @@
                     <!-- Notifications -->
                     @if(count($notifItems))
                     <div x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false" class="relative">
-                        <button @click="open = !open" title="Notifications"
+                        <button @click="open = !open" title="Notifications" data-pjax-region="bell-button"
                             class="relative w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-bell"></i>
                             @if($notifTotal > 0)
                             <span class="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{{ $notifTotal > 99 ? '99+' : $notifTotal }}</span>
                             @endif
                         </button>
-                        <div x-show="open" x-cloak x-transition:enter.duration.150ms x-transition:leave.duration.100ms
+                        <div x-show="open" x-cloak x-transition:enter.duration.150ms x-transition:leave.duration.100ms data-pjax-region="bell-panel"
                             class="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
                             <p class="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Notifications</p>
                             @if($notifTotal === 0)
@@ -764,12 +773,19 @@
             });
         });
     </script>
-    @yield('scripts')
     {{-- @push('scripts') on 36+ pages (DataTable init, charts, etc.) needs a
     matching @stack to actually render - it was building up in Blade's stack
     registry and being silently discarded with no @stack anywhere in this
-    layout. --}}
-    @stack('scripts')
+    layout. They sit in their own wrapper so in-page navigation (wserp-pjax.js)
+    can swap exactly the page's scripts and leave the layout's alone. --}}
+    <div id="wserp-page-scripts">
+        @yield('scripts')
+        @stack('scripts')
+    </div>
+
+    @if(config('app.admin_pjax', true))
+    <script src="{{ asset('js/wserp-pjax.js') }}?v={{ @filemtime(public_path('js/wserp-pjax.js')) }}" defer></script>
+    @endif
 </body>
 
 </html>
