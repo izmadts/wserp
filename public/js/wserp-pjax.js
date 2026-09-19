@@ -168,10 +168,54 @@
         return url.pathname + url.search;
     }
 
-    var isExecutable = function (script) {
+    // The live site sits behind Cloudflare. Its Rocket Loader rewrites every
+    // <script> in the HTML it serves to type="<32 hex chars>-text/javascript"
+    // (or "-module") and runs them itself after a full page load. Pages we
+    // fetch arrive rewritten too, so strip that prefix to see the real type -
+    // otherwise every page script would look "not JavaScript" and be skipped.
+    var realType = function (script) {
         var t = (script.getAttribute('type') || '').trim().toLowerCase();
+        var m = /^[0-9a-f]{16,}-(.+)$/.exec(t);
+        return m ? m[1] : t;
+    };
+
+    var isExecutable = function (script) {
+        var t = realType(script);
         return t === '' || t === 'text/javascript' || t === 'application/javascript' || t === 'text/ecmascript';
     };
+
+    // Cloudflare's "Email Address Obfuscation" replaces every e-mail address in
+    // the HTML with <a class="__cf_email__" data-cfemail="..">[email protected]</a>
+    // (and mailto links with /cdn-cgi/l/email-protection#..), and decodes them
+    // with a script that runs ONCE, on a full page load. Content we swap in never
+    // gets that pass, so do the same here (same algorithm as Cloudflare's).
+    function cfDecodeEmail(hex) {
+        var key = parseInt(hex.substr(0, 2), 16), out = '';
+        for (var i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ key);
+        try { out = decodeURIComponent(escape(out)); } catch (e) { /* keep raw */ }
+        return out;
+    }
+
+    function decodeCloudflareEmails(root) {
+        if (!root || !root.querySelectorAll) return;
+        var marker = '/cdn-cgi/l/email-protection#';
+
+        Array.prototype.forEach.call(root.querySelectorAll('a[href*="' + marker + '"]'), function (a) {
+            try {
+                var href = a.getAttribute('href'), at = href.indexOf(marker);
+                if (at > -1) a.setAttribute('href', 'mailto:' + cfDecodeEmail(href.slice(at + marker.length)));
+            } catch (e) { /* ignore */ }
+        });
+
+        Array.prototype.forEach.call(root.querySelectorAll('.__cf_email__[data-cfemail]'), function (el) {
+            try {
+                var hex = el.getAttribute('data-cfemail');
+                if (hex && el.parentNode) el.parentNode.replaceChild(document.createTextNode(cfDecodeEmail(hex)), el);
+            } catch (e) { /* ignore */ }
+        });
+
+        Array.prototype.forEach.call(root.querySelectorAll('template'), function (t) { decodeCloudflareEmails(t.content); });
+    }
 
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
@@ -311,7 +355,7 @@
         var scripts = [];
         for (var i = 0; i < scriptNodes.length; i++) {
             var node = scriptNodes[i];
-            var type = (node.getAttribute('type') || '').trim().toLowerCase();
+            var type = realType(node);
             if (type === 'module') throw new Error('module script in page');
             if (!isExecutable(node)) continue;   // json / templates stay inert content
             scripts.push({ src: node.getAttribute('src'), text: node.textContent });
@@ -356,6 +400,9 @@
         while (curMain.firstChild) curMain.removeChild(curMain.firstChild);
         while (fresh.firstChild) curMain.appendChild(fresh.firstChild);
         while (pageScripts.firstChild) pageScripts.removeChild(pageScripts.firstChild);
+
+        // Before any script/handler (DataTables reads these cells): undo Cloudflare's e-mail hiding.
+        decodeCloudflareEmails(curMain);
 
         window.scrollTo(0, opts.restoreY || 0);
 
