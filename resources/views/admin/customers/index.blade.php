@@ -22,107 +22,107 @@
     {{-- Summary cards. Values are filled in by the script below from whatever
          rows the filters/search currently leave visible, so they always
          describe exactly what the table is showing. --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" id="customerCards">
-        <div class="bg-white rounded-xl shadow-card p-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="customerCards">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Customers</p>
-                    <p class="text-2xl font-bold text-gray-900" data-card="count">{{ $customers->count() }}</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-gray-900" data-card="count">{{ $customers->count() }}</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="count-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-users text-blue-600 text-xl"></i>
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-users text-blue-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Receivable (Due)</p>
-                    <p class="text-2xl font-bold text-red-600" data-card="due">Rs. 0.00</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-red-600" data-card="due">Rs. 0.00</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="due-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-hand-holding-usd text-red-600 text-xl"></i>
+                <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-hand-holding-usd text-red-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Advance / Extra Received</p>
-                    <p class="text-2xl font-bold text-green-600" data-card="advance">Rs. 0.00</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-green-600" data-card="advance">Rs. 0.00</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="advance-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-piggy-bank text-green-600 text-xl"></i>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-piggy-bank text-green-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Total Sales</p>
-                    <p class="text-2xl font-bold text-blue-600" data-card="sales">Rs. 0.00</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-blue-600" data-card="sales">Rs. 0.00</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="sales-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-shopping-bag text-blue-600 text-xl"></i>
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-shopping-bag text-blue-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Active in Last 30 Days</p>
-                    <p class="text-2xl font-bold text-green-600" data-card="recent">0</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-green-600" data-card="recent">0</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="recent-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-bolt text-green-600 text-xl"></i>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-bolt text-green-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">No Activity 90+ Days</p>
-                    <p class="text-2xl font-bold text-yellow-600" data-card="dormant">0</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-yellow-600" data-card="dormant">0</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="dormant-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-bed text-yellow-600 text-xl"></i>
+                <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-bed text-yellow-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Over Credit Limit</p>
-                    <p class="text-2xl font-bold text-red-600" data-card="overlimit">0</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-red-600" data-card="overlimit">0</p>
                     <p class="text-xs text-gray-500 mt-1" data-card="overlimit-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-lg"></i>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="bg-white rounded-xl shadow-card p-3">
             <div class="flex items-center justify-between">
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500">Top Debtor</p>
-                    <p class="text-2xl font-bold text-gray-900" data-card="top">Rs. 0.00</p>
+                    <p class="text-xl font-bold whitespace-nowrap text-gray-900" data-card="top">Rs. 0.00</p>
                     <p class="text-xs text-gray-500 mt-1 truncate" data-card="top-sub">&nbsp;</p>
                 </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-user-clock text-purple-600 text-xl"></i>
+                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user-clock text-purple-600 text-lg"></i>
                 </div>
             </div>
         </div>
@@ -138,14 +138,22 @@
                     <span id="customersShown">{{ $customers->count() }}</span> of {{ $customers->count() }} shown
                 </span>
             </div>
-            <a href="{{ route('admin.customers.create') }}"
-                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200">
-                <i class="fas fa-plus mr-1"></i> Add Customer
-            </a>
+            <div class="flex items-center gap-2">
+                <button type="button" id="toggleCustomerFilters" aria-expanded="false" aria-controls="customerFilters"
+                    class="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i class="fas fa-filter mr-1"></i> Filters
+                    <span id="activeFilterCount" class="ml-1 px-1.5 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full" style="display: none">0</span>
+                </button>
+                <a href="{{ route('admin.customers.create') }}"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200">
+                    <i class="fas fa-plus mr-1"></i> Add Customer
+                </a>
+            </div>
         </div>
 
-        {{-- Filters --}}
-        <div class="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50" id="customerFilters">
+        {{-- Filters: folded away until opened (or until one is active) so the table
+             and its Search box stay right under the header. --}}
+        <div class="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50" id="customerFilters" style="display: none">
             <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1" for="fArea">Area / City</label>
@@ -473,11 +481,31 @@
             history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : ''));
         }
 
+        // The filter panel is folded away by default so the table and its Search box
+        // stay in view; the Filters button shows how many filters are active, and the
+        // panel opens by itself whenever one is.
+        const panel = document.getElementById('customerFilters');
+        const toggleBtn = document.getElementById('toggleCustomerFilters');
+        const badge = document.getElementById('activeFilterCount');
+
+        function setPanel(open) {
+            panel.style.display = open ? '' : 'none';
+            toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
         function apply() {
             controls.forEach(el => filters[el.dataset.filter] = el.value);
+            const active = controls.filter(el => el.value !== '').length;
+            badge.textContent = active;
+            badge.style.display = active ? '' : 'none';
+            if (active) setPanel(true);
             table.draw();
             syncUrl();
         }
+
+        toggleBtn.addEventListener('click', function() {
+            setPanel(panel.style.display === 'none');
+        });
 
         controls.forEach(el => {
             el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', apply);
