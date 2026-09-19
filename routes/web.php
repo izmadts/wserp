@@ -338,6 +338,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::get('/create', [SaleController::class, 'create'])->middleware('permission:sales,create')->name('create');
         Route::post('/', [SaleController::class, 'store'])->middleware('permission:sales,create')->name('store');
         Route::get('/{sale}', [SaleController::class, 'show'])->name('show');
+        Route::get('/{sale}/invoice', [SaleController::class, 'invoice'])->name('invoice');
         Route::get('/{sale}/edit', [SaleController::class, 'edit'])->middleware('permission:sales,edit')->name('edit');
         Route::put('/{sale}', [SaleController::class, 'update'])->middleware('permission:sales,edit')->name('update');
         Route::delete('/{sale}', [SaleController::class, 'destroy'])->middleware('permission:sales,delete')->name('destroy');

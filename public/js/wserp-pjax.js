@@ -39,7 +39,7 @@
     window.__wserpPjax = true;
 
     // Never navigate in-page to things that are files / print views / actions.
-    var SKIP_PATH = /(export|download|pdf|print|backup|logout|\/storage\/)/i;
+    var SKIP_PATH = /(export|download|pdf|print|backup|logout|invoice|\/storage\/)/i;
 
     var state = {
         token: 0,              // latest navigation wins

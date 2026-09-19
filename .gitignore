@@ -24,3 +24,5 @@ Homestead.yaml
 Thumbs.db
 /storage/installed
 *.zip
+# dompdf font cache (generated on first PDF)
+/storage/fonts

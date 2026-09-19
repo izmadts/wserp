@@ -9,6 +9,9 @@ use App\Models\Customer;
 use App\Models\User;
 use App\Models\Product;
 use App\Models\Expense;
+use App\Models\Setting;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\File;
 use App\Services\SaleService;
 use App\Services\CommissionService;
 use App\Services\FcmService;
@@ -215,6 +218,40 @@ class SaleController extends Controller
     {
         $sale->load('customer', 'agent', 'items.product', 'payments.createdBy', 'createdBy');
         return view('admin.sales.show', compact('sale'));
+    }
+
+    /**
+     * The customer-facing invoice as a PDF - the same document the sale agent
+     * app produces (IZMA Food letterhead, bill-to, items with the per-kg rate
+     * and the rate for 1 Mun = 40 kg, totals, payments). ?inline=1 opens it in
+     * the browser instead of downloading it.
+     */
+    public function invoice(Request $request, Sale $sale)
+    {
+        if ($sale->status === 'cancelled') {
+            return back()->with('error', 'A cancelled sale has no invoice.');
+        }
+
+        $sale->load('customer', 'agent', 'items.product', 'payments');
+
+        // Same letterhead as the app's invoice (Api\Agent\CompanyController).
+        $company = [
+            'name' => Setting::get('invoice_name') ?: 'IZMA Food',
+            'phone' => Setting::get('company_phone'),
+            'address' => Setting::get('company_address'),
+        ];
+
+        // dompdf converts the invoice fonts (Latin + Urdu) on first use and caches them here.
+        File::ensureDirectoryExists(storage_path('fonts'));
+
+        $pdf = Pdf::loadView('admin.sales.invoice-pdf', compact('sale', 'company'))
+            ->setPaper('a4')
+            ->setOption('enable_font_subsetting', true)   // embed only the glyphs used - keeps the file small
+            ->setOption('default_font', 'NotoSans');
+
+        $filename = 'Invoice-' . $sale->invoice_no . '.pdf';
+
+        return $request->boolean('inline') ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
     public function edit(Sale $sale)

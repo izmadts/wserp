@@ -352,6 +352,8 @@
                 <li>Confirm a sale (move off Draft) only once it's real and stock should actually be committed.</li>
                 <li>For credit sales, always set a sensible Due Date - it drives overdue tracking and the credit-hold policy.</li>
                 <li>If an agent is attached, make sure it's the correct one - it determines whose commission this sale earns.</li>
+                <li>A sale sent from the Sales Agent app? Open it from Pending Approvals &rarr; <strong>Edit</strong> to correct the customer (name, mobile, city), items, prices or the agent's payment, then use <strong>Save &amp; Confirm</strong>. To record a payment you received, add it there (Cash, Bank Transfer, Cheque or Card), or use the <strong>Add Payment</strong> box on a confirmed sale (the money icon on the Sales list opens it directly).</li>
+                <li><strong>Invoice PDF:</strong> the button on the sale page (or the PDF icon on the Sales list) downloads the customer invoice - the same document the Sales Agent app shares, with the IZMA Food letterhead, the per-kg rate and the rate for 1 Mun (40 kg). "View" opens it in a new tab.</li>
             </ol>
         </section>
 

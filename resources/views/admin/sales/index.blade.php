@@ -27,6 +27,9 @@
                         <td class="py-3 px-2 text-center">
                             <div class="flex items-center justify-center space-x-1">
                                 <a href="{{ route('admin.sales.show', $sale) }}" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><i class="fas fa-eye text-sm"></i></a>
+                                @if($sale->status != 'cancelled')
+                                <a href="{{ route('admin.sales.invoice', $sale) }}" data-no-pjax title="Download invoice PDF" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><i class="fas fa-file-pdf text-sm"></i></a>
+                                @endif
                                 @if(in_array($sale->status, ['confirmed', 'partial']) && $sale->due_amount > 0 && auth()->user()->hasPermission('sales', 'edit'))
                                 {{-- straight to the Add Payment form (cash / bank transfer / cheque / card) --}}
                                 <a href="{{ route('admin.sales.show', $sale) }}#add-payment" title="Receive payment (cash / bank)" class="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"><i class="fas fa-money-bill-wave text-sm"></i></a>

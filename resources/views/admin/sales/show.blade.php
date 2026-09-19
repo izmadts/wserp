@@ -10,6 +10,11 @@
             <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
                 <div><span class="text-sm font-medium text-gray-700"><i class="fas fa-file-invoice text-gray-400 mr-2"></i> Sale Details</span></div>
                 <div class="flex flex-wrap gap-2">
+                    @if($sale->status != 'cancelled')
+                    {{-- The customer invoice as a PDF: same document the sale agent app makes (IZMA Food, 1 Mun = 40 kg rate). --}}
+                    <a href="{{ route('admin.sales.invoice', $sale) }}" data-no-pjax class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700" title="Download the invoice as a PDF to share with the customer"><i class="fas fa-file-pdf mr-1"></i> Invoice PDF</a>
+                    <a href="{{ route('admin.sales.invoice', [$sale, 'inline' => 1]) }}" target="_blank" rel="noopener" data-no-pjax class="px-3 py-1.5 bg-white border border-blue-300 text-blue-700 text-sm rounded-lg hover:bg-blue-50" title="Open the invoice in a new tab"><i class="fas fa-eye mr-1"></i> View</a>
+                    @endif
                     @if($sale->status != 'paid' && $sale->status != 'cancelled')
                     <a href="{{ route('admin.sales.edit', $sale) }}" class="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700">Edit</a>
                     @endif
