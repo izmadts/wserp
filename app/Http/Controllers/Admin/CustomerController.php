@@ -86,6 +86,49 @@ class CustomerController extends Controller
             ->with('success', 'Customer created successfully!');
     }
 
+    /**
+     * The handful of details that get typed wrongly when an agent creates a
+     * customer in the app - fetched/saved by the "Correct customer details"
+     * panel on the sale edit screen, so the admin can fix them while
+     * reviewing a sale instead of leaving the screen.
+     */
+    public function quickShow(Customer $customer)
+    {
+        return response()->json($this->quickPayload($customer));
+    }
+
+    public function quickUpdate(Request $request, Customer $customer)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'mobile' => ['required', 'string', 'max:50', Rule::unique('customers', 'mobile')->ignore($customer->id)],
+            'phone' => 'nullable|string|max:50',
+            'city' => 'nullable|string|max:100',
+            'address' => 'nullable|string',
+        ]);
+
+        $customer->update($validated);
+
+        return response()->json($this->quickPayload($customer->refresh()) + ['message' => 'Customer details saved.']);
+    }
+
+    private function quickPayload(Customer $customer): array
+    {
+        $customer->loadMissing('customerGroup');
+
+        return [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'mobile' => $customer->mobile,
+            'phone' => $customer->phone,
+            'city' => $customer->city,
+            'address' => $customer->address,
+            // exactly how the sale form's dropdown labels this customer
+            'label' => $customer->name . ' (' . $customer->code . ')'
+                . ($customer->customerGroup ? ' - ' . $customer->customerGroup->name : ''),
+        ];
+    }
+
     public function show(Customer $customer)
     {
         $customer->load(['sales' => function ($query) {

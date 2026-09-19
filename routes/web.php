@@ -222,6 +222,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::get('/{customer}', [CustomerController::class, 'show'])->name('show');
         Route::get('/{customer}/edit', [CustomerController::class, 'edit'])->middleware('permission:customers,edit')->name('edit');
         Route::put('/{customer}', [CustomerController::class, 'update'])->middleware('permission:customers,edit')->name('update');
+        // "Correct customer details" panel on the sale edit screen (JSON).
+        Route::get('/{customer}/quick', [CustomerController::class, 'quickShow'])->middleware('permission:customers,edit')->name('quick.show');
+        Route::patch('/{customer}/quick', [CustomerController::class, 'quickUpdate'])->middleware('permission:customers,edit')->name('quick.update');
         Route::delete('/{customer}', [CustomerController::class, 'destroy'])->middleware('permission:customers,delete')->name('destroy');
         Route::post('/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->middleware('permission:customers,edit')->name('toggle-status');
         Route::post('/{customer}/payments', [CustomerController::class, 'makePayment'])->middleware('permission:customers,edit')->name('payments.store');

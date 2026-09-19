@@ -231,6 +231,28 @@ class SaleController extends Controller
             ->get(['id', 'name']);
         $sale->load('items', 'customer.customerGroup');
 
+        // The sale's own customer / agent must always be selectable, even if
+        // they've since been deactivated (an agent can deactivate a customer
+        // from the app). Otherwise the dropdown silently drops them, the
+        // select falls back to the first option and saving would re-assign
+        // the sale to somebody else without the admin noticing.
+        if ($sale->customer && !$customers->contains('id', $sale->customer_id)) {
+            $customers = $customers->push($sale->customer)
+                ->sortBy(fn ($c) => mb_strtolower($c->name))->values();
+        }
+        if ($sale->agent_id && !$agents->contains('id', $sale->agent_id)) {
+            $missingAgent = User::find($sale->agent_id, ['id', 'name']);
+            if ($missingAgent) {
+                $agents = $agents->push($missingAgent)->sortBy(fn ($a) => mb_strtolower($a->name))->values();
+            }
+        }
+
+        // Payments the agent recorded that are still waiting for approval -
+        // shown on the form so a wrong amount/method/reference can be
+        // corrected (or the payment dropped) before the sale is confirmed.
+        $pendingPayments = $sale->payments()->pending()->orderBy('id')->get();
+        $returnTo = request('return') === 'approvals' ? 'approvals' : null;
+
         // Union "currently sellable" products with whatever this sale's
         // existing items already reference, so an item on a product that's
         // since gone inactive/out-of-stock still shows correctly instead of
@@ -245,7 +267,7 @@ class SaleController extends Controller
 
         $commissionPreview = $this->commissionPreviewData($agents, $sale->id);
         $productsForJs = $this->productsForJs($products);
-        return view('admin.sales.edit', compact('sale', 'customers', 'agents', 'products', 'commissionPreview', 'productsForJs'));
+        return view('admin.sales.edit', compact('sale', 'customers', 'agents', 'products', 'commissionPreview', 'productsForJs', 'pendingPayments', 'returnTo'));
     }
 
     /**
@@ -330,6 +352,16 @@ class SaleController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax' => 'nullable|numeric|min:0',
+            // Corrections to payments the agent recorded that are still
+            // waiting for approval (keyed by sale_payments.id).
+            'pending_payments' => 'nullable|array',
+            'pending_payments.*.amount' => 'nullable|numeric|min:0.01',
+            'pending_payments.*.payment_method' => 'nullable|in:cash,bank_transfer,cheque,credit_card',
+            'pending_payments.*.payment_date' => 'nullable|date',
+            'pending_payments.*.reference_no' => 'nullable|string|max:100',
+            'pending_payments.*.reject' => 'nullable|boolean',
+            'return_to' => 'nullable|in:approvals',
+            'confirm_after' => 'nullable|boolean',
         ]);
 
         // Same rule as creation: a 'cash' sale posts its FULL total straight
@@ -340,6 +372,10 @@ class SaleController extends Controller
         if ($validated['status'] !== 'draft' && $validated['payment_term'] === 'cash' && (float) $sale->due_amount > 0.01) {
             return back()->with('error', 'This sale still has an outstanding balance, so it cannot be set to Cash. Use Credit instead, or record the remaining payment first via Add Payment.');
         }
+
+        $sale->load('items');
+        $before = $this->saleFingerprint($sale);
+        $wasDraft = $sale->status === 'draft';
 
         try {
             DB::transaction(function () use ($validated, $sale) {
@@ -378,6 +414,15 @@ class SaleController extends Controller
                 // stock/accounting (also recalculates sub_total/total_amount/
                 // due_amount from the new items via Sale::calculateTotals()).
                 $this->saleService->syncItemsAndUpdate($sale, $itemsData);
+
+                // A payment belongs to the customer the sale belongs to.
+                // Customer balances are worked out from sale_payments.customer_id,
+                // so when the admin corrects the customer, every payment on the
+                // sale has to follow - otherwise the money stays on the old
+                // (wrong) customer's account.
+                $sale->payments()->where('customer_id', '!=', $sale->customer_id)->update(['customer_id' => $sale->customer_id]);
+
+                $this->applyPendingPaymentEdits($sale, $validated['pending_payments'] ?? []);
             });
         } catch (\Exception $e) {
             // Catches SaleService's defensive throws (insufficient stock, a
@@ -387,8 +432,114 @@ class SaleController extends Controller
             return back()->with('error', $e->getMessage())->withInput();
         }
 
-        return redirect()->route('admin.sales.index')
-            ->with('success', 'Sale updated successfully! Stock and accounting adjusted.');
+        $sale->refresh()->load('items');
+        $returnTo = ($validated['return_to'] ?? null) === 'approvals' ? route('admin.approvals.index') : route('admin.sales.index');
+
+        // "Save & Confirm": the corrections are saved, then the sale goes
+        // through the normal approval (stock, ledger, the agent's pending
+        // payment approved, agent notified) in one step.
+        if (!empty($validated['confirm_after']) && $sale->status === 'draft') {
+            $error = $this->confirmDraft($sale);
+            if ($error) {
+                return redirect()->route('admin.sales.edit', array_filter([$sale, 'return' => $validated['return_to'] ?? null]))
+                    ->with('error', 'Your corrections were saved, but the sale could not be confirmed: ' . $error);
+            }
+
+            return redirect($returnTo)->with('success', 'Sale corrected and confirmed - stock and accounting updated.');
+        }
+
+        // Still waiting for approval: tell the agent the admin changed
+        // something they submitted, so a different customer/amount doesn't
+        // come as a surprise.
+        if ($wasDraft && $sale->agent && $before !== $this->saleFingerprint($sale)) {
+            $this->fcmService->sendToUser(
+                $sale->agent,
+                'Sale Corrected',
+                "Admin made corrections to your sale #{$sale->invoice_no} before approving it.",
+                ['type' => 'sale_updated', 'sale_id' => $sale->id]
+            );
+        }
+
+        return redirect($returnTo)->with('success', $wasDraft
+            ? 'Sale updated - it is still awaiting your approval.'
+            : 'Sale updated successfully! Stock and accounting adjusted.');
+    }
+
+    /**
+     * Applies the admin's corrections to the payments an agent recorded that
+     * are still pending: amount / method / date / reference, or "reject" to
+     * drop one. Runs inside update()'s transaction AFTER the items were
+     * re-synced, so the amounts are checked against the corrected total - a
+     * failure throws and the whole edit rolls back.
+     */
+    private function applyPendingPaymentEdits(Sale $sale, array $edits): void
+    {
+        if (empty($edits)) {
+            return;
+        }
+
+        $sale->refresh();
+        $kept = 0.0;
+
+        foreach ($sale->payments()->pending()->get() as $payment) {
+            $edit = $edits[$payment->id] ?? null;
+
+            if ($edit === null) {
+                $kept += (float) $payment->amount;   // not on the form: leave untouched
+                continue;
+            }
+
+            if (!empty($edit['reject'])) {
+                $this->saleService->rejectPayment($payment, Auth::id());
+                continue;
+            }
+
+            $payment->update(array_filter([
+                'amount' => $edit['amount'] ?? null,
+                'payment_method' => $edit['payment_method'] ?? null,
+                'payment_date' => $edit['payment_date'] ?? null,
+            ], fn ($v) => $v !== null && $v !== '') + [
+                // the field is always on the form, so an empty value means "cleared"
+                'reference_no' => array_key_exists('reference_no', $edit) ? $edit['reference_no'] : $payment->reference_no,
+            ]);
+
+            $kept += (float) $payment->amount;
+        }
+
+        $due = round((float) $sale->total_amount - (float) $sale->paid_amount, 2);
+
+        if ($kept > $due + 0.005) {
+            throw new \Exception(
+                'The payments waiting for approval add up to Rs. ' . number_format($kept, 2)
+                . ', but only Rs. ' . number_format(max(0, $due), 2)
+                . ' is due on this sale after your changes. Lower the payment amount or tick Reject for it.'
+            );
+        }
+
+        // Same rule the agent app enforces: a Cash sale is paid in full or
+        // not at all (a cash sale posts its whole total to Cash on confirm).
+        if ($sale->payment_term === 'cash' && $kept > 0.005 && abs($kept - $due) > 0.01) {
+            throw new \Exception(
+                'A Cash sale must be paid in full or not at all. The sale total is Rs. ' . number_format($due, 2)
+                . ' but the agent\'s payment is Rs. ' . number_format($kept, 2)
+                . ' - set the payment to the full amount, reject it, or switch the sale to Credit.'
+            );
+        }
+    }
+
+    /**
+     * Cheap "did the admin actually change anything the agent submitted?"
+     * signature: customer, agent, date, terms, amounts, items and the
+     * pending payments.
+     */
+    private function saleFingerprint(Sale $sale): string
+    {
+        return md5(json_encode([
+            $sale->customer_id, $sale->agent_id, (string) $sale->sale_date, $sale->payment_term,
+            (float) $sale->discount, $sale->discount_type, (float) $sale->tax, (float) $sale->shipping_cost, $sale->notes,
+            $sale->items->map(fn ($i) => [$i->product_id, (float) $i->quantity, (float) $i->unit_price, (float) $i->discount, (float) $i->tax])->sortBy(0)->values(),
+            $sale->payments()->pending()->orderBy('id')->get()->map(fn ($p) => [$p->id, (float) $p->amount, $p->payment_method, (string) $p->payment_date, $p->reference_no])->all(),
+        ]));
     }
 
     public function destroy(Sale $sale)
@@ -444,8 +595,22 @@ class SaleController extends Controller
      */
     public function confirm(Sale $sale)
     {
+        $error = $this->confirmDraft($sale);
+
+        return $error
+            ? back()->with('error', $error)
+            : back()->with('success', 'Order confirmed - stock and accounting updated.');
+    }
+
+    /**
+     * The actual confirmation of a draft (shared by the plain Confirm button
+     * and the edit form's "Save & Confirm"). Returns an error message, or
+     * null when the sale was confirmed.
+     */
+    private function confirmDraft(Sale $sale): ?string
+    {
         if ($sale->status !== 'draft') {
-            return back()->with('error', 'Only a draft sale can be confirmed.');
+            return 'Only a draft sale can be confirmed.';
         }
 
         $sale->status = 'confirmed';
@@ -475,7 +640,7 @@ class SaleController extends Controller
             $sale->approved_by = null;
             $sale->approved_at = null;
             $sale->saveQuietly();
-            return back()->with('error', $e->getMessage());
+            return $e->getMessage();
         }
 
         if ($sale->agent) {
@@ -487,7 +652,7 @@ class SaleController extends Controller
             );
         }
 
-        return back()->with('success', 'Order confirmed - stock and accounting updated.');
+        return null;
     }
 
     /**

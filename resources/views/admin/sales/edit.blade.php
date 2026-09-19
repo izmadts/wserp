@@ -16,6 +16,19 @@
             <form action="{{ route('admin.sales.update', $sale) }}" method="POST" @submit="onSubmit($event)">
                 @csrf
                 @method('PUT')
+                @if($returnTo)
+                <input type="hidden" name="return_to" value="{{ $returnTo }}">
+                @endif
+
+                @if($sale->status === 'draft')
+                <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    This sale is <strong>awaiting your approval</strong>
+                    @if($sale->agent) (submitted by {{ $sale->agent->name }}) @endif.
+                    Correct anything that is wrong - customer, items, prices, the agent's payment - then use
+                    <strong>Save &amp; Confirm</strong> to approve it, or <strong>Save</strong> to keep it as a draft.
+                </div>
+                @endif
 
                 <!-- Header Fields -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -25,11 +38,75 @@
                             <option value="">Select Customer</option>
                             @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" data-price-field="{{ $customer->customerGroup->price_field ?? 'sale_price' }}" {{ $sale->customer_id == $customer->id ? 'selected' : '' }}>
-                                {{ $customer->name }} ({{ $customer->code }})@if($customer->customerGroup) - {{ $customer->customerGroup->name }}@endif
+                                {{ $customer->name }} ({{ $customer->code }})@if($customer->customerGroup) - {{ $customer->customerGroup->name }}@endif{{ $customer->is_active ? '' : ' [inactive]' }}
                             </option>
                             @endforeach
                         </select>
                         <p class="mt-1 text-xs text-gray-500" x-show="customer_id" x-text="priceField === 'wholesale_price' ? 'Wholesale pricing applies' : 'Retail pricing applies'"></p>
+
+                        @if(auth()->user()->hasPermission('customers', 'edit'))
+                        {{-- Fix a mistyped name / mobile / city without leaving the sale.
+                             Inputs here have no name= on purpose: they are saved through
+                             their own request, never with the sale form. --}}
+                        <div x-data="customerFix()">
+                            <button type="button" @click="show()" class="mt-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                                <i class="fas fa-user-edit mr-1"></i> Correct customer details
+                            </button>
+                            <span x-show="saved" x-cloak class="ml-2 text-xs font-medium text-green-600"><i class="fas fa-check-circle"></i> Customer saved</span>
+
+                            <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="open = false">
+                                <div class="fixed inset-0 bg-[rgba(0,0,0,.5)]" @click="open = false"></div>
+                                <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-5" @keydown.enter="if ($event.target.tagName !== 'TEXTAREA') { $event.preventDefault(); save(); }">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="text-base font-semibold text-gray-900"><i class="fas fa-user-edit text-blue-600 mr-2"></i> Correct customer details</h4>
+                                        <button type="button" @click="open = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mb-3">This edits the customer record itself (it applies to all of this customer's sales).</p>
+
+                                    <p x-show="loading" class="text-sm text-gray-500 py-6 text-center"><i class="fas fa-spinner fa-spin mr-1"></i> Loading...</p>
+                                    <p x-show="error" x-text="error" class="mb-3 p-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"></p>
+
+                                    <div x-show="!loading" class="space-y-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Name <span class="text-red-500">*</span></label>
+                                            <input type="text" x-model="f.name" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <p x-show="errors.name" x-text="errors.name" class="mt-1 text-xs text-red-600"></p>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Mobile <span class="text-red-500">*</span></label>
+                                                <input type="text" x-model="f.mobile" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <p x-show="errors.mobile" x-text="errors.mobile" class="mt-1 text-xs text-red-600"></p>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                                                <input type="text" x-model="f.phone" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <p x-show="errors.phone" x-text="errors.phone" class="mt-1 text-xs text-red-600"></p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">City / Area</label>
+                                            <input type="text" x-model="f.city" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <p x-show="errors.city" x-text="errors.city" class="mt-1 text-xs text-red-600"></p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                                            <textarea rows="2" x-model="f.address" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                                            <p x-show="errors.address" x-text="errors.address" class="mt-1 text-xs text-red-600"></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 flex justify-end gap-2">
+                                        <button type="button" @click="open = false" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button>
+                                        <button type="button" @click="save()" :disabled="saving || loading" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60">
+                                            <span x-show="!saving"><i class="fas fa-save mr-1"></i> Save customer</span>
+                                            <span x-show="saving"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
                     </div>
 
                     <div>
@@ -77,6 +154,14 @@
                                 {{ $sale->status_label }} - Rs. {{ number_format($sale->paid_amount, 2) }} paid. Use Add Payment to record more.
                             </div>
                             <input type="hidden" name="status" value="confirmed">
+                        @elseif($sale->status === 'draft')
+                            {{-- A draft is approved with the "Save & Confirm" button below (which
+                                 also approves the agent's payment and notifies the agent), so it
+                                 stays a draft here rather than being flipped by this dropdown. --}}
+                            <div class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-yellow-200 rounded-lg bg-yellow-50 text-yellow-800">
+                                Draft - awaiting approval
+                            </div>
+                            <input type="hidden" name="status" value="draft">
                         @else
                             <select name="status" required class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="draft" {{ $sale->status == 'draft' ? 'selected' : '' }}>Draft</option>
@@ -236,6 +321,47 @@
                     </label>
                 </div>
 
+                @if($pendingPayments->isNotEmpty())
+                <!-- Payments the agent recorded, still waiting for approval -->
+                <div class="mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg border border-yellow-200 bg-yellow-50">
+                    <h4 class="text-sm font-semibold text-yellow-900 mb-1"><i class="fas fa-hourglass-half mr-1"></i> Payment recorded by the agent (awaiting approval)</h4>
+                    <p class="text-xs text-yellow-800 mb-3">
+                        Nothing is posted until you confirm. Correct the amount, method, date or reference if the agent got it wrong,
+                        or tick <strong>Reject</strong> to discard a payment. It is approved together with the sale.
+                    </p>
+                    <div class="space-y-3">
+                        @foreach($pendingPayments as $payment)
+                        <div class="grid grid-cols-2 lg:grid-cols-5 gap-2 items-end bg-white rounded-lg border border-yellow-100 p-2 sm:p-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-0.5">Amount (Rs.)</label>
+                                <input type="number" step="0.01" min="0.01" name="pending_payments[{{ $payment->id }}][amount]" value="{{ old('pending_payments.'.$payment->id.'.amount', (float) $payment->amount) }}" class="w-full px-2 py-1.5 text-sm text-right border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-0.5">Method</label>
+                                <select name="pending_payments[{{ $payment->id }}][payment_method]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                                    @foreach(['cash' => 'Cash', 'bank_transfer' => 'Bank Transfer', 'cheque' => 'Cheque', 'credit_card' => 'Credit Card'] as $value => $label)
+                                    <option value="{{ $value }}" {{ old('pending_payments.'.$payment->id.'.payment_method', $payment->payment_method) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-0.5">Date</label>
+                                <input type="date" name="pending_payments[{{ $payment->id }}][payment_date]" value="{{ old('pending_payments.'.$payment->id.'.payment_date', $payment->payment_date ? $payment->payment_date->format('Y-m-d') : '') }}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-0.5">Reference</label>
+                                <input type="text" maxlength="100" name="pending_payments[{{ $payment->id }}][reference_no]" value="{{ old('pending_payments.'.$payment->id.'.reference_no', $payment->reference_no) }}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg">
+                            </div>
+                            <label class="flex items-center gap-2 text-sm text-red-700 pb-1.5">
+                                <input type="checkbox" name="pending_payments[{{ $payment->id }}][reject]" value="1" class="h-4 w-4 text-red-600 rounded" {{ old('pending_payments.'.$payment->id.'.reject') ? 'checked' : '' }}>
+                                Reject
+                            </label>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
                 <!-- Totals -->
                 <div class="mt-4 border-t border-gray-200 pt-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -283,10 +409,17 @@
                 <input type="hidden" name="sub_total" x-bind:value="subTotal">
 
                 <div class="mt-6 flex flex-wrap items-center gap-3">
+                    {{-- Plain Save first in the DOM so pressing Enter in a field never
+                         approves the sale by accident. --}}
                     <button type="submit" class="w-full sm:w-auto px-6 py-2 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 transition-colors duration-200">
-                        <i class="fas fa-save mr-1"></i> Update Sale
+                        <i class="fas fa-save mr-1"></i> {{ $sale->status === 'draft' ? 'Save (keep as draft)' : 'Update Sale' }}
                     </button>
-                    <a href="{{ route('admin.sales.index') }}" class="w-full sm:w-auto px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200 text-center">
+                    @if($sale->status === 'draft')
+                    <button type="submit" name="confirm_after" value="1" class="w-full sm:w-auto px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200">
+                        <i class="fas fa-check mr-1"></i> Save &amp; Confirm
+                    </button>
+                    @endif
+                    <a href="{{ $returnTo === 'approvals' ? route('admin.approvals.index') : route('admin.sales.index') }}" class="w-full sm:w-auto px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200 text-center">
                         Cancel
                     </a>
                 </div>
@@ -488,6 +621,93 @@ function saleForm() {
             if (this.hasStockWarning() && !confirm('One or more items exceed available stock. Submit anyway?')) {
                 event.preventDefault();
             }
+        }
+    };
+}
+
+// "Correct customer details": loads the selected customer, saves name / mobile /
+// phone / city / address through its own JSON request (not with the sale form),
+// then relabels that customer in the dropdown.
+function customerFix() {
+    var showUrl = "{{ route('admin.customers.quick.show', '__ID__') }}";
+    var updateUrl = "{{ route('admin.customers.quick.update', '__ID__') }}";
+
+    return {
+        open: false,
+        loading: false,
+        saving: false,
+        saved: false,
+        error: '',
+        errors: {},
+        customerId: '',
+        f: { name: '', mobile: '', phone: '', city: '', address: '' },
+
+        select: function() {
+            return document.querySelector('select[name="customer_id"]');
+        },
+
+        show: function() {
+            var self = this;
+            this.customerId = this.select().value;
+            if (!this.customerId) {
+                alert('Select a customer first.');
+                return;
+            }
+            this.open = true;
+            this.loading = true;
+            this.error = '';
+            this.errors = {};
+
+            fetch(showUrl.replace('__ID__', this.customerId), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                .then(function(r) {
+                    if (!r.ok) throw new Error('Could not load the customer (' + r.status + ').');
+                    return r.json();
+                })
+                .then(function(d) {
+                    self.f = { name: d.name || '', mobile: d.mobile || '', phone: d.phone || '', city: d.city || '', address: d.address || '' };
+                })
+                .catch(function(e) { self.error = e.message; })
+                .finally(function() { self.loading = false; });
+        },
+
+        save: function() {
+            var self = this;
+            if (this.saving || this.loading) return;
+            this.saving = true;
+            this.error = '';
+            this.errors = {};
+
+            fetch(updateUrl.replace('__ID__', this.customerId), {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(this.f)
+            })
+                .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, d: d }; }); })
+                .then(function(res) {
+                    if (res.ok) {
+                        var option = self.select().querySelector('option[value="' + self.customerId + '"]');
+                        if (option) {
+                            option.textContent = res.d.label + (/\[inactive\]\s*$/.test(option.textContent) ? ' [inactive]' : '');
+                        }
+                        self.open = false;
+                        self.saved = true;
+                        setTimeout(function() { self.saved = false; }, 4000);
+                    } else if (res.status === 422 && res.d.errors) {
+                        var errs = {};
+                        Object.keys(res.d.errors).forEach(function(k) { errs[k] = res.d.errors[k][0]; });
+                        self.errors = errs;
+                        self.error = 'Please fix the highlighted fields.';
+                    } else {
+                        self.error = res.d.message || 'Could not save the customer.';
+                    }
+                })
+                .catch(function() { self.error = 'Network error - please try again.'; })
+                .finally(function() { self.saving = false; });
         }
     };
 }

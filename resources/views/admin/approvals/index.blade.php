@@ -32,7 +32,12 @@
                         <td class="py-3 px-4">
                             <a href="{{ route('admin.sales.show', $sale) }}" class="font-medium text-blue-600 hover:underline">{{ $sale->invoice_no }}</a>
                         </td>
-                        <td class="py-3 px-4">{{ $sale->customer->name ?? '-' }}</td>
+                        <td class="py-3 px-4">
+                            {{ $sale->customer->name ?? '-' }}
+                            @if($sale->customer && $sale->customer->mobile)
+                            <span class="block text-xs text-gray-400">{{ $sale->customer->mobile }}</span>
+                            @endif
+                        </td>
                         <td class="py-3 px-4">
                             {{ $sale->agent->name ?? ($sale->createdBy->name ?? '-') }}
                         </td>
@@ -55,6 +60,13 @@
                         <td class="py-3 px-4 text-gray-500">{{ $sale->created_at->format('d-m-Y H:i') }}</td>
                         <td class="py-3 px-4">
                             <div class="flex justify-end gap-2">
+                                {{-- Review/correct what the agent submitted (customer, items, prices,
+                                     the agent's payment...) before approving. --}}
+                                @if(auth()->user()->hasPermission('sales', 'edit'))
+                                <a href="{{ route('admin.sales.edit', [$sale, 'return' => 'approvals']) }}" class="px-3 py-1.5 bg-yellow-600 text-white text-xs rounded-lg hover:bg-yellow-700 transition-colors duration-200">
+                                    <i class="fas fa-edit mr-1"></i> Edit
+                                </a>
+                                @endif
                                 <form action="{{ route('admin.sales.confirm', $sale) }}" method="POST">
                                     @csrf
                                     <button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors duration-200">
