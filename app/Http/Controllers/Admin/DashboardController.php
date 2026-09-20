@@ -187,7 +187,38 @@ class DashboardController extends Controller
             ->take(8)
             ->values();
 
+        // Supplier payable: money paid out to suppliers (invoice payments AND
+        // direct/on-account payments) plus what is still owed. The balance
+        // comes from Supplier::balance, same as the Payable report.
+        $recentSupplierPayments = collect()
+            ->concat(PurchasePayment::with('purchase', 'supplier', 'createdBy')->latest('payment_date')->latest('id')->limit(10)->get()->map(fn ($p) => [
+                'date' => $p->payment_date, 'supplier' => $p->supplier->name ?? '-', 'reference' => $p->purchase->invoice_no ?? '-',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-', 'ts' => $p->created_at,
+            ]))
+            ->concat(SupplierPayment::with('supplier', 'createdBy')->latest('payment_date')->latest('id')->limit(10)->get()->map(fn ($p) => [
+                'date' => $p->payment_date, 'supplier' => $p->supplier->name ?? '-', 'reference' => 'On account',
+                'amount' => (float) $p->amount, 'method' => $p->payment_method, 'by' => $p->createdBy->name ?? '-', 'ts' => $p->created_at,
+            ]))
+            ->sortByDesc(fn ($r) => $r['date']->format('Y-m-d') . ($r['ts'] ? $r['ts']->format('His') : ''))
+            ->take(8)
+            ->values();
+
+        $owedSuppliers = Supplier::with('purchases', 'purchasePayments')->get()
+            ->filter(fn ($s) => $s->balance > 0)
+            ->sortByDesc('balance')
+            ->values();
+        $totalPayable = $owedSuppliers->sum('balance');
+        $topPayables = $owedSuppliers->take(5);
+        $owedSupplierCount = $owedSuppliers->count();
+        $paidToSuppliersThisMonth = (float) PurchasePayment::whereBetween('payment_date', [date('Y-m-01'), date('Y-m-t')])->sum('amount')
+            + (float) SupplierPayment::whereBetween('payment_date', [date('Y-m-01'), date('Y-m-t')])->sum('amount');
+
         return view('admin.dashboard', array_merge($data, [
+            'recentSupplierPayments' => $recentSupplierPayments,
+            'totalPayable' => $totalPayable,
+            'topPayables' => $topPayables,
+            'owedSupplierCount' => $owedSupplierCount,
+            'paidToSuppliersThisMonth' => $paidToSuppliersThisMonth,
             'currentMonthSales' => $currentMonthSales,
             'previousMonthSales' => $previousMonthSales,
             'salesGrowth' => $salesGrowth,

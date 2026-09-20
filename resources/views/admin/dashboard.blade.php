@@ -357,6 +357,56 @@
         </div>
     </div>
 
+    {{-- Supplier payable / payment history --}}
+    <div class="bg-white rounded-xl shadow-card overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-truck text-orange-600 mr-2"></i> Supplier Payments &amp; Payable
+            </h4>
+            <a href="{{ route('admin.reports.payable') }}" class="text-sm text-blue-600 hover:underline">Payable report</a>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-b border-gray-100">
+            <div class="rounded-lg bg-red-50 p-3">
+                <p class="text-xs text-red-700">Total payable (we owe)</p>
+                <p class="text-lg font-bold text-red-700">Rs. {{ number_format($totalPayable, 2) }}</p>
+                <p class="text-xs text-red-600">{{ $owedSupplierCount }} supplier(s)</p>
+            </div>
+            <div class="rounded-lg bg-green-50 p-3">
+                <p class="text-xs text-green-700">Paid to suppliers this month</p>
+                <p class="text-lg font-bold text-green-700">Rs. {{ number_format($paidToSuppliersThisMonth, 2) }}</p>
+            </div>
+            <div class="rounded-lg bg-gray-50 p-3">
+                <p class="text-xs text-gray-600 mb-1">Highest balances</p>
+                @forelse($topPayables as $s)
+                    <p class="text-xs flex justify-between"><span class="truncate mr-2">{{ $s->name }}</span><span class="font-medium text-red-600">Rs. {{ number_format($s->balance, 0) }}</span></p>
+                @empty
+                    <p class="text-xs text-gray-500">Nothing owed</p>
+                @endforelse
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                    <th class="py-2 px-4">Date</th><th class="py-2 px-4">Supplier</th><th class="py-2 px-4">For</th><th class="py-2 px-4">Method</th><th class="py-2 px-4">By</th><th class="py-2 px-4 text-right">Amount</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse($recentSupplierPayments as $p)
+                    <tr>
+                        <td class="py-2 px-4 whitespace-nowrap">{{ $p['date']->format('d-m-Y') }}</td>
+                        <td class="py-2 px-4 font-medium">{{ $p['supplier'] }}</td>
+                        <td class="py-2 px-4 text-gray-500">{{ $p['reference'] }}</td>
+                        <td class="py-2 px-4 text-gray-500">{{ ucwords(str_replace('_', ' ', $p['method'] ?? '-')) }}</td>
+                        <td class="py-2 px-4 text-gray-500">{{ $p['by'] }}</td>
+                        <td class="py-2 px-4 text-right font-semibold text-red-600">Rs. {{ number_format($p['amount'], 2) }}</td>
+                    </tr>
+                    @empty
+                    <tr><td colspan="6" class="py-4 text-center text-gray-500">No supplier payments yet</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 @endsection
 
