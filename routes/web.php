@@ -454,6 +454,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
     // ==========================================
     Route::prefix('reports')->name('reports.')->middleware('permission:reports,view')->group(function () {
         // Financial Reports
+        Route::get('/business-summary', [ReportController::class, 'businessSummary'])->name('business-summary');
         Route::get('/accounting-dashboard', [ReportController::class, 'accountingDashboard'])->name('accounting-dashboard');
         Route::get('/profit-loss', [ReportController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/profit-loss/pdf', [ReportController::class, 'profitLossPdf'])->name('profit-loss-pdf');

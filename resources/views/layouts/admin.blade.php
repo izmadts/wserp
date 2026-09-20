@@ -208,6 +208,7 @@
                             'key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-bar', 'color' => 'text-gray-600',
                             'active' => request()->routeIs('admin.reports.*'),
                             'links' => [
+                                ['route' => 'admin.reports.business-summary', 'is' => 'admin.reports.business-summary', 'icon' => 'fa-traffic-light', 'label' => 'Business Summary', 'module' => 'reports'],
                                 ['route' => 'admin.reports.accounting-dashboard', 'is' => 'admin.reports.accounting-dashboard', 'icon' => 'fa-chart-pie', 'label' => 'Accounting Dashboard', 'module' => 'reports'],
                                 ['route' => 'admin.reports.profit-loss', 'is' => 'admin.reports.profit-loss', 'icon' => 'fa-chart-bar', 'label' => 'Profit & Loss', 'module' => 'reports'],
                                 ['route' => 'admin.reports.trial-balance', 'is' => 'admin.reports.trial-balance', 'icon' => 'fa-balance-scale', 'label' => 'Trial Balance', 'module' => 'reports'],

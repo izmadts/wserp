@@ -197,6 +197,206 @@ class ReportController extends Controller
     }
 
     /**
+     * "Business Summary": one screen that answers "is the business growing?".
+     * Compares the current week / month / quarter against the previous one
+     * using the SAME computeProfitLossFigures() as the P&L report, gives a
+     * green / yellow / red verdict and rule-based recommendations.
+     */
+    public function businessSummary(Request $request)
+    {
+        $period = in_array($request->period, ['week', 'month', 'quarter'], true) ? $request->period : 'month';
+        $now = Carbon::now();
+
+        // Build the buckets (oldest first); the last one is "current".
+        $buckets = [];
+        if ($period === 'week') {
+            for ($i = 7; $i >= 0; $i--) {
+                $st = $now->copy()->startOfWeek()->subWeeks($i);
+                $buckets[] = [$st->format('d M'), $st->toDateString(), $st->copy()->endOfWeek()->toDateString()];
+            }
+            $unit = 'week';
+        } elseif ($period === 'quarter') {
+            for ($i = 3; $i >= 0; $i--) {
+                $st = $now->copy()->startOfQuarter()->subQuarters($i);
+                $buckets[] = ['Q' . $st->quarter . ' ' . $st->format('Y'), $st->toDateString(), $st->copy()->endOfQuarter()->toDateString()];
+            }
+            $unit = 'quarter';
+        } else {
+            for ($i = 5; $i >= 0; $i--) {
+                $st = $now->copy()->startOfMonth()->subMonths($i);
+                $buckets[] = [$st->format('M Y'), $st->toDateString(), $st->copy()->endOfMonth()->toDateString()];
+            }
+            $unit = 'month';
+        }
+
+        $trend = [];
+        foreach ($buckets as [$label, $from, $to]) {
+            $fig = $this->computeProfitLossFigures($from, $to);
+            $trend[] = [
+                'label' => $label,
+                'revenue' => (float) $fig['totalIncome'],
+                'cogs' => (float) $fig['cogs'],
+                'gross' => (float) $fig['grossProfit'],
+                'expenses' => (float) $fig['operatingExpenses'],
+                'net' => (float) $fig['netProfit'],
+                'gross_margin' => $fig['totalIncome'] > 0 ? round($fig['grossProfit'] / $fig['totalIncome'] * 100, 1) : 0,
+                'net_margin' => $fig['totalIncome'] > 0 ? round($fig['netProfit'] / $fig['totalIncome'] * 100, 1) : 0,
+            ];
+        }
+
+        [$curLabel, $curFrom, $curTo] = $buckets[count($buckets) - 1];
+        [$prevLabel, $prevFrom, $prevTo] = $buckets[count($buckets) - 2];
+        $cur = $this->computeProfitLossFigures($curFrom, $curTo);
+        $prev = $this->computeProfitLossFigures($prevFrom, $prevTo);
+        $c = $trend[count($trend) - 1];
+        $p = $trend[count($trend) - 2];
+
+        $growth = fn ($a, $b) => $b != 0 ? round((($a - $b) / abs($b)) * 100, 1) : null;
+        $g = [
+            'revenue' => $growth($c['revenue'], $p['revenue']),
+            'cogs' => $growth($c['cogs'], $p['cogs']),
+            'gross' => $growth($c['gross'], $p['gross']),
+            'expenses' => $growth($c['expenses'], $p['expenses']),
+            'net' => $growth($c['net'], $p['net']),
+        ];
+
+        // ---- Verdict --------------------------------------------------
+        $revUp = $c['revenue'] >= $p['revenue'];
+        $netUp = $c['net'] >= $p['net'];
+        $breakEven = $c['revenue'] <= 0 || abs($c['net_margin']) < 1;
+        if ($breakEven) {
+            $signal = 'yellow';
+            $headline = 'Break-even - almost no profit and no loss this ' . $unit;
+        } elseif ($c['net'] < 0) {
+            $signal = 'red';
+            $headline = 'Not growing - the business made a LOSS this ' . $unit;
+        } elseif ($revUp && $netUp) {
+            $signal = 'green';
+            $headline = 'Growing - sales and profit are both up on last ' . $unit;
+        } elseif (!$revUp && !$netUp) {
+            $signal = 'red';
+            $headline = 'Not growing - sales and profit are both down on last ' . $unit;
+        } else {
+            $signal = 'yellow';
+            $headline = $revUp
+                ? 'Mixed - sales are up but profit is down (costs are growing faster)'
+                : 'Mixed - profit is up but sales are down (watch your sales volume)';
+        }
+
+        // ---- Extra facts for the recommendations ----------------------
+        $returns = (float) SalesReturn::whereBetween('return_date', [$curFrom, $curTo])->sum('total_amount');
+        $salesGross = (float) Sale::whereBetween('sale_date', [$curFrom, $curTo])->whereIn('status', ['confirmed', 'partial', 'paid'])->sum('total_amount');
+        $returnRate = $salesGross > 0 ? round($returns / $salesGross * 100, 1) : 0;
+        $uncollected = (float) Sale::whereBetween('sale_date', [$curFrom, $curTo])->whereIn('status', ['confirmed', 'partial'])->sum('due_amount');
+        $uncollectedPct = $salesGross > 0 ? round($uncollected / $salesGross * 100, 1) : 0;
+
+        $productRows = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('products', 'sale_items.product_id', '=', 'products.id')
+            ->whereBetween('sales.sale_date', [$curFrom, $curTo])
+            ->whereIn('sales.status', ['confirmed', 'partial', 'paid'])
+            ->whereNull('sales.deleted_at')
+            ->groupBy('products.id', 'products.name')
+            ->select(
+                'products.name',
+                DB::raw('SUM(sale_items.total_price) as revenue'),
+                DB::raw('SUM(sale_items.quantity * COALESCE(sale_items.unit_cost, products.purchase_price)) as cost')
+            )->get()->map(function ($r) {
+                $r->profit = $r->revenue - $r->cost;
+                $r->margin = $r->revenue > 0 ? round($r->profit / $r->revenue * 100, 1) : 0;
+                return $r;
+            });
+        $topProducts = $productRows->sortByDesc('profit')->take(5)->values();
+        $lossProducts = $productRows->filter(fn ($r) => $r->profit < 0)->sortBy('profit')->take(5)->values();
+
+        $topCustomer = DB::table('sales')->join('customers', 'sales.customer_id', '=', 'customers.id')
+            ->whereBetween('sales.sale_date', [$curFrom, $curTo])->whereIn('sales.status', ['confirmed', 'partial', 'paid'])
+            ->whereNull('sales.deleted_at')
+            ->groupBy('customers.id', 'customers.name')
+            ->select('customers.name', DB::raw('SUM(sales.total_amount) as total'))
+            ->orderByDesc('total')->first();
+        $topCustomerPct = ($topCustomer && $salesGross > 0) ? round($topCustomer->total / $salesGross * 100, 1) : 0;
+
+        $prevExp = $prev['expensesByCategory']->mapWithKeys(fn ($x) => [$x->category_id => (float) $x->total]);
+        $expenseRows = $cur['expensesByCategory']->map(function ($x) use ($prevExp) {
+            $before = $prevExp[$x->category_id] ?? 0;
+            return ['name' => $x->category->name ?? 'Uncategorized', 'total' => (float) $x->total, 'before' => $before, 'change' => $x->total - $before];
+        })->sortByDesc('total')->values();
+
+        $pendingExpenses = Expense::where('status', 'pending')->count();
+        $draftSales = Sale::where('status', 'draft')->count();
+
+        // ---- Recommendations (improve = grow more, control = cut leaks) ----
+        $improve = [];
+        $control = [];
+        $good = [];
+        $rs = fn ($v) => 'Rs. ' . number_format($v, 0);
+
+        if ($c['revenue'] <= 0) {
+            $improve[] = ['Sales', 'No sales were recorded this ' . $unit . ' yet. Nothing else can be judged until sales come in.'];
+        }
+        if ($g['revenue'] !== null && $g['revenue'] < 0) {
+            $improve[] = ['Sales', 'Revenue fell ' . abs($g['revenue']) . '% (' . $rs($p['revenue']) . ' to ' . $rs($c['revenue']) . '). Follow up with customers who stopped ordering and push your sales agents.'];
+        } elseif ($g['revenue'] !== null && $g['revenue'] > 0) {
+            $good[] = 'Revenue is up ' . $g['revenue'] . '% on last ' . $unit . '.';
+        }
+        $gmDrop = $c['gross_margin'] - $p['gross_margin'];
+        if ($p['revenue'] > 0 && $c['revenue'] > 0 && $gmDrop <= -2) {
+            $control[] = ['Buying cost / pricing', 'Gross margin dropped from ' . $p['gross_margin'] . '% to ' . $c['gross_margin'] . '%. Your goods cost more or you sell cheaper. Check supplier prices and selling rates (per 40 kg).'];
+        } elseif ($p['revenue'] > 0 && $gmDrop >= 2) {
+            $good[] = 'Gross margin improved from ' . $p['gross_margin'] . '% to ' . $c['gross_margin'] . '%.';
+        }
+        if ($c['revenue'] > 0 && $c['gross_margin'] < 10) {
+            $improve[] = ['Margins', 'Gross margin is only ' . $c['gross_margin'] . '%. Even small cost increases can turn this into a loss - consider raising prices on the lowest-margin items.'];
+        }
+        $expPct = $c['revenue'] > 0 ? round($c['expenses'] / $c['revenue'] * 100, 1) : 0;
+        $prevExpPct = $p['revenue'] > 0 ? round($p['expenses'] / $p['revenue'] * 100, 1) : 0;
+        if ($c['revenue'] > 0 && $p['revenue'] > 0 && $expPct > $prevExpPct + 2) {
+            $control[] = ['Running expenses', 'Expenses took ' . $expPct . '% of revenue (was ' . $prevExpPct . '%). Review the categories below.'];
+        }
+        $biggestRise = $expenseRows->where('change', '>', 0)->sortByDesc('change')->first();
+        if ($biggestRise && $biggestRise['before'] > 0 && $biggestRise['change'] / $biggestRise['before'] >= 0.25) {
+            $control[] = [$biggestRise['name'] . ' expense', 'Rose from ' . $rs($biggestRise['before']) . ' to ' . $rs($biggestRise['total']) . ' - the biggest increase. Check if it is justified.'];
+        }
+        if ($expenseRows->count() && $c['expenses'] > 0 && $expenseRows[0]['total'] / $c['expenses'] > 0.5) {
+            $control[] = [$expenseRows[0]['name'] . ' expense', 'Makes up ' . round($expenseRows[0]['total'] / $c['expenses'] * 100) . '% of all expenses - the first place to look for savings.'];
+        }
+        if ($returnRate >= 3) {
+            $control[] = ['Sales returns', 'Returns are ' . $returnRate . '% of sales (' . $rs($returns) . '). Find out why goods come back (quality, wrong item, damage).'];
+        }
+        if ($uncollectedPct >= 30 && $uncollected > 0) {
+            $improve[] = ['Collections', $uncollectedPct . '% of this ' . $unit . "'s sales (" . $rs($uncollected) . ') is still unpaid. Profit on paper is not cash - collect from customers (see Receivable report).'];
+        }
+        if ($lossProducts->count()) {
+            $control[] = ['Loss-making products', $lossProducts->count() . ' product(s) were sold below cost, e.g. ' . $lossProducts->first()->name . ' (' . $rs($lossProducts->first()->profit) . '). Fix the price or stop discounting them.'];
+        }
+        if ($topCustomerPct >= 40) {
+            $control[] = ['Customer dependence', $topCustomer->name . ' gives ' . $topCustomerPct . '% of sales. Losing them would hurt badly - build more regular customers.'];
+        }
+        if ($pendingExpenses > 0) {
+            $control[] = ['Unapproved expenses', $pendingExpenses . ' expense(s) are still pending. Profit will drop once they are approved.'];
+        }
+        if ($draftSales > 0) {
+            $improve[] = ['Unapproved sales', $draftSales . ' draft sale(s) are waiting for approval and are NOT counted yet. Approve them to see the real figures.'];
+        }
+        if ($c['net'] > 0 && $g['net'] !== null && $g['net'] > 0) {
+            $good[] = 'Net profit is up ' . $g['net'] . '% on last ' . $unit . '.';
+        }
+        if (!$improve && !$control) {
+            $good[] = 'Nothing alarming found this ' . $unit . '. Keep watching the trend.';
+        }
+
+        $totalPayable = $this->payable($request)->getData()['totalPayable'] ?? 0;
+        $totalReceivable = $this->receivable($request)->getData()['totalReceivable'] ?? 0;
+
+        return view('admin.reports.business-summary', compact(
+            'period', 'unit', 'signal', 'headline', 'trend', 'c', 'p', 'g', 'curLabel', 'prevLabel',
+            'curFrom', 'curTo', 'prevFrom', 'prevTo', 'expPct', 'returnRate', 'returns', 'uncollected', 'uncollectedPct',
+            'topProducts', 'lossProducts', 'expenseRows', 'improve', 'control', 'good', 'totalPayable', 'totalReceivable'
+        ));
+    }
+
+    /**
      * P&L-focused dashboard: current-month tiles (vs. previous month),
      * a trailing 6-month trend, and category/cash-position breakdowns.
      * Every figure comes from computeProfitLossFigures() (same as
