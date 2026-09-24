@@ -3,38 +3,39 @@
 @section('title', 'Profit & Loss Report')
 @section('page-title', 'Profit & Loss Statement')
 
+@php
+    $compareLabelMap = ['previous_period' => 'previous period', 'previous_year' => 'same period last year', 'custom' => 'comparison period'];
+    $growthBadge = function ($v) {
+        if ($v === null) return '';
+        $up = $v >= 0;
+        return '<span class="text-xs font-medium ' . ($up ? 'text-green-600' : 'text-red-600') . ' block mt-1"><i class="fas ' . ($up ? 'fa-arrow-up' : 'fa-arrow-down') . ' mr-1"></i>' . number_format(abs($v), 1) . '% vs ' . ($compareLabelMap[$compare['mode'] ?? ''] ?? 'previous period') . '</span>';
+    };
+@endphp
+
 @section('content')
 <div class="space-y-6">
-    <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('admin.reports.profit-loss-pdf', request()->all()) }}" target="_blank" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200">
-            <i class="fas fa-file-pdf mr-1"></i> PDF (Khata Statement)
-        </a>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        @include('admin.reports.partials.period-picker', [
+            'routeName' => 'admin.reports.profit-loss',
+            'from' => $fromDate, 'to' => $toDate,
+            'compareMode' => $compare['mode'] ?? 'none',
+            'compareFrom' => $compare['from'] ?? null, 'compareTo' => $compare['to'] ?? null,
+            'allowNoCompare' => true,
+        ])
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('admin.reports.profit-loss-pdf', request()->all()) }}" target="_blank" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200">
+                <i class="fas fa-file-pdf mr-1"></i> PDF (Khata Statement)
+            </a>
+            <a href="{{ route('admin.reports.profit-loss') }}" class="inline-flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors duration-200">
+                <i class="fas fa-undo mr-1"></i> Reset
+            </a>
+        </div>
     </div>
-    <!-- Date Filter -->
-    <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
-        <form method="GET" class="flex flex-wrap items-end gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                <input type="date" name="from_date" value="{{ $fromDate }}"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                <input type="date" name="to_date" value="{{ $toDate }}"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="pt-6">
-                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200">
-                    <i class="fas fa-filter mr-1"></i> Filter
-                </button>
-            </div>
-            <div class="pt-6">
-                <a href="{{ route('admin.reports.profit-loss') }}" class="inline-flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200">
-                    <i class="fas fa-undo mr-1"></i> Reset
-                </a>
-            </div>
-        </form>
-    </div>
+    @if($compare)
+        <p class="text-sm text-gray-500 -mt-3">
+            Comparing against {{ $compareLabelMap[$compare['mode']] ?? 'previous period' }}: {{ date('d-M-Y', strtotime($compare['from'])) }} - {{ date('d-M-Y', strtotime($compare['to'])) }}
+        </p>
+    @endif
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -43,6 +44,7 @@
                 <div>
                     <p class="text-sm font-medium text-gray-500">Total Income</p>
                     <p class="text-2xl font-bold text-green-600">Rs. {{ number_format($totalIncome, 2) }}</p>
+                    @if($compare) {!! $growthBadge($compare['growth']['totalIncome']) !!} @endif
                 </div>
                 <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-arrow-up text-green-600 text-xl"></i>
@@ -55,6 +57,7 @@
                 <div>
                     <p class="text-sm font-medium text-gray-500">COGS</p>
                     <p class="text-2xl font-bold text-orange-600">Rs. {{ number_format($cogs, 2) }}</p>
+                    @if($compare) {!! $growthBadge($compare['growth']['cogs']) !!} @endif
                 </div>
                 <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-box text-orange-600 text-xl"></i>
@@ -69,6 +72,7 @@
                     <p class="text-2xl font-bold {{ $grossProfit >= 0 ? 'text-blue-600' : 'text-red-600' }}">
                         Rs. {{ number_format($grossProfit, 2) }}
                     </p>
+                    @if($compare) {!! $growthBadge($compare['growth']['grossProfit']) !!} @endif
                 </div>
                 <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-chart-line text-blue-600 text-xl"></i>
@@ -83,6 +87,7 @@
                     <p class="text-2xl font-bold {{ $netProfit >= 0 ? 'text-green-600' : 'text-red-600' }}">
                         Rs. {{ number_format($netProfit, 2) }}
                     </p>
+                    @if($compare) {!! $growthBadge($compare['growth']['netProfit']) !!} @endif
                 </div>
                 <div class="w-12 h-12 {{ $netProfit >= 0 ? 'bg-green-100' : 'bg-red-100' }} rounded-xl flex items-center justify-center">
                     <i class="fas {{ $netProfit >= 0 ? 'fa-check-circle' : 'fa-exclamation-circle' }} {{ $netProfit >= 0 ? 'text-green-600' : 'text-red-600' }} text-xl"></i>

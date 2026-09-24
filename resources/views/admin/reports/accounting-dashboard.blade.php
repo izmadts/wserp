@@ -3,16 +3,28 @@
 @section('title', 'Accounting Dashboard')
 @section('page-title', 'Accounting Dashboard')
 
+@php
+    $compareLabel = ['previous_period' => 'previous period', 'previous_year' => 'same period last year', 'custom' => 'comparison period'][$compareMode] ?? 'previous period';
+@endphp
+
 @section('content')
 <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <p class="text-sm text-gray-500">
-            Current month ({{ date('d-M-Y', strtotime($currentFrom)) }} - {{ date('d-M-Y', strtotime($currentTo)) }}) vs. previous month.
-        </p>
+        @include('admin.reports.partials.period-picker', [
+            'routeName' => 'admin.reports.accounting-dashboard',
+            'from' => $currentFrom, 'to' => $currentTo,
+            'compareMode' => $compareMode, 'compareFrom' => $previousFrom, 'compareTo' => $previousTo,
+        ])
         <a href="{{ route('admin.reports.profit-loss') }}" class="text-sm text-blue-600 hover:underline">
             <i class="fas fa-file-invoice mr-1"></i> Full Profit & Loss Report
         </a>
     </div>
+    <p class="text-sm text-gray-500 -mt-3">
+        {{ date('d-M-Y', strtotime($currentFrom)) }} - {{ date('d-M-Y', strtotime($currentTo)) }}
+        @if($previousFrom && $previousTo)
+            vs. {{ $compareLabel }} ({{ date('d-M-Y', strtotime($previousFrom)) }} - {{ date('d-M-Y', strtotime($previousTo)) }})
+        @endif
+    </p>
 
     <!-- Tiles -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -22,7 +34,7 @@
                     <p class="text-sm font-medium text-gray-500">Revenue</p>
                     <p class="text-2xl font-bold text-green-600">Rs. {{ number_format($current['totalIncome'], 2) }}</p>
                     <p class="text-xs {{ $revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600' }} mt-1">
-                        <i class="fas {{ $revenueGrowth >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }} mr-1"></i>{{ number_format(abs($revenueGrowth), 1) }}% vs last month
+                        <i class="fas {{ $revenueGrowth >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }} mr-1"></i>{{ number_format(abs($revenueGrowth), 1) }}% vs {{ $compareLabel }}
                     </p>
                 </div>
                 <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-arrow-up text-green-600 text-xl"></i></div>
@@ -65,7 +77,7 @@
                     <p class="text-sm font-medium text-gray-500">Net Profit / Loss</p>
                     <p class="text-2xl font-bold {{ $current['netProfit'] >= 0 ? 'text-green-600' : 'text-red-600' }}">Rs. {{ number_format($current['netProfit'], 2) }}</p>
                     <p class="text-xs {{ $netProfitGrowth >= 0 ? 'text-green-600' : 'text-red-600' }} mt-1">
-                        <i class="fas {{ $netProfitGrowth >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }} mr-1"></i>{{ number_format(abs($netProfitGrowth), 1) }}% vs last month
+                        <i class="fas {{ $netProfitGrowth >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }} mr-1"></i>{{ number_format(abs($netProfitGrowth), 1) }}% vs {{ $compareLabel }}
                     </p>
                 </div>
                 <div class="w-12 h-12 {{ $current['netProfit'] >= 0 ? 'bg-green-100' : 'bg-red-100' }} rounded-xl flex items-center justify-center">

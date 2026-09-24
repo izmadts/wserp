@@ -10,11 +10,12 @@
         'red'    => ['bg' => 'bg-red-50 border-red-300',       'dot' => 'bg-red-500',    'text' => 'text-red-800',    'label' => 'NOT GROWING', 'icon' => 'fa-arrow-trend-down'],
     ][$signal];
     $rs = fn ($v) => 'Rs. ' . number_format($v, 0);
-    $chg = function ($v, $goodWhenUp = true) use ($unit) {
+    $compareLabel = ['previous_period' => 'previous period', 'previous_year' => 'same period last year', 'custom' => 'selected comparison period'][$compareMode] ?? 'previous period';
+    $chg = function ($v, $goodWhenUp = true) use ($compareLabel) {
         if ($v === null) return '<span class="text-gray-400 text-xs">no previous data</span>';
         $up = $v >= 0;
         $good = $goodWhenUp ? $up : !$up;
-        return '<span class="text-xs font-medium ' . ($good ? 'text-green-600' : 'text-red-600') . '"><i class="fas ' . ($up ? 'fa-arrow-up' : 'fa-arrow-down') . ' mr-1"></i>' . number_format(abs($v), 1) . '% vs last ' . e($unit) . '</span>';
+        return '<span class="text-xs font-medium ' . ($good ? 'text-green-600' : 'text-red-600') . '"><i class="fas ' . ($up ? 'fa-arrow-up' : 'fa-arrow-down') . ' mr-1"></i>' . number_format(abs($v), 1) . '% vs ' . e($compareLabel) . '</span>';
     };
 @endphp
 
@@ -23,15 +24,16 @@
 
     {{-- Period picker --}}
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="inline-flex rounded-lg border border-gray-200 bg-white overflow-hidden text-sm">
-            @foreach(['week' => 'Weekly', 'month' => 'Monthly', 'quarter' => 'Quarterly'] as $key => $lbl)
-                <a href="{{ route('admin.reports.business-summary', ['period' => $key]) }}"
-                   class="px-4 py-2 {{ $period === $key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50' }}">{{ $lbl }}</a>
-            @endforeach
-        </div>
+        @include('admin.reports.partials.period-picker', [
+            'routeName' => 'admin.reports.business-summary',
+            'from' => $curFrom, 'to' => $curTo,
+            'compareMode' => $compareMode, 'compareFrom' => $prevFrom, 'compareTo' => $prevTo,
+        ])
         <p class="text-sm text-gray-500">
             This {{ $unit }}: <strong>{{ date('d M', strtotime($curFrom)) }} - {{ date('d M Y', strtotime($curTo)) }}</strong>
-            &nbsp;vs&nbsp; last {{ $unit }}: {{ date('d M', strtotime($prevFrom)) }} - {{ date('d M Y', strtotime($prevTo)) }}
+            @if($prevFrom && $prevTo)
+                &nbsp;vs&nbsp; {{ $compareLabel }}: {{ date('d M', strtotime($prevFrom)) }} - {{ date('d M Y', strtotime($prevTo)) }}
+            @endif
         </p>
     </div>
 
@@ -48,7 +50,7 @@
                 <h2 class="text-xl sm:text-2xl font-bold {{ $sig['text'] }}">{{ $headline }}</h2>
                 <p class="text-sm {{ $sig['text'] }} mt-1">
                     Net {{ $c['net'] >= 0 ? 'profit' : 'loss' }} this {{ $unit }}: <strong>{{ $rs(abs($c['net'])) }}</strong>
-                    ({{ $c['net_margin'] }}% of sales) &middot; last {{ $unit }}: {{ $p['net'] >= 0 ? 'profit' : 'loss' }} {{ $rs(abs($p['net'])) }}
+                    ({{ $c['net_margin'] }}% of sales) &middot; {{ $compareLabel }}: {{ $p['net'] >= 0 ? 'profit' : 'loss' }} {{ $rs(abs($p['net'])) }}
                 </p>
             </div>
         </div>
@@ -125,7 +127,7 @@
             <div class="h-72"><canvas id="marginChart"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
-            <h3 class="font-semibold text-gray-900 mb-1">This {{ $unit }} vs last {{ $unit }}</h3>
+            <h3 class="font-semibold text-gray-900 mb-1">This {{ $unit }} vs {{ $compareLabel }}</h3>
             <div class="h-72"><canvas id="compareChart"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-card p-4 sm:p-6">
@@ -203,11 +205,11 @@ document.addEventListener('DOMContentLoaded', function () {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: function (v) { return v + '%'; } } } } }
     });
 
-    var cur = trend[trend.length - 1], prev = trend[trend.length - 2];
+    var cur = @json($c), prev = @json($p);
     new Chart(document.getElementById('compareChart'), {
         type: 'bar',
         data: { labels: ['Sales', 'Cost of goods', 'Gross profit', 'Expenses', 'Net profit'], datasets: [
-            { label: 'Last {{ $unit }}', data: [prev.revenue, prev.cogs, prev.gross, prev.expenses, prev.net], backgroundColor: 'rgba(156,163,175,.6)', borderRadius: 4 },
+            { label: @json($compareLabel), data: [prev.revenue, prev.cogs, prev.gross, prev.expenses, prev.net], backgroundColor: 'rgba(156,163,175,.6)', borderRadius: 4 },
             { label: 'This {{ $unit }}', data: [cur.revenue, cur.cogs, cur.gross, cur.expenses, cur.net], backgroundColor: 'rgba(37,99,235,.7)', borderRadius: 4 }
         ]},
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: k } } } }

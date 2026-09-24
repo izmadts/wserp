@@ -136,13 +136,80 @@ class ReportController extends Controller
         );
     }
 
+    /**
+     * Resolves a "current period" + "compare period" pair from query
+     * params, the same shape the Business Summary / Accounting Dashboard /
+     * Profit & Loss date+compare picker (a Google-Search-Console-style
+     * range + compare selector) submits: from_date/to_date for the period
+     * being looked at, and compare=previous_period|previous_year|custom|none
+     * (+ compare_from/compare_to for 'custom') for what it's measured
+     * against. Defaults keep every existing caller's old fixed behaviour
+     * when no query params are present at all.
+     */
+    private function resolveComparePeriod(Request $request, string $defaultFrom, string $defaultTo, string $defaultCompare = 'previous_period'): array
+    {
+        $from = $request->filled('from_date') ? $request->from_date : $defaultFrom;
+        $to = $request->filled('to_date') ? $request->to_date : $defaultTo;
+
+        $compareMode = in_array($request->compare, ['previous_period', 'previous_year', 'custom', 'none'], true)
+            ? $request->compare
+            : $defaultCompare;
+
+        $start = Carbon::parse($from);
+        $end = Carbon::parse($to);
+        $days = $start->diffInDays($end) + 1;
+
+        if ($compareMode === 'none') {
+            $compareFrom = null;
+            $compareTo = null;
+        } elseif ($compareMode === 'custom' && $request->filled('compare_from') && $request->filled('compare_to')) {
+            $compareFrom = $request->compare_from;
+            $compareTo = $request->compare_to;
+        } elseif ($compareMode === 'previous_year') {
+            $compareFrom = $start->copy()->subYear()->format('Y-m-d');
+            $compareTo = $end->copy()->subYear()->format('Y-m-d');
+        } else {
+            // previous_period (also the fallback if 'custom' was picked but
+            // its two extra dates didn't arrive) - the immediately
+            // preceding period of the same length, e.g. GSC's default.
+            $compareMode = 'previous_period';
+            $compareTo = $start->copy()->subDay()->format('Y-m-d');
+            $compareFrom = $start->copy()->subDay()->subDays($days - 1)->format('Y-m-d');
+        }
+
+        return [$from, $to, $compareFrom, $compareTo, $compareMode];
+    }
+
     public function profitLoss(Request $request)
     {
-        // Get date range
-        $fromDate = $request->from_date ?? date('Y-m-01');
-        $toDate = $request->to_date ?? date('Y-m-t');
+        // Get date range. Compare is opt-in here (defaults off) so the
+        // report's plain single-period numbers never change for anyone who
+        // hasn't touched the new picker.
+        [$fromDate, $toDate, $compareFrom, $compareTo, $compareMode] = $this->resolveComparePeriod(
+            $request, date('Y-m-01'), date('Y-m-t'), $request->filled('compare') ? 'previous_period' : 'none'
+        );
 
         extract($this->computeProfitLossFigures($fromDate, $toDate));
+
+        $compare = null;
+        if ($compareFrom && $compareTo) {
+            $prevFig = $this->computeProfitLossFigures($compareFrom, $compareTo);
+            $growth = fn ($a, $b) => $b != 0 ? round((($a - $b) / abs($b)) * 100, 1) : null;
+            $compare = [
+                'mode' => $compareMode,
+                'from' => $compareFrom,
+                'to' => $compareTo,
+                'figures' => $prevFig,
+                'growth' => [
+                    'salesRevenue' => $growth($salesRevenue, $prevFig['salesRevenue']),
+                    'totalIncome' => $growth($totalIncome, $prevFig['totalIncome']),
+                    'cogs' => $growth($cogs, $prevFig['cogs']),
+                    'grossProfit' => $growth($grossProfit, $prevFig['grossProfit']),
+                    'operatingExpenses' => $growth($operatingExpenses, $prevFig['operatingExpenses']),
+                    'netProfit' => $growth($netProfit, $prevFig['netProfit']),
+                ],
+            ];
+        }
 
         // =============================================
         // 7. MONTHLY BREAKDOWN
@@ -192,7 +259,9 @@ class ReportController extends Controller
             'netProfit',
             'incomeByCategory',
             'expensesByCategory',
-            'monthlyData'
+            'monthlyData',
+            'compare',
+            'compareMode'
         ));
     }
 
@@ -204,36 +273,32 @@ class ReportController extends Controller
      */
     public function businessSummary(Request $request)
     {
-        $period = in_array($request->period, ['week', 'month', 'quarter'], true) ? $request->period : 'month';
-        $now = Carbon::now();
+        [$curFrom, $curTo, $prevFrom, $prevTo, $compareMode] = $this->resolveComparePeriod(
+            $request, date('Y-m-01'), date('Y-m-t'), 'previous_period'
+        );
 
-        // Build the buckets (oldest first); the last one is "current".
-        $buckets = [];
-        if ($period === 'week') {
-            for ($i = 7; $i >= 0; $i--) {
-                $st = $now->copy()->startOfWeek()->subWeeks($i);
-                $buckets[] = [$st->format('d M'), $st->toDateString(), $st->copy()->endOfWeek()->toDateString()];
-            }
-            $unit = 'week';
-        } elseif ($period === 'quarter') {
-            for ($i = 3; $i >= 0; $i--) {
-                $st = $now->copy()->startOfQuarter()->subQuarters($i);
-                $buckets[] = ['Q' . $st->quarter . ' ' . $st->format('Y'), $st->toDateString(), $st->copy()->endOfQuarter()->toDateString()];
-            }
-            $unit = 'quarter';
-        } else {
-            for ($i = 5; $i >= 0; $i--) {
-                $st = $now->copy()->startOfMonth()->subMonths($i);
-                $buckets[] = [$st->format('M Y'), $st->toDateString(), $st->copy()->endOfMonth()->toDateString()];
-            }
-            $unit = 'month';
-        }
+        // Friendly word for the selected span, used all over the copy text
+        // below ("...this week" / "...this month" / "...this period").
+        $spanDays = Carbon::parse($curFrom)->diffInDays(Carbon::parse($curTo)) + 1;
+        $unit = match (true) {
+            $spanDays === 1 => 'day',
+            $spanDays >= 6 && $spanDays <= 8 => 'week',
+            $spanDays >= 27 && $spanDays <= 31 => 'month',
+            $spanDays >= 89 && $spanDays <= 92 => 'quarter',
+            $spanDays >= 360 && $spanDays <= 366 => 'year',
+            default => 'period',
+        };
 
+        // Trailing 6 calendar months, for the two backdrop trend charts -
+        // deliberately independent of the from/to picker above, which is
+        // for the tiles/verdict/recommendations only.
         $trend = [];
-        foreach ($buckets as [$label, $from, $to]) {
-            $fig = $this->computeProfitLossFigures($from, $to);
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = date('Y-m-01', strtotime("-$i months"));
+            $monthEnd = date('Y-m-t', strtotime("-$i months"));
+            $fig = $this->computeProfitLossFigures($monthStart, $monthEnd);
             $trend[] = [
-                'label' => $label,
+                'label' => date('M Y', strtotime($monthStart)),
                 'revenue' => (float) $fig['totalIncome'],
                 'cogs' => (float) $fig['cogs'],
                 'gross' => (float) $fig['grossProfit'],
@@ -244,12 +309,24 @@ class ReportController extends Controller
             ];
         }
 
-        [$curLabel, $curFrom, $curTo] = $buckets[count($buckets) - 1];
-        [$prevLabel, $prevFrom, $prevTo] = $buckets[count($buckets) - 2];
         $cur = $this->computeProfitLossFigures($curFrom, $curTo);
-        $prev = $this->computeProfitLossFigures($prevFrom, $prevTo);
-        $c = $trend[count($trend) - 1];
-        $p = $trend[count($trend) - 2];
+        $rowOf = fn (array $fig) => [
+            'revenue' => (float) $fig['totalIncome'],
+            'cogs' => (float) $fig['cogs'],
+            'gross' => (float) $fig['grossProfit'],
+            'expenses' => (float) $fig['operatingExpenses'],
+            'net' => (float) $fig['netProfit'],
+            'gross_margin' => $fig['totalIncome'] > 0 ? round($fig['grossProfit'] / $fig['totalIncome'] * 100, 1) : 0,
+            'net_margin' => $fig['totalIncome'] > 0 ? round($fig['netProfit'] / $fig['totalIncome'] * 100, 1) : 0,
+        ];
+        $c = $rowOf($cur);
+        if ($prevFrom && $prevTo) {
+            $prev = $this->computeProfitLossFigures($prevFrom, $prevTo);
+            $p = $rowOf($prev);
+        } else {
+            $prev = ['expensesByCategory' => collect()];
+            $p = ['revenue' => 0, 'cogs' => 0, 'gross' => 0, 'expenses' => 0, 'net' => 0, 'gross_margin' => 0, 'net_margin' => 0];
+        }
 
         $growth = fn ($a, $b) => $b != 0 ? round((($a - $b) / abs($b)) * 100, 1) : null;
         $g = [
@@ -390,7 +467,7 @@ class ReportController extends Controller
         $totalReceivable = $this->receivable($request)->getData()['totalReceivable'] ?? 0;
 
         return view('admin.reports.business-summary', compact(
-            'period', 'unit', 'signal', 'headline', 'trend', 'c', 'p', 'g', 'curLabel', 'prevLabel',
+            'unit', 'signal', 'headline', 'trend', 'c', 'p', 'g', 'compareMode',
             'curFrom', 'curTo', 'prevFrom', 'prevTo', 'expPct', 'returnRate', 'returns', 'uncollected', 'uncollectedPct',
             'topProducts', 'lossProducts', 'expenseRows', 'improve', 'control', 'good', 'totalPayable', 'totalReceivable'
         ));
@@ -406,13 +483,14 @@ class ReportController extends Controller
      */
     public function accountingDashboard(Request $request)
     {
-        $currentFrom = date('Y-m-01');
-        $currentTo = date('Y-m-t');
-        $previousFrom = date('Y-m-01', strtotime('-1 month'));
-        $previousTo = date('Y-m-t', strtotime('-1 month'));
+        [$currentFrom, $currentTo, $previousFrom, $previousTo, $compareMode] = $this->resolveComparePeriod(
+            $request, date('Y-m-01'), date('Y-m-t'), 'previous_period'
+        );
 
         $current = $this->computeProfitLossFigures($currentFrom, $currentTo);
-        $previous = $this->computeProfitLossFigures($previousFrom, $previousTo);
+        $previous = ($previousFrom && $previousTo)
+            ? $this->computeProfitLossFigures($previousFrom, $previousTo)
+            : array_fill_keys(['salesRevenue', 'otherIncome', 'totalIncome', 'cogs', 'grossProfit', 'operatingExpenses', 'netProfit'], 0) + ['incomeByCategory' => collect(), 'expensesByCategory' => collect()];
 
         $netMargin = $current['totalIncome'] > 0
             ? round(($current['netProfit'] / $current['totalIncome']) * 100, 2)
@@ -468,6 +546,9 @@ class ReportController extends Controller
             'totalPayable' => $totalPayable,
             'currentFrom' => $currentFrom,
             'currentTo' => $currentTo,
+            'previousFrom' => $previousFrom,
+            'previousTo' => $previousTo,
+            'compareMode' => $compareMode,
         ]);
     }
 
