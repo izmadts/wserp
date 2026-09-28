@@ -62,6 +62,7 @@ class PurchaseService
             $this->updateStock($purchase);
             $this->createStockMovements($purchase);
             $this->postAccounting($purchase);
+            $this->syncProductCosts($purchase);
         });
     }
 
@@ -92,6 +93,7 @@ class PurchaseService
             $purchase->load('items');
 
             $this->reverseStock($purchase);
+            $this->restoreProductCosts($purchase);
             $this->deleteStockMovements($purchase);
             $this->deleteJournalEntries($purchase, 'purchase');
         });
@@ -259,6 +261,15 @@ class PurchaseService
             if (in_array($purchase->status, ['received', 'paid', 'partial'])) {
                 if ($quantitiesUnchanged) {
                     $this->repostAccountingOnly($purchase);
+                    // Not inside repostAccountingOnly() itself - that method is
+                    // also reused by AccountReconciliationService to patch up a
+                    // single old/broken purchase's journal entry on its own,
+                    // which must NOT be treated as "this is now the latest
+                    // cost". Here it genuinely is: an admin just edited this
+                    // purchase's price with quantities left alone, so no stock
+                    // movement (and previously no product cost either) ever
+                    // reflected the correction.
+                    $this->syncProductCosts($purchase);
                 } else {
                     $this->applyStockAndAccounting($purchase);
                 }
@@ -282,6 +293,56 @@ class PurchaseService
     // =============================================
     // INTERNAL HELPERS
     // =============================================
+
+    /**
+     * "Last cost" costing: whenever a purchase is actually applied (or its
+     * price corrected with quantities unchanged), each product's
+     * purchase_price is refreshed to what was just paid for it. Without
+     * this, purchase_price stayed frozen at whatever it was when the
+     * product was created, even after buying it at a different price -
+     * and that same field feeds the New Purchase form's price suggestion,
+     * COGS's fallback unit cost for older sale items, stock valuation, and
+     * the "below cost" sale warning, so a stale value quietly drifted
+     * further from reality with every purchase.
+     */
+    private function syncProductCosts(Purchase $purchase): void
+    {
+        foreach ($purchase->items as $item) {
+            $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+            if ($product) {
+                $product->purchase_price = $item->unit_price;
+                $product->save();
+            }
+        }
+    }
+
+    /**
+     * Symmetric undo for syncProductCosts(): when a purchase is deleted or
+     * replaced (edit with a quantity change reverses-then-reapplies), fall
+     * back to whatever the next most recent OTHER purchase of that product
+     * cost, read straight from its still-on-record StockMovement - not
+     * guessed at. If this was the only purchase ever recorded for the
+     * product, its purchase_price is left as-is rather than zeroed.
+     */
+    private function restoreProductCosts(Purchase $purchase): void
+    {
+        foreach ($purchase->items as $item) {
+            $priorMovement = StockMovement::where('product_id', $item->product_id)
+                ->where('reference_type', 'purchase')
+                ->where('reference_id', '!=', $purchase->id)
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($priorMovement) {
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+                if ($product) {
+                    $product->purchase_price = $priorMovement->unit_price;
+                    $product->save();
+                }
+            }
+        }
+    }
 
     private function updateStock(Purchase $purchase)
     {
