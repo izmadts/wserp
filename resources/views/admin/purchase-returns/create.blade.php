@@ -34,15 +34,47 @@
                             Select Purchase <span class="text-red-500">*</span>
                             <x-help-tooltip>Only purchases that actually posted stock/payable (Received, Partial, or Paid) are listed - stock this return can't reduce below zero has to have been received first. Submitting this form immediately removes the returned quantities from stock and posts the ledger entries below; there's no edit afterward, only view or delete (deleting reverses it again).</x-help-tooltip>
                         </label>
-                        <select name="purchase_id" x-model="purchaseId" @change="loadPurchaseDetails()" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Purchase</option>
-                            @foreach($purchases as $purchase)
-                            <option value="{{ $purchase->id }}">
-                                {{ $purchase->invoice_no }} - {{ $purchase->supplier->name }} ({{ $purchase->purchase_date->format('d-m-Y') }})
-                            </option>
-                            @endforeach
-                        </select>
+                        {{-- Searchable combobox instead of a plain <select> - with dozens of
+                             purchases this was an unfiltered scroll-through-everything list.
+                             Same pattern as the product picker on the Sale/Purchase forms
+                             (fixed-position dropdown so it's never clipped by the table's
+                             overflow-x-auto wrapper). --}}
+                        <div class="relative"
+                            x-data="{
+                                open: false, query: '', highlighted: 0, pos: '',
+                                place() {
+                                    const r = this.$refs.input.getBoundingClientRect();
+                                    const below = window.innerHeight - r.bottom;
+                                    this.pos = (below >= 280 || below >= r.top)
+                                        ? 'top:' + (r.bottom + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(280, below - 12)) + 'px'
+                                        : 'bottom:' + (window.innerHeight - r.top + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(280, r.top - 12)) + 'px';
+                                },
+                                get selected() { return purchases.find(p => p.id == purchaseId) || null; },
+                                get results() {
+                                    const q = this.query.trim().toLowerCase();
+                                    return q ? purchases.filter(p => p.label.toLowerCase().includes(q)) : purchases;
+                                },
+                                pick(p) { purchaseId = p.id; open = false; query = ''; loadPurchaseDetails(); }
+                            }"
+                            @click.outside="open = false">
+                            <input type="text" autocomplete="off" x-ref="input"
+                                :value="open ? query : (selected ? selected.label : '')"
+                                @focus="open = true; query = ''; highlighted = 0; place()"
+                                @input="open = true; query = $event.target.value; highlighted = 0; place()"
+                                @keydown.escape="open = false"
+                                @keydown.down.prevent="highlighted = Math.min(highlighted + 1, results.length - 1)"
+                                @keydown.up.prevent="highlighted = Math.max(highlighted - 1, 0)"
+                                @keydown.enter.prevent="results[highlighted] && pick(results[highlighted])"
+                                placeholder="Search invoice # or supplier..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <input type="hidden" name="purchase_id" x-model="purchaseId">
+                            <div x-show="open" x-cloak :style="pos" @scroll.window.capture="open && place()" @resize.window="open && place()" class="fixed z-50 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                                <template x-for="(p, i) in results" :key="p.id">
+                                    <div @click="pick(p)" @mouseenter="highlighted = i" :class="i === highlighted ? 'bg-blue-50' : ''" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50" x-text="p.label"></div>
+                                </template>
+                                <div x-show="results.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="query.trim() ? 'No matching purchases' : 'No purchases available'"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -242,8 +274,14 @@
 </div>
 
 <script>
+const purchases = @json($purchases->map(fn ($p) => [
+    'id' => $p->id,
+    'label' => $p->invoice_no . ' - ' . $p->supplier->name . ' (' . $p->purchase_date->format('d-m-Y') . ')',
+]));
+
 function purchaseReturnForm() {
     return {
+        purchases: purchases,
         purchaseId: '',
         purchaseDetails: { items: [], supplier_name: '', invoice_no: '', purchase_date: '', total_amount: 0 },
         items: [],

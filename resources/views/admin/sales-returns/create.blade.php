@@ -34,15 +34,47 @@
                             Select Sale <span class="text-red-500">*</span>
                             <x-help-tooltip>Only sales that actually posted stock/revenue (Confirmed, Partial, or Paid) are listed - a Draft has nothing to reverse yet. Submitting this form immediately puts the returned quantities back into stock and posts the ledger entries below; there's no edit afterward, only view or delete (deleting reverses it again).</x-help-tooltip>
                         </label>
-                        <select name="sale_id" x-model="saleId" @change="loadSaleDetails()" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Sale</option>
-                            @foreach($sales as $sale)
-                            <option value="{{ $sale->id }}">
-                                {{ $sale->invoice_no }} - {{ $sale->customer->name }} ({{ $sale->sale_date->format('d-m-Y') }})
-                            </option>
-                            @endforeach
-                        </select>
+                        {{-- Searchable combobox instead of a plain <select> - with dozens of
+                             sales this was an unfiltered scroll-through-everything list. Same
+                             pattern as the product picker on the Sale/Purchase forms
+                             (fixed-position dropdown so it's never clipped by the table's
+                             overflow-x-auto wrapper). --}}
+                        <div class="relative"
+                            x-data="{
+                                open: false, query: '', highlighted: 0, pos: '',
+                                place() {
+                                    const r = this.$refs.input.getBoundingClientRect();
+                                    const below = window.innerHeight - r.bottom;
+                                    this.pos = (below >= 280 || below >= r.top)
+                                        ? 'top:' + (r.bottom + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(280, below - 12)) + 'px'
+                                        : 'bottom:' + (window.innerHeight - r.top + 2) + 'px;left:' + r.left + 'px;width:' + r.width + 'px;max-height:' + Math.max(120, Math.min(280, r.top - 12)) + 'px';
+                                },
+                                get selected() { return sales.find(s => s.id == saleId) || null; },
+                                get results() {
+                                    const q = this.query.trim().toLowerCase();
+                                    return q ? sales.filter(s => s.label.toLowerCase().includes(q)) : sales;
+                                },
+                                pick(s) { saleId = s.id; open = false; query = ''; loadSaleDetails(); }
+                            }"
+                            @click.outside="open = false">
+                            <input type="text" autocomplete="off" x-ref="input"
+                                :value="open ? query : (selected ? selected.label : '')"
+                                @focus="open = true; query = ''; highlighted = 0; place()"
+                                @input="open = true; query = $event.target.value; highlighted = 0; place()"
+                                @keydown.escape="open = false"
+                                @keydown.down.prevent="highlighted = Math.min(highlighted + 1, results.length - 1)"
+                                @keydown.up.prevent="highlighted = Math.max(highlighted - 1, 0)"
+                                @keydown.enter.prevent="results[highlighted] && pick(results[highlighted])"
+                                placeholder="Search invoice # or customer..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <input type="hidden" name="sale_id" x-model="saleId">
+                            <div x-show="open" x-cloak :style="pos" @scroll.window.capture="open && place()" @resize.window="open && place()" class="fixed z-50 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                                <template x-for="(s, i) in results" :key="s.id">
+                                    <div @click="pick(s)" @mouseenter="highlighted = i" :class="i === highlighted ? 'bg-blue-50' : ''" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50" x-text="s.label"></div>
+                                </template>
+                                <div x-show="results.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="query.trim() ? 'No matching sales' : 'No sales available'"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -242,8 +274,14 @@
 </div>
 
 <script>
+const sales = @json($sales->map(fn ($s) => [
+    'id' => $s->id,
+    'label' => $s->invoice_no . ' - ' . $s->customer->name . ' (' . $s->sale_date->format('d-m-Y') . ')',
+]));
+
 function salesReturnForm() {
     return {
+        sales: sales,
         saleId: '',
         saleDetails: { items: [], customer_name: '', invoice_no: '', sale_date: '', total_amount: 0 },
         items: [],
