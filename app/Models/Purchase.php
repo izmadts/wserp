@@ -14,7 +14,7 @@ class Purchase extends Model
     protected $fillable = [
         'invoice_no', 'supplier_id', 'purchase_date', 'due_date',
         'payment_term', 'status', 'sub_total', 'discount', 'discount_type',
-        'tax', 'shipping_cost', 'total_amount', 'paid_amount', 'due_amount',
+        'tax', 'shipping_cost', 'packing_cost', 'total_amount', 'paid_amount', 'due_amount',
         'refunded_amount', 'notes', 'created_by'
     ];
 
@@ -25,6 +25,7 @@ class Purchase extends Model
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
+        'packing_cost' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'due_amount' => 'decimal:2',
@@ -81,7 +82,7 @@ class Purchase extends Model
             ? ($this->sub_total * $this->discount / 100)
             : $this->discount;
 
-        $this->total_amount = $this->sub_total - $discountAmount + $this->tax + $this->shipping_cost;
+        $this->total_amount = $this->sub_total - $discountAmount + $this->tax + $this->shipping_cost + ($this->packing_cost ?? 0);
         // Same null-safety as Sale::calculateTotals() - refunded_amount
         // defaults to 0 in the database but may not be set on the
         // in-memory model yet the first time this runs pre-insert.

@@ -245,6 +245,17 @@
                                     <td class="text-right py-1.5 px-2 text-sm" x-text="'Rs. ' + shipping.toFixed(2)"></td>
                                     <td></td>
                                 </tr>
+                                <tr>
+                                    <td colspan="3"></td>
+                                    <td class="text-right py-1.5 px-2 text-xs text-gray-600">Packing/Labor:</td>
+                                    <td class="py-1.5 px-1.5">
+                                        <input type="number" step="0.01" name="packing_cost" x-model="packing" @input="calculateTotals()"
+                                            class="w-full px-1 py-1 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            min="0" step="0.01">
+                                    </td>
+                                    <td class="text-right py-1.5 px-2 text-sm" x-text="'Rs. ' + packing.toFixed(2)"></td>
+                                    <td></td>
+                                </tr>
                                 <tr class="bg-blue-50 font-bold">
                                     <td colspan="5" class="text-right py-2.5 px-2 text-base sm:text-lg">Grand Total:</td>
                                     <td class="text-right py-2.5 px-2 text-base sm:text-lg text-blue-600" x-text="'Rs. ' + grandTotal.toFixed(2)"></td>
@@ -395,6 +406,7 @@ function purchaseForm() {
         discount: parseFloat({{ $purchase->discount ?? 0 }}),
         tax: parseFloat({{ $purchase->tax ?? 0 }}),
         shipping: parseFloat({{ $purchase->shipping_cost ?? 0 }}),
+        packing: parseFloat({{ $purchase->packing_cost ?? 0 }}),
         subTotal: 0,
         discountAmount: 0,
         grandTotal: 0,
@@ -468,6 +480,7 @@ function purchaseForm() {
             const discount = parseFloat(this.discount) || 0;
             const tax = parseFloat(this.tax) || 0;
             const shipping = parseFloat(this.shipping) || 0;
+            const packing = parseFloat(this.packing) || 0;
 
             // Apply discount (if percentage, calculate from sub total)
             const discountType = document.querySelector('[name="discount_type"]');
@@ -482,7 +495,7 @@ function purchaseForm() {
             }
 
             this.discountAmount = discountAmount;
-            this.grandTotal = this.subTotal - discountAmount + tax + shipping;
+            this.grandTotal = this.subTotal - discountAmount + tax + shipping + packing;
         }
     }
 }

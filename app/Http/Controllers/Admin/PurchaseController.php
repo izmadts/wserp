@@ -51,6 +51,7 @@ class PurchaseController extends Controller
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
+            'packing_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -86,7 +87,7 @@ class PurchaseController extends Controller
                     ? ($subTotal * ($validated['discount'] ?? 0) / 100)
                     : ($validated['discount'] ?? 0);
 
-                $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
+                $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0) + ($validated['packing_cost'] ?? 0);
 
                 // Always start at 0 paid. recordPayment() below is the ONLY place
                 // that increments paid_amount, so it can never be double-counted.
@@ -100,6 +101,7 @@ class PurchaseController extends Controller
                     'discount_type' => $validated['discount_type'] ?? 'fixed',
                     'tax' => $validated['tax'] ?? 0,
                     'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'packing_cost' => $validated['packing_cost'] ?? 0,
                     'total_amount' => $totalAmount,
                     'paid_amount' => 0,
                     'due_amount' => $totalAmount,
@@ -194,6 +196,7 @@ class PurchaseController extends Controller
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
+            'packing_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -235,6 +238,7 @@ class PurchaseController extends Controller
                     'discount_type' => $validated['discount_type'] ?? 'fixed',
                     'tax' => $validated['tax'] ?? 0,
                     'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'packing_cost' => $validated['packing_cost'] ?? 0,
                     'notes' => $validated['notes'] ?? null,
                 ]);
 

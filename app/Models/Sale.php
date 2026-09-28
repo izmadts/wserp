@@ -13,7 +13,7 @@ class Sale extends Model
     protected $fillable = [
         'invoice_no', 'customer_id', 'agent_id', 'source', 'sale_date', 'due_date',
         'payment_term', 'status', 'sub_total', 'discount', 'discount_type',
-        'tax', 'shipping_cost', 'total_amount', 'commission_amount',
+        'tax', 'shipping_cost', 'packing_cost', 'total_amount', 'commission_amount',
         'commission_paid_amount', 'commission_due_amount', 'recovery_percentage',
         'is_commission_held', 'commission_hold_reason',
         'paid_amount', 'due_amount', 'refunded_amount', 'notes', 'created_by',
@@ -27,6 +27,7 @@ class Sale extends Model
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
+        'packing_cost' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'commission_paid_amount' => 'decimal:2',
@@ -72,7 +73,7 @@ class Sale extends Model
             ? ($this->sub_total * $this->discount / 100)
             : $this->discount;
 
-        $this->total_amount = $this->sub_total - $discountAmount + $this->tax + $this->shipping_cost;
+        $this->total_amount = $this->sub_total - $discountAmount + $this->tax + $this->shipping_cost + ($this->packing_cost ?? 0);
         // refunded_amount defaults to 0 in the database but isn't
         // necessarily set on the in-memory model yet the first time this
         // runs (creating() fires before the insert) - null-coalesce so a

@@ -83,6 +83,7 @@
                     @if($sale->discount > 0)<tr><td colspan="5" class="text-right py-2 px-2">Discount:</td><td class="text-right py-2 px-2 text-red-600">- Rs. {{ number_format($sale->discount, 2) }}</td></tr>@endif
                     @if($sale->tax > 0)<tr><td colspan="5" class="text-right py-2 px-2">Tax:</td><td class="text-right py-2 px-2">Rs. {{ number_format($sale->tax, 2) }}</td></tr>@endif
                     @if($sale->shipping_cost > 0)<tr><td colspan="5" class="text-right py-2 px-2">Shipping:</td><td class="text-right py-2 px-2">Rs. {{ number_format($sale->shipping_cost, 2) }}</td></tr>@endif
+                    @if($sale->packing_cost > 0)<tr><td colspan="5" class="text-right py-2 px-2">Packing/Labor:</td><td class="text-right py-2 px-2">Rs. {{ number_format($sale->packing_cost, 2) }}</td></tr>@endif
                     @if($sale->commission_amount > 0)<tr><td colspan="5" class="text-right py-2 px-2 text-purple-600">Commission:</td><td class="text-right py-2 px-2 text-purple-600">Rs. {{ number_format($sale->commission_amount, 2) }}</td></tr>@endif
                     <tr class="text-lg"><td colspan="5" class="text-right py-2 px-2 font-bold">Grand Total:</td><td class="text-right py-2 px-2 font-bold text-blue-600">Rs. {{ number_format($sale->total_amount, 2) }}</td></tr></tfoot>
                 </table>

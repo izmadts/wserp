@@ -170,6 +170,12 @@
                                 <td class="text-right py-2 px-2">Rs. {{ number_format($purchase->shipping_cost, 2) }}</td>
                             </tr>
                             @endif
+                            @if($purchase->packing_cost > 0)
+                            <tr>
+                                <td colspan="5" class="text-right py-2 px-2">Packing/Labor:</td>
+                                <td class="text-right py-2 px-2">Rs. {{ number_format($purchase->packing_cost, 2) }}</td>
+                            </tr>
+                            @endif
                             <tr class="text-lg">
                                 <td colspan="5" class="text-right py-2 px-2 font-bold">Grand Total:</td>
                                 <td class="text-right py-2 px-2 font-bold text-blue-600">Rs. {{ number_format($purchase->total_amount, 2) }}</td>

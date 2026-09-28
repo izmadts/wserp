@@ -69,6 +69,7 @@ class SaleController extends Controller
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
+            'packing_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -123,7 +124,7 @@ class SaleController extends Controller
                 ? ($subTotal * ($validated['discount'] ?? 0) / 100)
                 : ($validated['discount'] ?? 0);
 
-            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0);
+            $totalAmount = $subTotal - $discountAmount + ($validated['tax'] ?? 0) + ($validated['shipping_cost'] ?? 0) + ($validated['packing_cost'] ?? 0);
 
             $amountReceived = (float) ($validated['amount_received'] ?? 0);
             if ($amountReceived > $totalAmount) {
@@ -180,6 +181,7 @@ class SaleController extends Controller
                 'discount_type' => $validated['discount_type'] ?? 'fixed',
                 'tax' => $validated['tax'] ?? 0,
                 'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                'packing_cost' => $validated['packing_cost'] ?? 0,
                 'total_amount' => $totalAmount,
                 'commission_amount' => 0,
                 'paid_amount' => 0,
@@ -382,6 +384,7 @@ class SaleController extends Controller
             'discount_type' => 'nullable|in:fixed,percentage',
             'tax' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
+            'packing_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -451,6 +454,7 @@ class SaleController extends Controller
                     'discount_type' => $validated['discount_type'] ?? 'fixed',
                     'tax' => $validated['tax'] ?? 0,
                     'shipping_cost' => $validated['shipping_cost'] ?? 0,
+                    'packing_cost' => $validated['packing_cost'] ?? 0,
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
@@ -600,7 +604,7 @@ class SaleController extends Controller
     {
         return md5(json_encode([
             $sale->customer_id, $sale->agent_id, (string) $sale->sale_date, $sale->payment_term,
-            (float) $sale->discount, $sale->discount_type, (float) $sale->tax, (float) $sale->shipping_cost, $sale->notes,
+            (float) $sale->discount, $sale->discount_type, (float) $sale->tax, (float) $sale->shipping_cost, (float) $sale->packing_cost, $sale->notes,
             $sale->items->map(fn ($i) => [$i->product_id, (float) $i->quantity, (float) $i->unit_price, (float) $i->discount, (float) $i->tax])->sortBy(0)->values(),
             $sale->payments()->pending()->orderBy('id')->get()->map(fn ($p) => [$p->id, (float) $p->amount, $p->payment_method, (string) $p->payment_date, $p->reference_no])->all(),
         ]));

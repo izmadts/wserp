@@ -219,6 +219,11 @@
                                 <input type="number" name="shipping_cost" x-model="shipping" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
                                 <span class="text-sm" x-text="'Rs. ' + shipping.toFixed(2)"></span>
                             </div>
+                            <div class="flex items-center gap-2 justify-end">
+                                <span class="text-sm text-gray-600">Packing/Labor:</span>
+                                <input type="number" name="packing_cost" x-model="packing" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                                <span class="text-sm" x-text="'Rs. ' + packing.toFixed(2)"></span>
+                            </div>
                             <div class="flex items-center gap-2 justify-end border-t border-gray-200 pt-2" x-show="agent_id">
                                 <span class="text-sm font-semibold text-gray-700">Est. Commission:</span>
                                 <span class="text-sm font-semibold text-purple-600" x-text="'Rs. ' + commissionAmount.toFixed(2)"></span>
@@ -282,6 +287,7 @@ function saleForm() {
         discountType: 'fixed',
         tax: 0,
         shipping: 0,
+        packing: 0,
         amountReceived: '',
         subTotal: 0,
         discountAmount: 0,
@@ -405,8 +411,9 @@ function saleForm() {
 
             const tax = parseFloat(this.tax) || 0;
             const shipping = parseFloat(this.shipping) || 0;
+            const packing = parseFloat(this.packing) || 0;
 
-            const netTotal = this.subTotal - this.discountAmount + tax + shipping;
+            const netTotal = this.subTotal - this.discountAmount + tax + shipping + packing;
 
             if (this.agent_id && this.payment_term === 'cash') {
                 const mtd = parseFloat(agentMtdCash[this.agent_id]) || 0;

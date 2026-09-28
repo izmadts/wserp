@@ -273,7 +273,7 @@
             <h2 class="text-xl font-bold text-gray-900 mb-3"><i class="fas fa-shopping-cart text-purple-700 mr-2"></i>Purchases</h2>
             <p class="text-gray-700 leading-7 mb-3">Every stock-in transaction from a supplier.</p>
             <p class="font-semibold text-gray-800 text-sm mb-1">Fields</p>
-            <p class="text-gray-600 text-sm mb-3">Invoice No. (auto), Supplier, Purchase Date, Due Date, Payment Term (Cash/Credit), line items (Product, Qty, Price), Discount, Tax, Shipping Cost.</p>
+            <p class="text-gray-600 text-sm mb-3">Invoice No. (auto), Supplier, Purchase Date, Due Date, Payment Term (Cash/Credit), line items (Product, Qty, Price), Discount, Tax, Shipping Cost, Packing/Labor Cost.</p>
             <p class="font-semibold text-gray-800 text-sm mb-1">Status flow</p>
             <p class="text-gray-600 text-sm mb-3"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Draft</code> &rarr; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Ordered</code> &rarr; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Received</code> &rarr; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Partial</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Paid</code>, or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Cancelled</code> at any point.</p>
             <div class="bg-white border border-gray-200 rounded-lg p-4 mb-3">
@@ -331,7 +331,7 @@
             <h2 class="text-xl font-bold text-gray-900 mb-3"><i class="fas fa-shopping-bag text-emerald-600 mr-2"></i>Sales</h2>
             <p class="text-gray-700 leading-7 mb-3">Every sale, whether entered by admin/staff or by a Sales Agent from their own portal.</p>
             <p class="font-semibold text-gray-800 text-sm mb-1">Fields</p>
-            <p class="text-gray-600 text-sm mb-3">Invoice No. (auto), Customer, Agent (optional), Sale Date, Due Date, Payment Term (Cash/Credit), line items, Discount, Tax, Shipping Cost.</p>
+            <p class="text-gray-600 text-sm mb-3">Invoice No. (auto), Customer, Agent (optional), Sale Date, Due Date, Payment Term (Cash/Credit), line items, Discount, Tax, Shipping Cost, Packing/Labor Cost.</p>
             <p class="font-semibold text-gray-800 text-sm mb-1">Status flow</p>
             <p class="text-gray-600 text-sm mb-3"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Draft</code> &rarr; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Confirmed</code> &rarr; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Partial</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Paid</code>, or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">Cancelled</code>.</p>
             <div class="bg-white border border-gray-200 rounded-lg p-4 mb-3">

@@ -428,6 +428,11 @@
                                 <input type="number" step="0.01" name="shipping_cost" x-model="shipping" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
                                 <span class="text-sm" x-text="'Rs. ' + shipping.toFixed(2)"></span>
                             </div>
+                            <div class="flex items-center gap-2 justify-end">
+                                <span class="text-sm text-gray-600">Packing/Labor:</span>
+                                <input type="number" step="0.01" name="packing_cost" x-model="packing" @input="calculateTotals()" class="w-24 px-2 py-1 text-sm text-right border border-gray-300 rounded-lg" min="0" step="0.01">
+                                <span class="text-sm" x-text="'Rs. ' + packing.toFixed(2)"></span>
+                            </div>
                             <div class="flex items-center gap-2 justify-end border-t border-gray-200 pt-2" x-show="agent_id">
                                 <span class="text-sm font-semibold text-gray-700">Est. Commission:</span>
                                 <span class="text-sm font-semibold text-purple-600" x-text="'Rs. ' + commissionAmount.toFixed(2)"></span>
@@ -498,6 +503,7 @@ function saleForm() {
         discountType: '{{ $sale->discount_type ?? 'fixed' }}',
         tax: {{ (float) $sale->tax ?? 0 }},
         shipping: {{ (float) $sale->shipping_cost ?? 0 }},
+        packing: {{ (float) $sale->packing_cost ?? 0 }},
         subTotal: 0,
         discountAmount: 0,
         commissionAmount: 0,
@@ -625,8 +631,9 @@ function saleForm() {
 
             var tax = parseFloat(this.tax) || 0;
             var shipping = parseFloat(this.shipping) || 0;
+            var packing = parseFloat(this.packing) || 0;
 
-            var netTotal = this.subTotal - this.discountAmount + tax + shipping;
+            var netTotal = this.subTotal - this.discountAmount + tax + shipping + packing;
 
             if (this.agent_id && this.payment_term === 'cash') {
                 var mtd = parseFloat(agentMtdCash[this.agent_id]) || 0;

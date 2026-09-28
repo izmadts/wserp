@@ -152,6 +152,7 @@
                 @if($discountAmount > 0)<tr><td style="padding: 2.5px 0;">Discount</td><td class="right" style="padding: 2.5px 0;">- Rs. {{ $num($discountAmount) }}</td></tr>@endif
                 @if((float) $sale->tax > 0)<tr><td style="padding: 2.5px 0;">Tax</td><td class="right" style="padding: 2.5px 0;">Rs. {{ $num($sale->tax) }}</td></tr>@endif
                 @if((float) $sale->shipping_cost > 0)<tr><td style="padding: 2.5px 0;">Shipping</td><td class="right" style="padding: 2.5px 0;">Rs. {{ $num($sale->shipping_cost) }}</td></tr>@endif
+                @if((float) $sale->packing_cost > 0)<tr><td style="padding: 2.5px 0;">Packing/Labor</td><td class="right" style="padding: 2.5px 0;">Rs. {{ $num($sale->packing_cost) }}</td></tr>@endif
                 <tr><td colspan="2" style="border-top: 0.6px solid #BDBDBD; padding-top: 3px;"></td></tr>
                 <tr class="brand"><td style="font-size: 12.5pt; font-weight: bold; padding: 2.5px 0;">TOTAL</td><td class="right" style="font-size: 12.5pt; font-weight: bold; padding: 2.5px 0;">Rs. {{ $num($sale->total_amount) }}</td></tr>
                 @if((float) $sale->paid_amount > 0)<tr style="color: #2E7D32;"><td style="padding: 2.5px 0;">Paid</td><td class="right" style="padding: 2.5px 0;">Rs. {{ $num($sale->paid_amount) }}</td></tr>@endif
