@@ -159,6 +159,13 @@
                                                    min="0" step="0.01">
                                         </td>
                                         <td class="py-1.5 px-1.5 text-right">
+                                            {{-- Without this, the row's computed total was only ever shown on
+                                                 screen - never actually submitted - so items.*.total_price
+                                                 (required server-side) was always missing and EVERY return,
+                                                 full or partial, failed validation. With no visible $errors
+                                                 block before this fix shipped, that looked like the form just
+                                                 silently did nothing. --}}
+                                            <input type="hidden" :name="'items['+index+'][total_price]'" :value="item.total">
                                             <span class="text-sm font-medium text-blue-600" x-text="'Rs. ' + item.total.toFixed(2)"></span>
                                         </td>
                                         <td class="py-1.5 px-1.5 text-center">
