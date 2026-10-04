@@ -145,8 +145,18 @@
                                                     @change="onProductChange(index, $event)"
                                                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
-                                                <template x-for="product in purchaseDetails.items" :key="product.id">
-                                                    <option :value="product.id"
+                                                {{-- Keyed on purchase_item_id (the row on the original purchase) but
+                                                     the SELECT's submitted value must be the actual product id -
+                                                     binding it to product.id here (really purchase_item_id, see the
+                                                     items.map() above) silently sent the wrong number as
+                                                     items[x][product_id] on every return. Coincidence masked it
+                                                     whenever a purchase item's own row id happened to match a real
+                                                     product id (e.g. a purchase's very first/only line item); on any
+                                                     real purchase history it failed items.*.product_id validation
+                                                     outright, or worse, silently returned against the wrong product
+                                                     if that id happened to exist too. --}}
+                                                <template x-for="product in purchaseDetails.items" :key="product.purchase_item_id">
+                                                    <option :value="product.product_id"
                                                             :data-purchase-item-id="product.purchase_item_id"
                                                             :data-price="product.unit_price"
                                                             :data-discount="product.discount"

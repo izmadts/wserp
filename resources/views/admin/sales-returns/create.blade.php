@@ -145,8 +145,11 @@
                                                     @change="onProductChange(index, $event)"
                                                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                 <option value="">Select Product</option>
-                                                <template x-for="product in saleDetails.items" :key="product.id">
-                                                    <option :value="product.id"
+                                                {{-- Keyed/valued on sale_item_id would submit the wrong number as
+                                                     items[x][product_id] - see the matching fix + note in
+                                                     admin/purchase-returns/create.blade.php. --}}
+                                                <template x-for="product in saleDetails.items" :key="product.sale_item_id">
+                                                    <option :value="product.product_id"
                                                             :data-sale-item-id="product.sale_item_id"
                                                             :data-price="product.unit_price"
                                                             :data-discount="product.discount"
