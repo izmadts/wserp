@@ -411,7 +411,12 @@ class AccountReconciliationService
         }
 
         foreach (Sale::where('payment_term', 'credit')->get() as $sale) {
-            $sourceSum = round((float) $sale->payments()->sum('amount'), 2);
+            // Only 'approved' payments ever post to the ledger (pending ones
+            // await the agent-approval queue, rejected ones never will) -
+            // summing every status here used to flag a permanent false
+            // "mismatch" for any sale with a pending/rejected payment still
+            // sitting on it, even though the ledger was exactly right.
+            $sourceSum = round((float) $sale->payments()->approved()->sum('amount'), 2);
             $journalSum = round((float) JournalEntry::where('reference_type', 'sale_payment')->where('reference_id', $sale->id)->where('type', 'debit')->sum('amount'), 2);
             if (abs($sourceSum - $journalSum) > 0.01) {
                 $issues[] = $this->issue('amount_mismatch', 'sale_payment', $sale->id, "Sale #{$sale->invoice_no}: payments total Rs. " . number_format($sourceSum, 2) . " but the ledger shows Rs. " . number_format($journalSum, 2) . " posted against it.", 'high', true, 'safe');

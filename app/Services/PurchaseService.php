@@ -442,12 +442,42 @@ class PurchaseService
             ],
         ];
 
+        // A 'cash' purchase is normally settled in full the moment it's
+        // posted, so this credits Cash for the whole total - same as
+        // always. But a cash-term purchase CAN reach this point with
+        // paid_amount still below total (partial payment up front, or its
+        // payment_term got corrected from credit to cash after payments
+        // were already recorded against it): crediting Cash for the full
+        // total in that case overstates money that hasn't actually left
+        // the business yet, and postPaymentAccounting() used to skip
+        // cash-term purchases entirely, assuming this leg always covered
+        // it. So any shortfall here is credited to Payable instead - same
+        // as a credit purchase - and gets paid/posted for real the same
+        // way via postPaymentAccounting() as further payments go out.
+        $paidNow = round((float) $purchase->paid_amount, 2);
+        $dueNow = round((float) $purchase->total_amount - $paidNow, 2);
+
         if ($purchase->payment_term == 'credit') {
             $entries[] = [
                 'account_id' => $payableAccount->id,
                 'type' => 'credit',
                 'amount' => $purchase->total_amount,
                 'description' => "Credit Purchase #{$purchase->invoice_no}" . ($purchase->supplier ? " - Supplier: {$purchase->supplier->name}" : ''),
+            ];
+        } elseif ($dueNow > 0.01) {
+            if ($paidNow > 0.01) {
+                $entries[] = [
+                    'account_id' => $cashAccount->id,
+                    'type' => 'credit',
+                    'amount' => $paidNow,
+                    'description' => "Cash Purchase #{$purchase->invoice_no} (partially paid at posting)",
+                ];
+            }
+            $entries[] = [
+                'account_id' => $payableAccount->id,
+                'type' => 'credit',
+                'amount' => $dueNow,
+                'description' => "Cash Purchase #{$purchase->invoice_no} - balance still owed" . ($purchase->supplier ? " - Supplier: {$purchase->supplier->name}" : ''),
             ];
         } else {
             $entries[] = [
@@ -471,16 +501,6 @@ class PurchaseService
 
     private function postPaymentAccounting(Purchase $purchase, $amount, $date = null, $method = 'cash')
     {
-        // Cash-term purchases already credited Cash directly at creation
-        // (see postAccounting() above) - posting again here for a payment
-        // against one would debit Cash a second time for money that only
-        // left the business once. Guarded here, not just at the call site,
-        // so it holds regardless of which caller forgets to pass
-        // $postAccounting = false.
-        if ($purchase->payment_term !== 'credit') {
-            return;
-        }
-
         // Guards against posting a payment (Dr Payable / Cr Cash) for a
         // purchase whose own Dr Inventory / Cr Payable entry was never
         // posted (e.g. still 'draft'/'ordered') - that would debit down a
@@ -492,7 +512,24 @@ class PurchaseService
             throw new \Exception("Cannot record payment: Purchase #{$purchase->invoice_no} has not been received/posted yet.");
         }
 
+        // A purchase that was fully settled at posting time (the normal
+        // case for 'cash' term) credited Cash for the whole total up front
+        // - nothing left owed, so a further payment has no Payable to debit
+        // down against and must not post (see postAccounting()'s $dueNow
+        // split). A purchase posted with a shortfall still owed (credit
+        // purchases always; cash purchases only when paid_amount < total at
+        // posting) credited Payable for that shortfall, and each real
+        // payment made afterward - cash or credit term alike - draws it
+        // down here.
         $payableAccount = Account::where('code', '2010')->first();
+        $hasPayableLeg = JournalEntry::where('reference_type', 'purchase')
+            ->where('reference_id', $purchase->id)
+            ->where('account_id', $payableAccount->id)
+            ->exists();
+        if (!$hasPayableLeg) {
+            return;
+        }
+
         // Routes to Cash(1010) or Bank(1020) based on the payment method the
         // form actually collected - same 2-way split Expense/Income already
         // use (Expense.php:103). Previously this always credited 1010
@@ -568,10 +605,9 @@ class PurchaseService
         DB::transaction(function () use ($purchase) {
             $this->deleteJournalEntries($purchase, 'purchase_payment');
 
-            if ($purchase->payment_term !== 'credit') {
-                return;
-            }
-
+            // postPaymentAccounting() itself no-ops per payment when this
+            // purchase never posted a Payable leg (a cash purchase settled
+            // in full at posting time) - no payment_term check needed here.
             foreach ($purchase->payments()->orderBy('payment_date')->get() as $payment) {
                 $this->postPaymentAccounting($purchase, $payment->amount, $payment->payment_date, $payment->payment_method);
             }
