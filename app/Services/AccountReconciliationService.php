@@ -76,7 +76,8 @@ class AccountReconciliationService
             $this->scanUnbalanced(),
             $this->scanBrokenAccountRefs(),
             $this->scanAmountMismatches(),
-            $this->scanPaymentAggregates()
+            $this->scanPaymentAggregates(),
+            $this->scanCashTermPostingGaps()
         );
 
         $bySeverity = ['critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0];
@@ -436,6 +437,110 @@ class AccountReconciliationService
         return $issues;
     }
 
+    /**
+     * Catches the exact bug class confirmed live on Sale #94/#96/#114/#115
+     * and Purchase #2: a 'cash' payment_term sale/purchase whose base entry
+     * credited/debited Cash for the full total_amount at posting time, even
+     * though it wasn't actually fully paid yet (or had its payment_term
+     * edited after real installment payments already existed against it) -
+     * leaving Cash wrong and/or later payments silently unposted.
+     *
+     * Detection re-derives what SHOULD be posted (Cash/Bank debited for
+     * exactly paid_amount, no more no less) and compares it to what IS
+     * posted (summed straight from the 'sale'/'sale_payment' journal rows),
+     * exactly like scanAmountMismatches() - never a structural proxy like
+     * "has more than one payment", which would keep flagging a sale forever
+     * even after it's genuinely fixed (a multi-installment cash sale is a
+     * completely normal, permanent fact about it once postAccounting()
+     * correctly handles partial-at-posting). Candidates are narrowed first
+     * to sales/purchases that could plausibly be affected (more than one
+     * payment ever, or still 'partial') purely so this doesn't have to
+     * recompute the comparison for every single fully-paid-on-day-one cash
+     * sale in the system - the actual pass/fail decision is always the
+     * real amount check below, so this keeps catching any new bug or
+     * manual mistake (e.g. admin editing Payment Term after payments
+     * exist) without ever re-flagging something already fixed.
+     *
+     * Auto-fixable: SaleService/PurchaseService::postAccounting() and
+     * postPaymentAccounting() already handle a partially-paid cash-term
+     * posting correctly (split Cash/Receivable-Payable, then draw it down
+     * for real) - this just re-derives the same entries from the real
+     * paid_amount/payment history, it never guesses.
+     *
+     * Deliberately does NOT touch payment_term itself - that's a business
+     * decision (was this really meant to be Credit?), not something safe
+     * to auto-decide. A sale/purchase fixed here will be ledger-accurate
+     * either way, but if it should actually be Credit, it will keep being
+     * excluded from the Credit-only Customer/Supplier Ledger reports until
+     * an admin corrects Payment Term too (Sale/Purchase "Reopen for
+     * Correction", or ledger:correct-purchase-term for purchases).
+     */
+    private function scanCashTermPostingGaps(): array
+    {
+        $issues = [];
+
+        $saleIds = Sale::where('payment_term', 'cash')
+            ->withCount('payments')
+            ->having('payments_count', '>', 1)
+            ->pluck('id')
+            ->merge(Sale::where('payment_term', 'cash')->where('status', 'partial')->pluck('id'))
+            ->unique();
+
+        $cashAccountId = Account::where('code', '1010')->value('id');
+        $bankAccountId = Account::where('code', '1020')->value('id');
+
+        foreach (Sale::whereIn('id', $saleIds)->get() as $sale) {
+            $expected = round((float) $sale->paid_amount, 2);
+            $actual = round((float) JournalEntry::whereIn('reference_type', ['sale', 'sale_payment'])
+                ->where('reference_id', $sale->id)
+                ->whereIn('account_id', [$cashAccountId, $bankAccountId])
+                ->where('type', 'debit')
+                ->sum('amount'), 2);
+
+            if (abs($expected - $actual) > 0.01) {
+                $issues[] = $this->issue(
+                    'cash_posting_gap',
+                    'sale_cash_gap',
+                    $sale->id,
+                    "Sale #{$sale->invoice_no}: Rs. " . number_format($expected, 2) . " has actually been paid, but the Cash/Bank ledger shows Rs. " . number_format($actual, 2) . " posted against it. If this was genuinely a Credit sale, also correct its Payment Term - this fix alone won't do that.",
+                    'high',
+                    true,
+                    'safe'
+                );
+            }
+        }
+
+        $purchaseIds = Purchase::where('payment_term', 'cash')
+            ->withCount('payments')
+            ->having('payments_count', '>', 1)
+            ->pluck('id')
+            ->merge(Purchase::where('payment_term', 'cash')->where('status', 'partial')->pluck('id'))
+            ->unique();
+
+        foreach (Purchase::whereIn('id', $purchaseIds)->get() as $purchase) {
+            $expected = round((float) $purchase->paid_amount, 2);
+            $actual = round((float) JournalEntry::whereIn('reference_type', ['purchase', 'purchase_payment'])
+                ->where('reference_id', $purchase->id)
+                ->whereIn('account_id', [$cashAccountId, $bankAccountId])
+                ->where('type', 'credit')
+                ->sum('amount'), 2);
+
+            if (abs($expected - $actual) > 0.01) {
+                $issues[] = $this->issue(
+                    'cash_posting_gap',
+                    'purchase_cash_gap',
+                    $purchase->id,
+                    "Purchase #{$purchase->invoice_no}: Rs. " . number_format($expected, 2) . " has actually been paid, but the Cash/Bank ledger shows Rs. " . number_format($actual, 2) . " posted against it. If this was genuinely a Credit purchase, also correct its Payment Term - this fix alone won't do that.",
+                    'high',
+                    true,
+                    'safe'
+                );
+            }
+        }
+
+        return $issues;
+    }
+
     // =========================================================
     // FIX
     // =========================================================
@@ -444,7 +549,7 @@ class AccountReconciliationService
     {
         $tiers = ['opening' => [], 'base' => [], 'payment' => []];
         $openingTypes = ['supplier_opening', 'customer_opening', 'opening'];
-        $baseTypes = ['purchase', 'sale', 'purchase_return', 'sales_return', 'adjustment', 'expense', 'income', 'money_transfer', 'sale_commission'];
+        $baseTypes = ['purchase', 'sale', 'purchase_return', 'sales_return', 'adjustment', 'expense', 'income', 'money_transfer', 'sale_commission', 'sale_cash_gap', 'purchase_cash_gap'];
 
         foreach ($selectors as $selector) {
             $type = $selector['reference_type'];
@@ -502,6 +607,7 @@ class AccountReconciliationService
             'missing' => !$this->hasEntries($type, $id),
             'duplicate' => JournalEntry::where('reference_type', $type)->where('reference_id', $id)->count() > 2,
             'amount_mismatch' => true, // re-derived fresh inside the fix itself
+            'cash_posting_gap' => true, // re-derived fresh inside the fix itself
             default => false, // orphaned/unbalanced/broken_account are never auto-applied
         };
     }
@@ -596,6 +702,37 @@ class AccountReconciliationService
                     return $this->saleService->repostAccountingOnly($sale);
                 }
                 $this->saleService->applyStockAndAccounting($sale);
+                return true;
+
+            case 'sale_cash_gap':
+                $sale = Sale::find($id);
+                if (!$sale) {
+                    return false;
+                }
+                JournalEntry::where('reference_type', 'sale')->where('reference_id', $id)->delete();
+                JournalEntry::where('reference_type', 'sale_payment')->where('reference_id', $id)->delete();
+                // Reconstruct as if nothing was paid at original posting -
+                // the real payment history (correctly dated, approved-only)
+                // supplies every Cash leg via repostAllPaymentAccounting().
+                $realPaid = $sale->paid_amount;
+                $sale->paid_amount = 0;
+                $this->saleService->repostAccountingOnly($sale);
+                $sale->paid_amount = $realPaid;
+                $this->saleService->repostAllPaymentAccounting($sale);
+                return true;
+
+            case 'purchase_cash_gap':
+                $purchase = Purchase::find($id);
+                if (!$purchase) {
+                    return false;
+                }
+                JournalEntry::where('reference_type', 'purchase')->where('reference_id', $id)->delete();
+                JournalEntry::where('reference_type', 'purchase_payment')->where('reference_id', $id)->delete();
+                $realPaid = $purchase->paid_amount;
+                $purchase->paid_amount = 0;
+                $this->purchaseService->repostAccountingOnly($purchase);
+                $purchase->paid_amount = $realPaid;
+                $this->purchaseService->repostAllPaymentAccounting($purchase);
                 return true;
 
             case 'purchase_return':
@@ -744,8 +881,8 @@ class AccountReconciliationService
         return match ($type) {
             'supplier_opening' => optional(Supplier::withTrashed()->find($refId))->name ? "Supplier #{$refId} (" . Supplier::withTrashed()->find($refId)->name . ')' : "Supplier #{$refId}",
             'customer_opening' => optional(Customer::withTrashed()->find($refId))->name ? "Customer #{$refId} (" . Customer::withTrashed()->find($refId)->name . ')' : "Customer #{$refId}",
-            'purchase', 'purchase_payment' => optional(Purchase::withTrashed()->find($refId))->invoice_no ? 'Purchase ' . Purchase::withTrashed()->find($refId)->invoice_no : "Purchase #{$refId}",
-            'sale', 'sale_payment' => optional(Sale::withTrashed()->find($refId))->invoice_no ? 'Sale ' . Sale::withTrashed()->find($refId)->invoice_no : "Sale #{$refId}",
+            'purchase', 'purchase_payment', 'purchase_cash_gap' => optional(Purchase::withTrashed()->find($refId))->invoice_no ? 'Purchase ' . Purchase::withTrashed()->find($refId)->invoice_no : "Purchase #{$refId}",
+            'sale', 'sale_payment', 'sale_cash_gap' => optional(Sale::withTrashed()->find($refId))->invoice_no ? 'Sale ' . Sale::withTrashed()->find($refId)->invoice_no : "Sale #{$refId}",
             'purchase_return' => optional(PurchaseReturn::withTrashed()->find($refId))->return_no ? 'Purchase Return ' . PurchaseReturn::withTrashed()->find($refId)->return_no : "Purchase Return #{$refId}",
             'sales_return' => optional(SalesReturn::withTrashed()->find($refId))->return_no ? 'Sales Return ' . SalesReturn::withTrashed()->find($refId)->return_no : "Sales Return #{$refId}",
             'expense' => optional(Expense::withTrashed()->find($refId))->expense_no ? 'Expense ' . Expense::withTrashed()->find($refId)->expense_no : "Expense #{$refId}",
