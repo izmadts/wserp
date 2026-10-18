@@ -336,6 +336,17 @@ class PurchaseController extends Controller
         return back()->with('success', 'Payment added successfully!');
     }
 
+    public function deletePayment(Purchase $purchase, \App\Models\PurchasePayment $payment)
+    {
+        if ((int) $payment->purchase_id !== (int) $purchase->id) {
+            abort(404);
+        }
+
+        $this->purchaseService->reversePayment($payment);
+
+        return back()->with('success', 'Payment deleted and accounting reversed.');
+    }
+
     /**
      * Flat product data for the purchase form's searchable product
      * combobox - lets it filter by name/code client-side instead of

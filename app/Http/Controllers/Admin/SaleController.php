@@ -795,4 +795,20 @@ class SaleController extends Controller
 
         return back()->with('success', 'Payment added successfully!');
     }
+
+    public function deletePayment(Sale $sale, \App\Models\SalePayment $payment)
+    {
+        if ((int) $payment->sale_id !== (int) $sale->id) {
+            abort(404);
+        }
+
+        $result = $this->saleService->reversePayment($payment);
+
+        $message = 'Payment deleted and accounting reversed.';
+        if ($result['commission_reversed'] > 0) {
+            $message .= ' Rs. ' . number_format($result['commission_reversed'], 2) . ' agent commission accrued from it was reversed too.';
+        }
+
+        return back()->with('success', $message);
+    }
 }

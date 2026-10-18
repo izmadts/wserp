@@ -308,6 +308,74 @@ class SaleService
     }
 
     /**
+     * Undo one specific payment that was recorded by mistake, without
+     * touching any other payment on the same sale: a pending/rejected
+     * payment never affected paid_amount or the ledger, so it's just
+     * deleted; an approved one is unwound symmetrically to how
+     * applyPaymentEffects() applied it - decrements paid_amount, recomputes
+     * due_amount/status, deletes the payment row, then reposts every
+     * remaining real payment fresh (repostAllPaymentAccounting()) so the
+     * ledger reflects exactly what's left, not just "minus this one".
+     *
+     * Also reverses the specific credit-commission log this payment accrued
+     * (if any, and if still unpaid to the agent) - accrueCreditCommission()
+     * doesn't tag its log with the payment's id, so it's matched by sale +
+     * the exact "recovered: <amount>" text it wrote into the description.
+     * An already-paid-out commission log is left alone; reversing a payout
+     * that already happened is a separate, manual decision.
+     */
+    public function reversePayment(SalePayment $payment): array
+    {
+        return DB::transaction(function () use ($payment) {
+            $sale = $payment->sale;
+            $amount = (float) $payment->amount;
+            $wasApproved = $payment->status === 'approved';
+            $commissionReversed = 0;
+
+            if ($wasApproved) {
+                $sale->paid_amount = round(max(0, (float) $sale->paid_amount - $amount), 2);
+                $sale->due_amount = round((float) $sale->total_amount - $sale->paid_amount, 2);
+                $sale->status = $sale->due_amount <= 0.01 ? 'paid' : ($sale->paid_amount > 0.01 ? 'partial' : 'confirmed');
+                $sale->updateRecoveryPercentage();
+                $sale->save();
+            }
+
+            $payment->delete();
+
+            if ($wasApproved) {
+                $this->repostAllPaymentAccounting($sale);
+
+                $log = \App\Models\AgentCommissionLog::where('reference_type', 'sale')
+                    ->where('sale_id', $sale->id)
+                    ->where('commission_type', 'credit')
+                    ->where('is_paid', 0)
+                    ->where('description', 'like', '%recovered: ' . number_format($amount, 2) . ')')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($log) {
+                    JournalEntry::where('reference_type', 'sale_commission')->where('reference_id', $log->id)->delete();
+                    $commissionReversed = (float) $log->amount;
+                    $log->delete();
+                }
+            }
+
+            Log::info('Payment reversed for sale', [
+                'sale_id' => $sale->id,
+                'payment_id' => $payment->id,
+                'amount' => $amount,
+                'was_approved' => $wasApproved,
+                'commission_reversed' => $commissionReversed,
+            ]);
+
+            return [
+                'sale' => $sale->fresh(),
+                'commission_reversed' => $commissionReversed,
+            ];
+        });
+    }
+
+    /**
      * The actual effect of a payment landing on a sale: updates
      * paid_amount/due_amount/recovery_percentage/status, posts the
      * cash-from-receivable journal entry for credit sales, and accrues

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ActivityLog;
 use App\Models\Purchase;
+use App\Models\PurchasePayment;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Account;
@@ -215,6 +216,41 @@ class PurchaseService
                 'due_amount' => $purchase->due_amount,
                 'status' => $purchase->status,
             ]);
+        });
+    }
+
+    /**
+     * Undo one specific payment that was recorded by mistake, without
+     * touching any other payment on the same purchase - mirrors
+     * SaleService::reversePayment(). Purchase payments have no
+     * pending/approved workflow (they post immediately), so this always
+     * decrements paid_amount, recomputes due_amount/status, deletes the
+     * payment row, then reposts every remaining real payment fresh
+     * (repostAllPaymentAccounting()) so the ledger reflects exactly what's
+     * left.
+     */
+    public function reversePayment(PurchasePayment $payment): Purchase
+    {
+        return DB::transaction(function () use ($payment) {
+            $purchase = $payment->purchase;
+            $amount = (float) $payment->amount;
+
+            $purchase->paid_amount = round(max(0, (float) $purchase->paid_amount - $amount), 2);
+            $purchase->due_amount = round((float) $purchase->total_amount - $purchase->paid_amount - (float) $purchase->refunded_amount, 2);
+            $purchase->status = $purchase->due_amount <= 0.01 ? 'paid' : ($purchase->paid_amount > 0.01 ? 'partial' : 'received');
+            $purchase->save();
+
+            $payment->delete();
+
+            $this->repostAllPaymentAccounting($purchase);
+
+            Log::info('Payment reversed for purchase', [
+                'purchase_id' => $purchase->id,
+                'payment_id' => $payment->id,
+                'amount' => $amount,
+            ]);
+
+            return $purchase->fresh();
         });
     }
 

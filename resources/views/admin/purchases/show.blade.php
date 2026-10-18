@@ -356,6 +356,12 @@
                                 @if($payment->reference_no)
                                 <p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>
                                 @endif
+                                <form action="{{ route('admin.purchases.payments.destroy', [$purchase, $payment]) }}" method="POST" class="inline-block mt-1">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" onclick="return confirm('Delete this payment and reverse its accounting entries? This cannot be undone.')"
+                                        class="text-xs text-red-600 hover:text-red-800"><i class="fas fa-trash mr-1"></i>Delete</button>
+                                </form>
                             </div>
                         </div>
                     </div>

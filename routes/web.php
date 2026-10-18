@@ -181,6 +181,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::put('/{purchase}', [PurchaseController::class, 'update'])->middleware('permission:purchases,edit')->name('update');
         Route::delete('/{purchase}', [PurchaseController::class, 'destroy'])->middleware('permission:purchases,delete')->name('destroy');
         Route::post('/{purchase}/add-payment', [PurchaseController::class, 'addPayment'])->middleware('permission:purchases,edit')->name('add-payment');
+        Route::delete('/{purchase}/payments/{payment}', [PurchaseController::class, 'deletePayment'])->middleware('permission:purchases,delete')->name('payments.destroy');
         Route::get('/{purchase}/return', [PurchaseController::class, 'returnCreate'])->name('return-create');
         Route::post('/{purchase}/reopen', [PurchaseController::class, 'reopen'])->middleware('role:admin')->name('reopen');
     });
@@ -343,6 +344,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,manager,
         Route::put('/{sale}', [SaleController::class, 'update'])->middleware('permission:sales,edit')->name('update');
         Route::delete('/{sale}', [SaleController::class, 'destroy'])->middleware('permission:sales,delete')->name('destroy');
         Route::post('/{sale}/add-payment', [SaleController::class, 'addPayment'])->middleware('permission:sales,edit')->name('add-payment');
+        Route::delete('/{sale}/payments/{payment}', [SaleController::class, 'deletePayment'])->middleware('permission:sales,delete')->name('payments.destroy');
         // Confirms/rejects a still-draft sale - how a customer-placed order
         // (source=customer_app, particularly a "direct"/no-agent one, which
         // only an admin can act on) becomes a real, ledger-posted sale.

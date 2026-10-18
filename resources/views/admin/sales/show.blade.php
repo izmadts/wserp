@@ -153,7 +153,14 @@
             <div class="p-6 space-y-3">
                 @foreach($sale->payments as $payment)
                 <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                    <div class="flex justify-between"><div><p class="font-medium text-gray-900">Rs. {{ number_format($payment->amount, 2) }}</p><p class="text-xs text-gray-500">{{ $payment->payment_date->format('d-m-Y') }}@if($payment->createdBy) &middot; by {{ $payment->createdBy->name }}@endif</p></div><div class="text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</span>@if($payment->status === 'pending')<span class="block mt-1 text-xs font-medium text-yellow-700"><i class="fas fa-hourglass-half mr-1"></i>Awaiting approval</span>@elseif($payment->status === 'rejected')<span class="block mt-1 text-xs font-medium text-red-600"><i class="fas fa-ban mr-1"></i>Rejected</span>@endif @if($payment->reference_no)<p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>@endif</div></div>
+                    <div class="flex justify-between"><div><p class="font-medium text-gray-900">Rs. {{ number_format($payment->amount, 2) }}</p><p class="text-xs text-gray-500">{{ $payment->payment_date->format('d-m-Y') }}@if($payment->createdBy) &middot; by {{ $payment->createdBy->name }}@endif</p></div><div class="text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</span>@if($payment->status === 'pending')<span class="block mt-1 text-xs font-medium text-yellow-700"><i class="fas fa-hourglass-half mr-1"></i>Awaiting approval</span>@elseif($payment->status === 'rejected')<span class="block mt-1 text-xs font-medium text-red-600"><i class="fas fa-ban mr-1"></i>Rejected</span>@endif @if($payment->reference_no)<p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>@endif
+                        <form action="{{ route('admin.sales.payments.destroy', [$sale, $payment]) }}" method="POST" class="inline-block mt-1">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" onclick="return confirm('Delete this payment and reverse its accounting entries? This cannot be undone.')"
+                                class="text-xs text-red-600 hover:text-red-800"><i class="fas fa-trash mr-1"></i>Delete</button>
+                        </form>
+                    </div></div>
                 </div>
                 @endforeach
             </div>
