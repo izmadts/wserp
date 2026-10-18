@@ -431,26 +431,58 @@ class SaleService
             throw new \Exception("Cannot post sale accounting: required chart-of-accounts entries (1030/4010) not found for sale #{$sale->id}.");
         }
 
-        $debitAccount = $sale->payment_term == 'cash' ? $cashAccount : $receivableAccount;
-        if (!$debitAccount) {
-            throw new \Exception("Cannot post sale accounting: required chart-of-accounts entry (" . ($sale->payment_term == 'cash' ? '1010' : '1040') . ") not found for sale #{$sale->id}.");
+        if (!$receivableAccount || !$cashAccount) {
+            throw new \Exception("Cannot post sale accounting: required chart-of-accounts entries (1010/1040) not found for sale #{$sale->id}.");
         }
 
-        $entries = [
-            [
+        // A 'cash' sale is normally paid in full the moment it's posted, so
+        // this debits Cash for the whole total - same as always. But a
+        // cash-term sale CAN reach this point with paid_amount still below
+        // total (e.g. an agent-submitted draft that collected nothing/part
+        // up front and was confirmed before the rest came in): debiting
+        // Cash for the full total in that case would recognize money that
+        // hasn't actually arrived yet, and the admin flow silently never
+        // caught up later (postPaymentAccounting used to skip cash-term
+        // sales entirely, assuming this leg always covered it). So any
+        // shortfall here is debited to Receivable instead - exactly like a
+        // credit sale - and gets collected/posted for real the same way
+        // via postPaymentAccounting() as further payments come in.
+        $paidNow = round((float) $sale->paid_amount, 2);
+        $dueNow = round((float) $sale->total_amount - $paidNow, 2);
+
+        $entries = [];
+        if ($sale->payment_term == 'cash' && $dueNow > 0.01) {
+            if ($paidNow > 0.01) {
+                $entries[] = [
+                    'account_id' => $cashAccount->id,
+                    'type' => 'debit',
+                    'amount' => $paidNow,
+                    'description' => "Cash Sale #{$sale->invoice_no} (partially paid at posting)",
+                ];
+            }
+            $entries[] = [
+                'account_id' => $receivableAccount->id,
+                'type' => 'debit',
+                'amount' => $dueNow,
+                'description' => "Cash Sale #{$sale->invoice_no} - balance still due" . ($sale->customer ? " - Customer: {$sale->customer->name}" : ''),
+            ];
+        } else {
+            $debitAccount = $sale->payment_term == 'cash' ? $cashAccount : $receivableAccount;
+            $entries[] = [
                 'account_id' => $debitAccount->id,
                 'type' => 'debit',
                 'amount' => $sale->total_amount,
                 'description' => $sale->payment_term == 'cash'
                     ? "Cash Sale #{$sale->invoice_no}"
                     : "Credit Sale #{$sale->invoice_no}" . ($sale->customer ? " - Customer: {$sale->customer->name}" : ''),
-            ],
-            [
-                'account_id' => $revenueAccount->id,
-                'type' => 'credit',
-                'amount' => $sale->total_amount,
-                'description' => "Sale Revenue #{$sale->invoice_no}",
-            ],
+            ];
+        }
+
+        $entries[] = [
+            'account_id' => $revenueAccount->id,
+            'type' => 'credit',
+            'amount' => $sale->total_amount,
+            'description' => "Sale Revenue #{$sale->invoice_no}",
         ];
 
         // COGS: debit expense, credit inventory for the cost of goods sold.
@@ -495,10 +527,19 @@ class SaleService
 
     private function postPaymentAccounting(Sale $sale, $amount, $method = 'cash', $date = null)
     {
-        // Cash sales already debited Cash directly at creation - a payment
-        // against a cash sale would double count it, so only credit sales
-        // (which debited Receivable instead) post here.
-        if ($sale->payment_term !== 'credit') {
+        // A sale that was fully paid at posting time (the normal case for
+        // 'cash' term) debited Cash for the whole total up front - nothing
+        // left to collect, so a further payment has no Receivable to credit
+        // against and must not post (see postAccounting()'s $dueNow split).
+        // A sale posted with a shortfall still owed (credit sales always;
+        // cash sales only when paid_amount < total at posting) debited
+        // Receivable for that shortfall, and each real payment collected
+        // afterward - cash or credit term alike - draws it down here.
+        $hasReceivableLeg = JournalEntry::where('reference_type', 'sale')
+            ->where('reference_id', $sale->id)
+            ->where('account_id', Account::where('code', '1040')->value('id'))
+            ->exists();
+        if (!$hasReceivableLeg) {
             return;
         }
 
@@ -588,10 +629,9 @@ class SaleService
         DB::transaction(function () use ($sale) {
             $this->deleteJournalEntries($sale, 'sale_payment');
 
-            if ($sale->payment_term !== 'credit') {
-                return;
-            }
-
+            // postPaymentAccounting() itself no-ops per payment when this
+            // sale never posted a Receivable leg (a cash sale paid in full
+            // at posting time) - no payment_term check needed here too.
             foreach ($sale->payments()->approved()->orderBy('payment_date')->get() as $payment) {
                 $this->postPaymentAccounting($sale, $payment->amount, $payment->payment_method, $payment->payment_date);
             }
