@@ -268,6 +268,70 @@
                 </div>
             </div>
 
+            @if($dueCommission > 0)
+            <div class="bg-white rounded-xl shadow-card overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-plus-circle text-green-600 mr-2"></i> Pay Commission</h4>
+                </div>
+                <div class="p-6">
+                    <form action="{{ route('admin.agents.pay-commission', $user) }}" method="POST">
+                        @csrf
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
+                                <input type="number" step="0.01" name="amount" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0.01" max="{{ $dueCommission }}" required>
+                                <p class="text-xs text-gray-500 mt-1">Max: Rs. {{ number_format($dueCommission, 2) }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Payment Date <span class="text-red-500">*</span></label>
+                                <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method <span class="text-red-500">*</span></label>
+                                <select name="payment_method" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                                    <option value="cash">Cash</option>
+                                    <option value="bank_transfer">Bank Transfer</option>
+                                    <option value="cheque">Cheque</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Reference No</label>
+                                <input type="text" name="reference_no" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cheque no / Transaction ID">
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                <input type="text" name="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">This is allocated automatically against the agent's oldest unpaid commission entries first - it isn't tied to one specific sale.</p>
+                        <button type="submit" class="mt-3 w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors duration-200"><i class="fas fa-check mr-1"></i> Record Commission Payment</button>
+                    </form>
+                </div>
+            </div>
+            @endif
+
+            @if($commissionPayments->count() > 0)
+            <div class="bg-white rounded-xl shadow-card overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200"><h4 class="text-lg font-semibold text-gray-900"><i class="fas fa-history text-gray-400 mr-2"></i> Commission Payment History</h4></div>
+                <div class="p-6 space-y-3">
+                    @foreach($commissionPayments as $payment)
+                    <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                        <div class="flex justify-between">
+                            <div>
+                                <p class="font-medium text-gray-900">Rs. {{ number_format($payment->amount, 2) }}</p>
+                                <p class="text-xs text-gray-500">{{ $payment->payment_date->format('d-m-Y') }}@if($payment->paidBy) &middot; by {{ $payment->paidBy->name }}@endif</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</span>
+                                @if($payment->reference_no)<p class="text-xs text-gray-500 mt-1">{{ $payment->reference_no }}</p>@endif
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             <!-- Recent Sales -->
             <div class="bg-white rounded-xl shadow-card overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Sale;
 use App\Models\AgentCommissionLog;
+use App\Models\AgentCommissionPayment;
 use App\Models\AgentMonthlyTarget;
 use App\Services\CommissionService;
 use Illuminate\Http\Request;
@@ -173,7 +174,12 @@ class AgentManagementController extends Controller
             ->orderBy('month', 'desc')
             ->get();
 
-        return view('admin.agents.view', compact('user', 'totalCommission', 'paidCommission', 'dueCommission', 'monthlyTargets'));
+        $commissionPayments = AgentCommissionPayment::where('agent_id', $user->id)
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('admin.agents.view', compact('user', 'totalCommission', 'paidCommission', 'dueCommission', 'monthlyTargets', 'commissionPayments'));
     }
 
     /**

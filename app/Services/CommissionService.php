@@ -148,7 +148,16 @@ class CommissionService
             ->whereYear('sale_date', $sale->sale_date->year)
             ->sum('total_amount');
 
-        $rate = $this->rateForCumulative((float) $monthToDate, self::getSetting('commission.cash_tiers'));
+        // A per-agent override only kicks in when Commission Slabs is
+        // actually configured for them - commission_rate_cash/credit have
+        // non-null DB defaults (0 / 1) so they can't safely signal "this
+        // was deliberately set" the way a nullable array field can, and
+        // using them unconditionally would silently zero out every agent
+        // who's never had this touched. Slabs untouched -> global policy,
+        // same as before this per-agent option existed.
+        $agent = $sale->relationLoaded('agent') ? $sale->agent : $sale->agent()->first();
+        $tiers = !empty($agent?->commission_slabs) ? $agent->commission_slabs : self::getSetting('commission.cash_tiers');
+        $rate = $this->rateForCumulative((float) $monthToDate, $tiers);
         $commissionAmount = round($sale->total_amount * $rate / 100, 2);
 
         if ($commissionAmount <= 0) {
