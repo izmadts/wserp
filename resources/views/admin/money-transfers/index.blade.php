@@ -6,13 +6,14 @@
 @section('content')
 <div class="space-y-6">
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    {{-- Summary cards. Values are filled in by the script below from
+         whatever rows the search box currently leaves visible. --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" id="transferCards">
         <div class="bg-white rounded-xl shadow-card p-4">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Total Transferred</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($totalTransferred ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900" data-card="total">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-exchange-alt text-blue-600 text-xl"></i>
@@ -24,7 +25,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Pending</p>
-                    <p class="text-2xl font-bold text-yellow-600">Rs. {{ number_format($pendingTransfers ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-yellow-600" data-card="pending">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-clock text-yellow-600 text-xl"></i>
@@ -36,7 +37,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Transactions</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $transfers->count() }}</p>
+                    <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
                 </div>
                 <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-list text-purple-600 text-xl"></i>
@@ -48,10 +49,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Completed</p>
-                    @php
-                        $completedCount = App\Models\MoneyTransfer::where('status', 'completed')->count();
-                    @endphp
-                    <p class="text-2xl font-bold text-green-600">{{ $completedCount }}</p>
+                    <p class="text-2xl font-bold text-green-600" data-card="completed">0</p>
                 </div>
                 <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-check-circle text-green-600 text-xl"></i>
@@ -91,7 +89,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($transfers as $transfer)
-                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <tr class="hover:bg-gray-50 transition-colors duration-150" data-amount="{{ (float) $transfer->amount }}" data-status="{{ $transfer->status }}">
                             <td class="py-3 px-2">
                                 <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $transfer->transfer_no }}</code>
                             </td>
@@ -161,18 +159,45 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('transfersTable')) {
-            new DataTable('#transfersTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[4, 'desc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                }
+        const tableEl = document.getElementById('transfersTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#transfersTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[4, 'desc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, pending = 0, completed = 0;
+
+            rows.forEach(tr => {
+                const amount = parseFloat(tr.dataset.amount) || 0;
+                const status = tr.dataset.status;
+                if (status === 'completed') { total += amount; completed++; }
+                if (status === 'pending') pending += amount;
             });
+
+            card('total', money(total));
+            card('pending', money(pending));
+            card('count', rows.length.toLocaleString('en-US'));
+            card('completed', completed.toLocaleString('en-US'));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush

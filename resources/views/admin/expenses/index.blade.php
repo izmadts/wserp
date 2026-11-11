@@ -6,13 +6,16 @@
 @section('content')
 <div class="space-y-6">
 
-    <!-- Stats Cards -->
+    {{-- Summary cards. Values are filled in by the script below from
+         whatever rows the search box currently leaves visible, so they
+         always describe exactly what the table is showing - not every
+         expense that ever existed. --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-white rounded-xl shadow-card p-4">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Total Expenses</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($totalExpenses ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900" data-card="total">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-wallet text-blue-600 text-xl"></i>
@@ -24,7 +27,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Pending</p>
-                    <p class="text-2xl font-bold text-yellow-600">Rs. {{ number_format($pendingExpenses ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-yellow-600" data-card="pending">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-clock text-yellow-600 text-xl"></i>
@@ -36,7 +39,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Approved</p>
-                    <p class="text-2xl font-bold text-blue-600">Rs. {{ number_format($approvedExpenses ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-blue-600" data-card="approved">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-check-circle text-blue-600 text-xl"></i>
@@ -48,7 +51,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Paid</p>
-                    <p class="text-2xl font-bold text-green-600">Rs. {{ number_format($paidExpenses ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-green-600" data-card="paid">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-check-double text-green-600 text-xl"></i>
@@ -89,7 +92,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($expenses as $expense)
-                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <tr class="hover:bg-gray-50 transition-colors duration-150" data-amount="{{ (float) $expense->amount }}" data-status="{{ $expense->status }}">
                             <td class="py-3 px-2">
                                 <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $expense->expense_no }}</code>
                             </td>
@@ -175,23 +178,55 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('expensesTable')) {
-            new DataTable('#expensesTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[4, 'desc']],
-                columnDefs: [
-                    { targets: [3], type: 'num' },
-                    { targets: [4], type: 'date' },
-                    { targets: [7], orderable: false, searchable: false },
-                ],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                }
+        const tableEl = document.getElementById('expensesTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#expensesTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[4, 'desc']],
+            columnDefs: [
+                { targets: [3], type: 'num' },
+                { targets: [4], type: 'date' },
+                { targets: [7], orderable: false, searchable: false },
+            ],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        // ---- Cards: totals over exactly the rows the table is showing ----
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, pending = 0, approved = 0, paid = 0;
+
+            rows.forEach(tr => {
+                const amount = parseFloat(tr.dataset.amount) || 0;
+                const status = tr.dataset.status;
+                // Mirrors ExpenseController@index: "Total" is what's actually
+                // posted to the ledger (approved+paid), not every row shown.
+                if (status === 'approved' || status === 'paid') total += amount;
+                if (status === 'pending') pending += amount;
+                if (status === 'approved') approved += amount;
+                if (status === 'paid') paid += amount;
             });
+
+            card('total', money(total));
+            card('pending', money(pending));
+            card('approved', money(approved));
+            card('paid', money(paid));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush

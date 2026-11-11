@@ -6,13 +6,14 @@
 @section('content')
 <div class="space-y-6">
 
-    <!-- Stats Cards -->
+    {{-- Summary cards. Values are filled in by the script below from
+         whatever rows the search box currently leaves visible. --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-white rounded-xl shadow-card p-4">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Total Income</p>
-                    <p class="text-2xl font-bold text-gray-900">Rs. {{ number_format($totalIncome ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-gray-900" data-card="total">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-arrow-up text-green-600 text-xl"></i>
@@ -24,7 +25,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">This Month</p>
-                    <p class="text-2xl font-bold text-blue-600">Rs. {{ number_format($monthlyIncome ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-blue-600" data-card="month">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-calendar-alt text-blue-600 text-xl"></i>
@@ -36,10 +37,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Today</p>
-                    @php
-                        $todayIncome = App\Models\Income::whereDate('income_date', today())->sum('amount');
-                    @endphp
-                    <p class="text-2xl font-bold text-purple-600">Rs. {{ number_format($todayIncome ?? 0, 2) }}</p>
+                    <p class="text-2xl font-bold text-purple-600" data-card="today">Rs. 0.00</p>
                 </div>
                 <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-clock text-purple-600 text-xl"></i>
@@ -51,7 +49,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Transactions</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $incomes->count() }}</p>
+                    <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
                 </div>
                 <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                     <i class="fas fa-file-invoice text-yellow-600 text-xl"></i>
@@ -92,7 +90,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($incomes as $income)
-                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <tr class="hover:bg-gray-50 transition-colors duration-150" data-amount="{{ (float) $income->amount }}" data-date="{{ $income->income_date->format('Y-m-d') }}">
                             <td class="py-3 px-2">
                                 <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $income->income_no }}</code>
                             </td>
@@ -149,18 +147,54 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('incomesTable')) {
-            new DataTable('#incomesTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[4, 'desc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
+        const tableEl = document.getElementById('incomesTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#incomesTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[4, 'desc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth(); // 0-based
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, month = 0, today = 0;
+
+            rows.forEach(tr => {
+                const amount = parseFloat(tr.dataset.amount) || 0;
+                const dateStr = tr.dataset.date; // Y-m-d
+                total += amount;
+                if (dateStr === todayStr) today += amount;
+                if (dateStr) {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    if (d.getFullYear() === curYear && d.getMonth() === curMonth) month += amount;
                 }
             });
+
+            card('total', money(total));
+            card('month', money(month));
+            card('today', money(today));
+            card('count', rows.length.toLocaleString('en-US'));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush
