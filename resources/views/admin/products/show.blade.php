@@ -122,7 +122,11 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @foreach($product->stockMovements->take(10) as $movement)
+                        {{-- sortByDesc because the stockMovements relation has no
+                             default ordering - take(10) on it as-is returned
+                             whatever order MySQL happened to store rows in
+                             (effectively oldest-first), not the most recent. --}}
+                        @foreach($product->stockMovements->sortByDesc('created_at')->take(10) as $movement)
                         <tr class="hover:bg-gray-50">
                             <td class="py-2 px-2">{{ $movement->created_at->format('d-m-Y H:i') }}</td>
                             <td class="py-2 px-2">
@@ -132,7 +136,7 @@
                             </td>
                             <td class="py-2 px-2 text-right">{{ number_format($movement->quantity, 2) }}</td>
                             <td class="py-2 px-2 text-sm text-gray-600">
-                                {{ ucfirst($movement->reference_type) }} #{{ $movement->reference_id }}
+                                {{ ucfirst(str_replace('_', ' ', $movement->reference_type)) }} #{{ $movement->reference_id }}
                             </td>
                             <td class="py-2 px-2 text-right">Rs. {{ number_format($movement->unit_price, 2) }}</td>
                             <td class="py-2 px-2 text-right font-medium">{{ number_format($movement->stock_after, 2) }}</td>
@@ -142,7 +146,11 @@
                 </table>
                 @if($product->stockMovements->count() > 10)
                 <div class="mt-3 text-center">
-                    <a href="#" class="text-sm text-blue-600 hover:underline">View all movements</a>
+                    @if(auth()->user()->hasPermission('inventory'))
+                    <a href="{{ route('admin.inventory.history', ['product_id' => $product->id]) }}" class="text-sm text-blue-600 hover:underline">View all movements</a>
+                    @else
+                    <p class="text-xs text-gray-400">Showing the 10 most recent - full history needs the Inventory permission.</p>
+                    @endif
                 </div>
                 @endif
                 @else
