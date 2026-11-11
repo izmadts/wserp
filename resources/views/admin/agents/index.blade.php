@@ -4,6 +4,49 @@
 @section('page-title', 'Agent Management')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Agents</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-users text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Active</p>
+                <p class="text-2xl font-bold text-green-600" data-card="active">0</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-user-check text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Pending Approval</p>
+                <p class="text-2xl font-bold text-yellow-600" data-card="pending">0</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center"><i class="fas fa-clock text-yellow-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Total Basic Salary</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="salary">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center"><i class="fas fa-money-bill-wave text-purple-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -43,7 +86,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($agents as $agent)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-active="{{ $agent->is_active ? 1 : 0 }}" data-approved="{{ $agent->approved_at ? 1 : 0 }}" data-salary="{{ (float) $agent->basic_salary }}">
                         <td class="py-3 px-2">
                             <span class="font-medium text-gray-900">{{ $agent->name }}</span>
                         </td>
@@ -86,23 +129,48 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('agentsTable')) {
-            new DataTable('#agentsTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[0, 'asc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                }
+        const tableEl = document.getElementById('agentsTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#agentsTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[0, 'asc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let active = 0, pending = 0, salary = 0;
+            rows.forEach(tr => {
+                if (tr.dataset.active === '1') active++;
+                if (tr.dataset.approved === '0') pending++;
+                salary += parseFloat(tr.dataset.salary) || 0;
             });
+            card('count', rows.length.toLocaleString('en-US'));
+            card('active', active.toLocaleString('en-US'));
+            card('pending', pending.toLocaleString('en-US'));
+            card('salary', money(salary));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush

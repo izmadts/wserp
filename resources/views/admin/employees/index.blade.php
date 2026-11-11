@@ -4,6 +4,49 @@
 @section('page-title', 'Employees')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Employees</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-users text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Active</p>
+                <p class="text-2xl font-bold text-green-600" data-card="active">0</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-user-check text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">With Login</p>
+                <p class="text-2xl font-bold text-blue-600" data-card="linked">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-sign-in-alt text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Without Login</p>
+                <p class="text-2xl font-bold text-gray-700" data-card="unlinked">0</p>
+            </div>
+            <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"><i class="fas fa-user-slash text-gray-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -42,7 +85,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($employees as $employee)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-status="{{ $employee->employment_status }}" data-linked="{{ $employee->is_linked ? 1 : 0 }}">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $employee->employee_code }}</code>
                         </td>
@@ -101,23 +144,46 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('employeesTable')) {
-            new DataTable('#employeesTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[1, 'asc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                }
+        const tableEl = document.getElementById('employeesTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#employeesTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[1, 'asc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let active = 0, linked = 0;
+            rows.forEach(tr => {
+                if (tr.dataset.status === 'active') active++;
+                if (tr.dataset.linked === '1') linked++;
             });
+            card('count', rows.length.toLocaleString('en-US'));
+            card('active', active.toLocaleString('en-US'));
+            card('linked', linked.toLocaleString('en-US'));
+            card('unlinked', (rows.length - linked).toLocaleString('en-US'));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush
