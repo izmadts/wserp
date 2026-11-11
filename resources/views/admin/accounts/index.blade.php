@@ -4,6 +4,50 @@
 @section('page-title', 'Chart of Accounts')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Accounts</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+                <p class="text-xs text-gray-500 mt-1" data-card="count-sub">&nbsp;</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-book text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Assets</p>
+                <p class="text-2xl font-bold text-blue-600" data-card="asset">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-coins text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Liabilities</p>
+                <p class="text-2xl font-bold text-yellow-600" data-card="liability">0</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center"><i class="fas fa-hand-holding-usd text-yellow-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Revenue / Expense</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="revexp">0 / 0</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center"><i class="fas fa-exchange-alt text-purple-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -35,7 +79,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($accounts as $account)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-type="{{ $account->type }}" data-active="{{ $account->is_active ? 1 : 0 }}">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $account->code }}</code>
                         </td>
@@ -105,23 +149,54 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('accountsTable')) {
-            new DataTable('#accountsTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[0, 'asc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
+        const tableEl = document.getElementById('accountsTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#accountsTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[0, 'asc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const card = (key, value, sub) => {
+            const v = document.querySelector('[data-card="' + key + '"]');
+            const s = document.querySelector('[data-card="' + key + '-sub"]');
+            if (v) v.textContent = value;
+            if (s) s.textContent = sub || ' ';
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let active = 0, asset = 0, liability = 0, revenue = 0, expense = 0;
+            rows.forEach(tr => {
+                if (tr.dataset.active === '1') active++;
+                switch (tr.dataset.type) {
+                    case 'Asset': asset++; break;
+                    case 'Liability': liability++; break;
+                    case 'Revenue': revenue++; break;
+                    case 'Expense': expense++; break;
                 }
             });
+            const n = rows.length;
+            card('count', n.toLocaleString('en-US'), active + ' active · ' + (n - active) + ' inactive');
+            card('asset', asset.toLocaleString('en-US'));
+            card('liability', liability.toLocaleString('en-US'));
+            card('revexp', revenue + ' / ' + expense);
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush

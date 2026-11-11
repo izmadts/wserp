@@ -4,6 +4,60 @@
 @section('page-title', 'Payroll Runs')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- This page has no search/filter (one row per month, never many rows),
+     so these are plain totals over $payrollRuns - nothing to keep in
+     sync with a filter that doesn't exist. --}}
+@php
+    $totalPaidOut = $payrollRuns->where('status', 'paid')->sum('total_amount');
+    $totalPayslips = $payrollRuns->sum('payslips_count');
+    $latestRun = $payrollRuns->first();
+@endphp
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Payroll Runs</p>
+                <p class="text-2xl font-bold text-gray-900">{{ $payrollRuns->count() }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-money-bill-wave text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Total Paid Out</p>
+                <p class="text-2xl font-bold text-green-600">Rs. {{ number_format($totalPaidOut, 2) }}</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-check-double text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Payslips Issued</p>
+                <p class="text-2xl font-bold text-gray-900">{{ $totalPayslips }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center"><i class="fas fa-file-invoice text-purple-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Latest Run</p>
+                @if($latestRun)
+                <p class="text-lg font-bold text-gray-900">{{ $latestRun->month_name }} {{ $latestRun->year }}</p>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $latestRun->status_color }}">{{ $latestRun->status_label }}</span>
+                @else
+                <p class="text-lg font-bold text-gray-400">None yet</p>
+                @endif
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center"><i class="fas fa-calendar-check text-yellow-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -60,5 +114,6 @@
             </table>
         </div>
     </div>
+</div>
 </div>
 @endsection

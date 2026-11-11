@@ -4,6 +4,49 @@
 @section('page-title', 'Purchase Returns Management')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Returns</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-undo-alt text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Total Returned</p>
+                <p class="text-2xl font-bold text-red-600" data-card="total">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center"><i class="fas fa-money-bill-wave text-red-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">This Month</p>
+                <p class="text-2xl font-bold text-yellow-600" data-card="month">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center"><i class="fas fa-calendar-alt text-yellow-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Avg. Return</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="avg">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center"><i class="fas fa-chart-bar text-purple-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -34,7 +77,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($returns as $return)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-amount="{{ (float) $return->total_amount }}" data-date="{{ $return->return_date->format('Y-m-d') }}">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $return->return_no }}</code>
                         </td>
@@ -80,23 +123,57 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('returnsTable')) {
-            new DataTable('#returnsTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [[3, 'desc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
+        const tableEl = document.getElementById('returnsTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#returnsTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [[3, 'desc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth();
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, month = 0;
+            rows.forEach(tr => {
+                const amount = parseFloat(tr.dataset.amount) || 0;
+                total += amount;
+                const dateStr = tr.dataset.date;
+                if (dateStr) {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    if (d.getFullYear() === curYear && d.getMonth() === curMonth) month += amount;
                 }
             });
+            const n = rows.length;
+            card('count', n.toLocaleString('en-US'));
+            card('total', money(total));
+            card('month', money(month));
+            card('avg', money(n ? total / n : 0));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush
