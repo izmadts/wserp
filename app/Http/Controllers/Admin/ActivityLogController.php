@@ -46,11 +46,14 @@ class ActivityLogController extends Controller
         $modules = ActivityLog::distinct()->pluck('module');
         $actions = ActivityLog::distinct()->pluck('action');
 
-        // Summary stats
-        $totalLogs = ActivityLog::count();
-        $todayLogs = ActivityLog::whereDate('created_at', today())->count();
-        $thisMonthLogs = ActivityLog::whereMonth('created_at', date('m'))->count();
-        $uniqueUsers = ActivityLog::distinct('user_id')->count();
+        // Summary stats - built from the SAME filtered query as $logs above
+        // (not a fresh, unfiltered ActivityLog::), so they actually change
+        // when the User/Module/Action/date filters are applied instead of
+        // always showing the grand total for every log that's ever existed.
+        $totalLogs = $this->filteredQuery($request)->count();
+        $todayLogs = $this->filteredQuery($request)->whereDate('created_at', today())->count();
+        $thisMonthLogs = $this->filteredQuery($request)->whereMonth('created_at', date('m'))->whereYear('created_at', date('Y'))->count();
+        $uniqueUsers = $this->filteredQuery($request)->distinct('user_id')->count('user_id');
 
         return view('admin.activity-logs.index', compact(
             'logs', 'users', 'modules', 'actions',
