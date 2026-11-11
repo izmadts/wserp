@@ -4,6 +4,49 @@
 @section('page-title', 'All Purchases')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Purchases</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-shopping-cart text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Total Amount</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="total">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"><i class="fas fa-file-invoice-dollar text-gray-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Paid</p>
+                <p class="text-2xl font-bold text-green-600" data-card="paid">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-hand-holding-usd text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Due (Payable)</p>
+                <p class="text-2xl font-bold text-red-600" data-card="due">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center"><i class="fas fa-exclamation-circle text-red-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -36,7 +79,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($purchases as $purchase)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-total="{{ (float) $purchase->total_amount }}" data-paid="{{ (float) $purchase->paid_amount }}" data-due="{{ (float) $purchase->due_amount }}">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $purchase->invoice_no }}</code>
                         </td>
@@ -104,25 +147,50 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('purchasesTable')) {
-            new DataTable('#purchasesTable', {
-                pageLength: 25,
-                responsive: true,
-                order: [
-                    [3, 'desc']
-                ],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                }
+        const tableEl = document.getElementById('purchasesTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#purchasesTable', {
+            pageLength: 25,
+            responsive: true,
+            order: [
+                [3, 'desc']
+            ],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries"
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, paid = 0, due = 0;
+            rows.forEach(tr => {
+                total += parseFloat(tr.dataset.total) || 0;
+                paid += parseFloat(tr.dataset.paid) || 0;
+                due += parseFloat(tr.dataset.due) || 0;
             });
+            card('count', rows.length.toLocaleString('en-US'));
+            card('total', money(total));
+            card('paid', money(paid));
+            card('due', money(due));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush

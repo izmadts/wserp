@@ -4,6 +4,50 @@
 @section('page-title', 'Sales Management')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible, so they always describe exactly
+     what the table is showing. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Sales</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-shopping-cart text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Total Amount</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="total">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"><i class="fas fa-file-invoice-dollar text-gray-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Collected</p>
+                <p class="text-2xl font-bold text-green-600" data-card="paid">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-hand-holding-usd text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Due</p>
+                <p class="text-2xl font-bold text-red-600" data-card="due">Rs. 0.00</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center"><i class="fas fa-exclamation-circle text-red-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div><span class="text-sm font-medium text-gray-700"><i class="fas fa-shopping-cart text-gray-400 mr-2"></i> All Sales</span><span class="ml-2 text-sm text-gray-500">{{ $sales->count() }} total</span></div>
@@ -16,7 +60,7 @@
                 <thead><tr class="border-b border-gray-200"><th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Invoice</th><th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Customer</th><th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Date</th><th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Total</th><th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Paid</th><th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Due</th><th class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Status</th><th class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-2">Actions</th></tr></thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($sales as $sale)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-total="{{ (float) $sale->total_amount }}" data-paid="{{ (float) $sale->paid_amount }}" data-due="{{ (float) $sale->due_amount }}">
                         <td class="py-3 px-2"><code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $sale->invoice_no }}</code></td>
                         <td class="py-3 px-2"><span class="font-medium text-gray-900">{{ $sale->customer->name ?? 'N/A' }}</span></td>
                         <td class="py-3 px-2 text-sm text-gray-600">{{ $sale->sale_date->format('d-m-Y') }}</td>
@@ -47,14 +91,39 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('salesTable')) {
-            new DataTable('#salesTable', { pageLength: 25, responsive: true, order: [[0, 'desc']], language: { search: "Search:", lengthMenu: "Show _MENU_ entries", info: "Showing _START_ to _END_ of _TOTAL_ entries" } });
+        const tableEl = document.getElementById('salesTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#salesTable', { pageLength: 25, responsive: true, order: [[0, 'desc']], language: { search: "Search:", lengthMenu: "Show _MENU_ entries", info: "Showing _START_ to _END_ of _TOTAL_ entries" } });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value) => {
+            const el = document.querySelector('[data-card="' + key + '"]');
+            if (el) el.textContent = value;
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let total = 0, paid = 0, due = 0;
+            rows.forEach(tr => {
+                total += parseFloat(tr.dataset.total) || 0;
+                paid += parseFloat(tr.dataset.paid) || 0;
+                due += parseFloat(tr.dataset.due) || 0;
+            });
+            card('count', rows.length.toLocaleString('en-US'));
+            card('total', money(total));
+            card('paid', money(paid));
+            card('due', money(due));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush
