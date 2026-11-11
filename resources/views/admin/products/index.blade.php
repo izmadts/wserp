@@ -4,6 +4,51 @@
 @section('page-title', 'Product Management')
 
 @section('content')
+<div class="space-y-6">
+
+{{-- Summary cards. Filled in by the script below from whatever rows the
+     search box currently leaves visible. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Products</p>
+                <p class="text-2xl font-bold text-gray-900" data-card="count">0</p>
+                <p class="text-xs text-gray-500 mt-1" data-card="count-sub">&nbsp;</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center"><i class="fas fa-box text-blue-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Low Stock</p>
+                <p class="text-2xl font-bold text-red-600" data-card="low">0</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center"><i class="fas fa-exclamation-circle text-red-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Out of Stock</p>
+                <p class="text-2xl font-bold text-gray-700" data-card="out">0</p>
+            </div>
+            <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center"><i class="fas fa-ban text-gray-600 text-xl"></i></div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-card p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Inventory Value</p>
+                <p class="text-2xl font-bold text-green-600" data-card="value">Rs. 0.00</p>
+                <p class="text-xs text-gray-500 mt-1">at purchase price</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center"><i class="fas fa-warehouse text-green-600 text-xl"></i></div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-card overflow-hidden">
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -46,7 +91,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($products as $product)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" data-stock="{{ (float) $product->current_stock }}" data-value="{{ (float) $product->current_stock * (float) $product->purchase_price }}" data-active="{{ $product->is_active ? 1 : 0 }}" data-low="{{ $product->isLowStock() ? 1 : 0 }}">
                         <td class="py-3 px-2">
                             <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ $product->code }}</code>
                         </td>
@@ -122,23 +167,55 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('productsTable')) {
-            new DataTable('#productsTable', {
-                pageLength: 25,
-                order: [[1, 'asc']],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                    emptyTable: "No products found. Click \"Add Product\" to create one."
-                }
+        const tableEl = document.getElementById('productsTable');
+        if (!tableEl) return;
+
+        const table = new DataTable('#productsTable', {
+            pageLength: 25,
+            order: [[1, 'asc']],
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                emptyTable: "No products found. Click \"Add Product\" to create one."
+            }
+        });
+
+        const money = n => 'Rs. ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const card = (key, value, sub) => {
+            const v = document.querySelector('[data-card="' + key + '"]');
+            const s = document.querySelector('[data-card="' + key + '-sub"]');
+            if (v) v.textContent = value;
+            if (s) s.textContent = sub || ' ';
+        };
+
+        function refreshCards() {
+            const rows = table.rows({ search: 'applied' }).nodes().toArray();
+            let active = 0, low = 0, out = 0, value = 0;
+
+            rows.forEach(tr => {
+                const stock = parseFloat(tr.dataset.stock) || 0;
+                if (tr.dataset.active === '1') active++;
+                if (tr.dataset.low === '1') low++;
+                if (stock <= 0.005) out++;
+                value += parseFloat(tr.dataset.value) || 0;
             });
+
+            const n = rows.length;
+            card('count', n.toLocaleString('en-US'), active + ' active · ' + (n - active) + ' inactive');
+            card('low', low.toLocaleString('en-US'));
+            card('out', out.toLocaleString('en-US'));
+            card('value', money(value));
         }
+
+        table.on('draw', refreshCards);
+        refreshCards();
     });
 </script>
 @endpush
